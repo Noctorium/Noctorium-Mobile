@@ -107,6 +107,21 @@ internal fun PhoneOptionsCard(settings: SettingsState, state: AppState) {
             "Shortens gaps and long quiet intros. Leaves the music alone.",
             phone.skipSilence,
         ) { state.updatePhone { copy(skipSilence = it) } }
+
+        Toggle(
+            "Skip the parts of a YouTube video that are not the music",
+            "Intros, outros, sponsor reads and talking, as marked by SponsorBlock's contributors. YouTube " +
+                "Music tracks are never touched.",
+            settings.preferences.skipNonMusic,
+            state::setSkipNonMusic,
+        )
+
+        Toggle(
+            "Lyrics in the player bar",
+            "Shows the line being sung in place of the artist, while the lyrics are timed.",
+            settings.preferences.lyricsInPlayerBar,
+            state::setLyricsInPlayerBar,
+        )
     }
 }
 

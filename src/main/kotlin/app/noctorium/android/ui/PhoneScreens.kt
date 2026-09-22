@@ -37,8 +37,14 @@ import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import app.noctorium.library.TrackEdit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SaveAlt
@@ -143,6 +149,14 @@ internal fun HomeScreen(state: AppState) {
                 }
             }
 
+            // The listener's own row first: what they decided to keep within reach beats what happened to
+            // be played last, which beats anything the services suggest.
+            val pinned = ui.pinnedTracks.filter {
+                ui.providerFilter == ProviderFilter.ALL || it.provider.name == ui.providerFilter.name
+            }
+            if (pinned.isNotEmpty()) {
+                item { TrackCarousel("Pinned", "Kept here by you", pinned, state, preferences) }
+            }
             if (ui.recentTracks.isNotEmpty()) {
                 item { TrackCarousel("Jump back in", "Where you left off", ui.recentTracks, state, preferences) }
             }
@@ -567,11 +581,18 @@ internal fun QueueScreen(state: AppState) {
 @Composable
 internal fun TrackMenuButton(track: Track, state: AppState) {
     var open by remember { mutableStateOf(false) }
+    var editOpen by remember { mutableStateOf(false) }
     val likes by state.likes.collectAsState()
     val downloads by state.downloadState.collectAsState()
+    val ui by state.ui.collectAsState()
     val onDisk = state.downloadableTrack(track)
     val job = downloads.jobFor(onDisk)
     val kept = downloads.isDownloaded(onDisk)
+    val pinned = ui.pinnedTracks.any { it.queueKey == track.queueKey }
+
+    if (editOpen) {
+        EditTrackDialog(track, ui.trackEdits[track.queueKey], state) { editOpen = false }
+    }
 
     Box {
         IconButton({ open = true }) {
@@ -625,10 +646,67 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
             )
             HorizontalDivider()
             DropdownMenuItem(
+                text = { Text(if (pinned) "Unpin from Home" else "Pin to Home") },
+                leadingIcon = { Icon(if (pinned) Icons.Default.PushPin else Icons.Outlined.PushPin, null) },
+                onClick = { state.togglePin(track); open = false },
+            )
+            DropdownMenuItem(
+                text = { Text("Edit details…") },
+                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                onClick = { open = false; editOpen = true },
+            )
+            DropdownMenuItem(
                 text = { Text("Copy link") },
                 leadingIcon = { Icon(Icons.Default.Link, null) },
                 onClick = { state.copyTrackLink(track); open = false },
             )
         }
     }
+}
+
+/**
+ * Where the listener corrects what a service calls a track.
+ *
+ * Uploader titles are the reason this exists: "Artist - Song (Official Video) [4K]" credited to a channel.
+ * Both fields start as whatever is showing now; a field left as it is stays the service's own, and the
+ * third button forgets the edit altogether. Nothing here is sent anywhere -- it is this phone's opinion.
+ */
+@Composable
+internal fun EditTrackDialog(track: Track, existing: TrackEdit?, state: AppState, dismiss: () -> Unit) {
+    var title by remember { mutableStateOf(track.title) }
+    var artist by remember { mutableStateOf(track.artistLine) }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("Edit details") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Changes what this track is called here, in the queue, in lyrics searches and in what is " +
+                        "scrobbled. Only on this phone; the service is not told.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                )
+                OutlinedTextField(title, { title = it }, label = { Text("Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(artist, { artist = it }, label = { Text("Artist") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton({
+                state.editTrack(
+                    track,
+                    title.takeIf { it.trim() != track.title.trim() || existing?.title != null },
+                    artist.takeIf { it.trim() != track.artistLine.trim() || existing?.artist != null },
+                )
+                dismiss()
+            }) { Text("Save") }
+        },
+        dismissButton = {
+            Row {
+                if (existing != null) {
+                    TextButton({ state.clearTrackEdit(track); dismiss() }) { Text("Use the service's") }
+                }
+                TextButton(dismiss) { Text("Cancel") }
+            }
+        },
+    )
 }
