@@ -9,8 +9,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import app.noctorium.settings.resolvedAccent
+import app.noctorium.settings.themeColours
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -103,11 +109,19 @@ class MainActivity : ComponentActivity() {
                     settings.preferences.phone.skipSilence,
                 )
             }
+            // The theme and the accent are the shared preferences, so a theme picked on the desktop is
+            // the theme here. The status bar's icons have to be told which way round the theme is, or a
+            // light theme gets white icons on a white bar.
+            val theme = settings.preferences.themeColours()
+            val view = LocalView.current
+            SideEffect {
+                WindowCompat.getInsetsController(window, view).apply {
+                    isAppearanceLightStatusBars = theme.light
+                    isAppearanceLightNavigationBars = theme.light
+                }
+            }
             MaterialTheme(
-                colorScheme = noctoriumColors(
-                    settings.preferences.accent,
-                    settings.preferences.backgroundDepth,
-                ),
+                colorScheme = noctoriumColors(theme, Color(settings.preferences.resolvedAccent(null))),
             ) { NoctoriumPhone(state) }
         }
     }

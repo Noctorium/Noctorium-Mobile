@@ -46,7 +46,12 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.luminance
+import app.noctorium.settings.ThemeColours
+import app.noctorium.settings.ThemePreset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import app.noctorium.lyrics.currentLine
@@ -84,28 +89,70 @@ import coil.compose.AsyncImage
  * application rather than as a phone app that happens to share a name. On an OLED screen the background is
  * also the cheapest thing there is to draw.
  */
-val NoctoriumDark = noctoriumColors(AccentPreset.VIOLET, BackgroundDepth.AMOLED)
+val NoctoriumDark = noctoriumColors(ThemePreset.NOCTORIUM_NIGHT.colours!!, Color(0xFFB47CFF))
+
+/** Blends toward [other]; used to derive a whole scheme from a theme's six colours. */
+private fun Color.mix(other: Color, ratio: Float): Color = Color(
+    red = red + (other.red - red) * ratio,
+    green = green + (other.green - green) * ratio,
+    blue = blue + (other.blue - blue) * ratio,
+)
 
 /**
- * The palette, built from the two choices that decide it.
+ * Material's palette, worked out from a theme's six colours and the accent in force -- the same sums the
+ * desktop does, so a theme picked on either reads the same on both.
  *
- * Both come from the shared preferences, so an accent picked on the desktop is the accent here. "Match the
- * artwork" has no colour of its own — the desktop derives it from the cover being shown — so it falls back
- * to violet rather than to nothing.
+ * The theme says where the page, a panel and a card sit and what writing looks like on them; the accent
+ * is whatever the listener chose. "Match the artwork" has no palette of its own on the phone yet, so it
+ * falls back to the theme's accent. A light theme comes out as light rather than as a dark theme with a
+ * white page.
  */
-fun noctoriumColors(accent: AccentPreset, depth: BackgroundDepth) = darkColorScheme(
-    primary = Color((accent.argb ?: AccentPreset.VIOLET.argb!!).toInt()),
-    onPrimary = Color(0xFF1A0B2E),
-    // Pure black is genuinely cheaper to draw on the OLED panel in this phone, so it is the default; the
-    // soft variant is for reading in a lit room.
-    background = if (depth == BackgroundDepth.AMOLED) Color(0xFF08070C) else Color(0xFF13121A),
-    onBackground = Color(0xFFF3F1F8),
-    surface = if (depth == BackgroundDepth.AMOLED) Color(0xFF12111A) else Color(0xFF1C1B24),
-    onSurface = Color(0xFFF3F1F8),
-    surfaceVariant = if (depth == BackgroundDepth.AMOLED) Color(0xFF1B1926) else Color(0xFF262430),
-    onSurfaceVariant = Color(0xFFA7A2B8),
-    error = Color(0xFFFF8A8A),
-)
+fun noctoriumColors(theme: ThemeColours, accent: Color): ColorScheme {
+    val background = Color(theme.background)
+    val panel = Color(theme.panel)
+    val card = Color(theme.card)
+    val text = Color(theme.text)
+    val subtext = Color(theme.subtext)
+    val onAccent = if (accent.luminance() > .35f) accent.mix(Color.Black, .84f) else Color.White
+    val base = if (theme.light) lightColorScheme() else darkColorScheme()
+    return base.copy(
+        primary = accent,
+        onPrimary = onAccent,
+        primaryContainer = accent.mix(background, .74f),
+        onPrimaryContainer = accent.mix(text, .55f),
+        inversePrimary = accent.mix(text, .3f),
+        secondary = accent.mix(text, .38f),
+        onSecondary = background,
+        secondaryContainer = accent.mix(background, .82f),
+        onSecondaryContainer = text,
+        tertiary = accent.mix(subtext, .5f),
+        onTertiary = background,
+        tertiaryContainer = card,
+        onTertiaryContainer = text,
+        background = background,
+        onBackground = text,
+        surface = panel,
+        onSurface = text,
+        surfaceVariant = card,
+        onSurfaceVariant = subtext,
+        surfaceTint = accent,
+        inverseSurface = text,
+        inverseOnSurface = background,
+        error = if (theme.light) Color(0xFFB3261E) else Color(0xFFFF8A8A),
+        onError = if (theme.light) Color.White else Color(0xFF2A0008),
+        errorContainer = if (theme.light) Color(0xFFFFDAD6) else Color(0xFF3D0713),
+        onErrorContainer = if (theme.light) Color(0xFF410002) else Color(0xFFFFDAD6),
+        outline = subtext.mix(background, .45f),
+        outlineVariant = subtext.mix(background, .72f),
+        surfaceBright = card,
+        surfaceDim = background,
+        surfaceContainer = panel,
+        surfaceContainerHigh = card,
+        surfaceContainerHighest = card.mix(text, .06f),
+        surfaceContainerLow = panel.mix(background, .5f),
+        surfaceContainerLowest = background,
+    )
+}
 
 /**
  * Noctorium on a phone: four places, a bar, and the now playing screen over the top of it all.
