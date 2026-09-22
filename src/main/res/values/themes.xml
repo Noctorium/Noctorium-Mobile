@@ -20,9 +20,9 @@
     -->
     <style name="Theme.Noctorium.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#08070C</item>
-        <!-- The adaptive icon, not its foreground layer alone: the layer on its own is drawn unmasked and
-             fills a third of the screen with a white N on black, where the icon is the purple disc with
-             the N inside it that the launcher shows and that people recognise. -->
+        <!-- The adaptive icon, not its foreground layer alone: the layer on its own is drawn unmasked,
+             where the icon is the masked disc the launcher shows and that people recognise. The splash
+             background is all but black and the icon's own field is black, so the two meet quietly. -->
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
         <item name="postSplashScreenTheme">@style/Theme.Noctorium</item>
     </style>
