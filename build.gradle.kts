@@ -16,11 +16,20 @@
  * - JCEF cannot be embedded. The system WebView already is one.
  * - DPAPI does not exist; the Keystore does, and is hardware-backed on any recent device.
  */
+/*
+ * The versions are declared here because this is the root project now, and `core` -- included from
+ * Noctorium-Base as a subproject -- applies kotlin("jvm") and the serialization plugin without one.
+ * kotlin("jvm") is therefore declared and not applied: this module is an Android application and uses
+ * kotlin("android"), but the number has to be stated once for the subproject to pick it up. Keeping
+ * every version in one place is what stops the two drifting apart. Noctorium-Desktop declares the same
+ * numbers.
+ */
 plugins {
-    id("com.android.application")
-    kotlin("android")
-    kotlin("plugin.serialization")
-    id("org.jetbrains.kotlin.plugin.compose")
+    id("com.android.application") version "8.7.3"
+    kotlin("android") version "2.1.21"
+    kotlin("plugin.serialization") version "2.1.21"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
+    kotlin("jvm") version "2.1.21" apply false
 }
 
 android {

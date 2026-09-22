@@ -1,0 +1,51 @@
+name: CI
+
+# Every push and every pull request: the phone compiles into a debug APK against the core this
+# repository pins, and the core's own tests pass. The signed release APK is built by
+# Noctorium-Installer, which holds the signing key.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      # The core comes in as the base/ submodule. While Noctorium-Base is private, fetching it needs a
+      # token that can read it -- the job's own token can only see this repository -- so a fine-grained
+      # personal access token with read access to Noctorium-Base is stored as NOCTORIUM_CHECKOUT_TOKEN.
+      # Once the repositories are public the fallback to the job's own token is enough.
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ secrets.NOCTORIUM_CHECKOUT_TOKEN || github.token }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The Android SDK is already on this runner and AGP finds it through ANDROID_HOME.
+      - name: Test the core and build the debug APK
+        run: ./gradlew :core:test assembleDebug --stacktrace
+
+      - name: Keep the debug APK from this commit
+        uses: actions/upload-artifact@v4
+        with:
+          name: noctorium-debug-apk
+          path: build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
