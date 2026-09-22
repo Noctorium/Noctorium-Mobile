@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -63,27 +63,27 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.core.AppState
-import app.spiceity.core.Destination
-import app.spiceity.settings.AccentPreset
-import app.spiceity.settings.BackgroundDepth
-import app.spiceity.settings.PlayerBarPosition
-import app.spiceity.settings.ProgressBarStyle
-import app.spiceity.settings.TimeDisplay
-import app.spiceity.domain.ProviderType
-import app.spiceity.domain.Track
-import app.spiceity.playback.PlaybackState
-import app.spiceity.playback.PlaybackStatus
+import app.noctorium.core.AppState
+import app.noctorium.core.Destination
+import app.noctorium.settings.AccentPreset
+import app.noctorium.settings.BackgroundDepth
+import app.noctorium.settings.PlayerBarPosition
+import app.noctorium.settings.ProgressBarStyle
+import app.noctorium.settings.TimeDisplay
+import app.noctorium.domain.ProviderType
+import app.noctorium.domain.Track
+import app.noctorium.playback.PlaybackState
+import app.noctorium.playback.PlaybackStatus
 import coil.compose.AsyncImage
 
 /**
  * The same near-black the desktop uses.
  *
- * Taken from Spiceity's own palette rather than from Material's dynamic colour, so the two read as one
+ * Taken from Noctorium's own palette rather than from Material's dynamic colour, so the two read as one
  * application rather than as a phone app that happens to share a name. On an OLED screen the background is
  * also the cheapest thing there is to draw.
  */
-val SpiceityDark = spiceityColors(AccentPreset.VIOLET, BackgroundDepth.AMOLED)
+val NoctoriumDark = noctoriumColors(AccentPreset.VIOLET, BackgroundDepth.AMOLED)
 
 /**
  * The palette, built from the two choices that decide it.
@@ -92,7 +92,7 @@ val SpiceityDark = spiceityColors(AccentPreset.VIOLET, BackgroundDepth.AMOLED)
  * artwork" has no colour of its own — the desktop derives it from the cover being shown — so it falls back
  * to violet rather than to nothing.
  */
-fun spiceityColors(accent: AccentPreset, depth: BackgroundDepth) = darkColorScheme(
+fun noctoriumColors(accent: AccentPreset, depth: BackgroundDepth) = darkColorScheme(
     primary = Color((accent.argb ?: AccentPreset.VIOLET.argb!!).toInt()),
     onPrimary = Color(0xFF1A0B2E),
     // Pure black is genuinely cheaper to draw on the OLED panel in this phone, so it is the default; the
@@ -107,7 +107,7 @@ fun spiceityColors(accent: AccentPreset, depth: BackgroundDepth) = darkColorSche
 )
 
 /**
- * Spiceity on a phone: four places, a bar, and the now playing screen over the top of it all.
+ * Noctorium on a phone: four places, a bar, and the now playing screen over the top of it all.
  *
  * Routing goes through `AppState.destination` — the same field the desktop's sidebar drives — so the two
  * are navigating one application rather than each keeping its own idea of where the listener is. What
@@ -115,7 +115,7 @@ fun spiceityColors(accent: AccentPreset, depth: BackgroundDepth) = darkColorSche
  * panel, because a phone has one hand and no room.
  */
 @Composable
-fun SpiceityPhone(state: AppState) {
+fun NoctoriumPhone(state: AppState) {
     val ui by state.ui.collectAsState()
     val playback by state.playback.collectAsState()
     val library by state.library.collectAsState()

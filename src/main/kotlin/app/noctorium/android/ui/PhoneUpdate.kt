@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,13 +22,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.core.AppState
-import app.spiceity.settings.SettingsState
+import app.noctorium.core.AppState
+import app.noctorium.settings.SettingsState
 
 /**
  * Updating, on the phone.
  *
- * Spiceity is sideloaded, so nothing else is going to update it. The APK is fetched, checked against the
+ * Noctorium is sideloaded, so nothing else is going to update it. The APK is fetched, checked against the
  * checksum the release published, and handed to Android's own package installer, which shows its own
  * screen and asks again. Nothing is replaced without that second answer.
  */
@@ -42,7 +42,7 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
         CardHeading(Icons.Default.SystemUpdateAlt, "Updates")
         Text(
             when {
-                available != null -> "Spiceity ${available.version} is out. You have ${updates.currentVersion}."
+                available != null -> "Noctorium ${available.version} is out. You have ${updates.currentVersion}."
                 updates.currentVersion.isBlank() -> "This build does not say which version it is."
                 else -> "You have ${updates.currentVersion}, which is the newest."
             },
@@ -90,7 +90,7 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
 
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Look for updates when Spiceity starts", fontSize = 13.sp)
+                Text("Look for updates when Noctorium starts", fontSize = 13.sp)
                 Text(
                     "One request to GitHub. Nothing downloads without asking.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -103,7 +103,7 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
         if (available != null) {
             Text(
                 "Android will ask before it installs anything, and the first time it will ask you to " +
-                    "allow Spiceity to install apps at all.",
+                    "allow Noctorium to install apps at all.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
             )

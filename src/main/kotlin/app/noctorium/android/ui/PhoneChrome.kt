@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -12,10 +12,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import app.spiceity.domain.ProviderType
-import app.spiceity.domain.Track
-import app.spiceity.settings.BadgePolicy
-import app.spiceity.settings.CardSize
+import app.noctorium.domain.ProviderType
+import app.noctorium.domain.Track
+import app.noctorium.settings.BadgePolicy
+import app.noctorium.settings.CardSize
 
 /**
  * How wide a card is, translated for a phone.

@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -31,8 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.core.AppState
-import app.spiceity.lyrics.LyricsUiState
+import app.noctorium.core.AppState
+import app.noctorium.lyrics.LyricsUiState
 import kotlinx.coroutines.delay
 
 /**
@@ -65,7 +65,7 @@ internal fun LyricsPane(lyrics: LyricsUiState, positionMs: Long, state: AppState
 }
 
 @Composable
-private fun FollowingLyrics(result: app.spiceity.lyrics.LyricsResult, positionMs: Long, state: AppState) {
+private fun FollowingLyrics(result: app.noctorium.lyrics.LyricsResult, positionMs: Long, state: AppState) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
 

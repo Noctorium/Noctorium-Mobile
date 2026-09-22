@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,21 +37,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.core.AppState
-import app.spiceity.lyrics.LyricsProviderId
-import app.spiceity.settings.AccentPreset
-import app.spiceity.settings.BackgroundDepth
-import app.spiceity.settings.BadgePolicy
-import app.spiceity.settings.CardSize
-import app.spiceity.settings.PlayerBarPosition
-import app.spiceity.settings.ProgressBarStyle
-import app.spiceity.settings.ScrobbleConnectionStatus
-import app.spiceity.settings.SettingsState
-import app.spiceity.settings.StartPage
-import app.spiceity.settings.TimeDisplay
+import app.noctorium.core.AppState
+import app.noctorium.lyrics.LyricsProviderId
+import app.noctorium.settings.AccentPreset
+import app.noctorium.settings.BackgroundDepth
+import app.noctorium.settings.BadgePolicy
+import app.noctorium.settings.CardSize
+import app.noctorium.settings.PlayerBarPosition
+import app.noctorium.settings.ProgressBarStyle
+import app.noctorium.settings.ScrobbleConnectionStatus
+import app.noctorium.settings.SettingsState
+import app.noctorium.settings.StartPage
+import app.noctorium.settings.TimeDisplay
 
 /**
- * How Spiceity looks, with the desktop's own choices reaching the phone.
+ * How Noctorium looks, with the desktop's own choices reaching the phone.
  *
  * The same preferences object drives both, so anything here is a setting the desktop already has — accent,
  * background depth, card size, badges, the progress bar, which screen opens first, and the time readout.
@@ -218,7 +218,7 @@ internal fun ScrobblingCard(settings: SettingsState, state: AppState) {
             scrobbling.lastFm.username?.let { "Connected as $it" }
                 ?: when (scrobbling.lastFm.status) {
                     ScrobbleConnectionStatus.AWAITING_APPROVAL ->
-                        "Approve Spiceity in the browser, then press Finish."
+                        "Approve Noctorium in the browser, then press Finish."
                     ScrobbleConnectionStatus.ERROR -> scrobbling.lastFm.message ?: "Something went wrong."
                     else -> "Not connected."
                 },

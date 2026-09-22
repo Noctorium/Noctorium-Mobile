@@ -1,28 +1,28 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.app.Application
-import app.spiceity.connect.DeviceKind
-import app.spiceity.core.AppState
-import app.spiceity.discord.NoPresenceReporter
-import app.spiceity.downloads.DownloadManager
-import app.spiceity.net.Http
-import app.spiceity.playback.MusicBackend
-import app.spiceity.playback.UncheckedSession
-import app.spiceity.settings.AppDirectories
-import app.spiceity.settings.SecretStore
-import app.spiceity.settings.SettingsRepository
+import app.noctorium.connect.DeviceKind
+import app.noctorium.core.AppState
+import app.noctorium.discord.NoPresenceReporter
+import app.noctorium.downloads.DownloadManager
+import app.noctorium.net.Http
+import app.noctorium.playback.MusicBackend
+import app.noctorium.playback.UncheckedSession
+import app.noctorium.settings.AppDirectories
+import app.noctorium.settings.SecretStore
+import app.noctorium.settings.SettingsRepository
 import org.schabi.newpipe.extractor.NewPipe
 
 /**
- * Everything Spiceity needs on a phone, built once.
+ * Everything Noctorium needs on a phone, built once.
  *
  * This is the whole of the wiring. `core` holds the application — the library, likes, playlists, the
- * queue, downloads, settings, scrobbling, the Spiceity account and the Spotify matching — written against
+ * queue, downloads, settings, scrobbling, the Noctorium account and the Spotify matching — written against
  * interfaces, and this is where the Android answers to them are chosen. There is no dependency-injection
  * framework because there is nothing here one would help with: a handful of objects, in a fixed order,
  * none of them optional.
  */
-class SpiceityApplication : Application() {
+class NoctoriumApplication : Application() {
 
     lateinit var backend: MusicBackend
         private set
@@ -44,7 +44,7 @@ class SpiceityApplication : Application() {
          * writable on Android. An app is handed one private directory and has no business writing anywhere
          * else, so it is simply told.
          */
-        AppDirectories.useBase(filesDir.toPath().resolve("spiceity"))
+        AppDirectories.useBase(filesDir.toPath().resolve("noctorium"))
 
         // NewPipe requires a downloader before any extraction, and sharing the application's OkHttp client
         // means one connection pool rather than two on a device where opening TLS costs battery.
@@ -54,7 +54,7 @@ class SpiceityApplication : Application() {
         secrets = KeystoreSecretStore(this)
         backend = NewPipeBackend(
             http = Http.shared,
-            downloadDirectory = filesDir.toPath().resolve("spiceity").resolve("downloads"),
+            downloadDirectory = filesDir.toPath().resolve("noctorium").resolve("downloads"),
             refuseDownload = {
                 // Read at the moment of downloading, not once at startup: both the setting and the
                 // connection change while the application is running.

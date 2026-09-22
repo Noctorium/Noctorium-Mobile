@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -34,10 +34,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.core.AppState
-import app.spiceity.playback.SLEEP_TIMER_PRESETS
-import app.spiceity.playback.SleepTimerState
-import app.spiceity.playback.sleepTimerLabel
+import app.noctorium.core.AppState
+import app.noctorium.playback.SLEEP_TIMER_PRESETS
+import app.noctorium.playback.SleepTimerState
+import app.noctorium.playback.sleepTimerLabel
 
 /**
  * The sleep timer, from the now playing screen.

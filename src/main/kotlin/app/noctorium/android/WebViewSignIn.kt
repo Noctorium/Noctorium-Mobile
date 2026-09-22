@@ -1,17 +1,17 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import app.spiceity.auth.HarvestedCookie
-import app.spiceity.auth.SOUNDCLOUD_SESSION_URLS
-import app.spiceity.auth.isSoundCloudSignedIn
-import app.spiceity.auth.isYouTubeSignedIn
-import app.spiceity.auth.YOUTUBE_SESSION_URLS
-import app.spiceity.auth.writeCookieFile
-import app.spiceity.domain.ProviderType
-import app.spiceity.settings.AppDirectories
+import app.noctorium.auth.HarvestedCookie
+import app.noctorium.auth.SOUNDCLOUD_SESSION_URLS
+import app.noctorium.auth.isSoundCloudSignedIn
+import app.noctorium.auth.isYouTubeSignedIn
+import app.noctorium.auth.YOUTUBE_SESSION_URLS
+import app.noctorium.auth.writeCookieFile
+import app.noctorium.domain.ProviderType
+import app.noctorium.settings.AppDirectories
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext

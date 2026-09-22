@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,8 +47,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.core.AppState
-import app.spiceity.domain.ProviderType
+import app.noctorium.core.AppState
+import app.noctorium.domain.ProviderType
 
 /**
  * Settings, as much of them as mean anything on a phone.
@@ -85,7 +85,7 @@ internal fun SettingsScreen(state: AppState, signIn: (ProviderType) -> Unit) {
 
         item {
             SettingsCardShell {
-                CardHeading(Icons.Default.Insights, "Spiceity account")
+                CardHeading(Icons.Default.Insights, "Noctorium account")
                 Spacer(Modifier.height(6.dp))
                 if (account.signedIn) {
                     Text(account.user?.displayName.orEmpty(), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
@@ -95,9 +95,9 @@ internal fun SettingsScreen(state: AppState, signIn: (ProviderType) -> Unit) {
                         fontSize = 12.sp,
                     )
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(state::signOutOfSpiceity) { Text("Sign out") }
+                    OutlinedButton(state::signOutOfNoctorium) { Text("Sign out") }
                 } else {
-                    SpiceityAccountForm(state, busy = account.busy)
+                    NoctoriumAccountForm(state, busy = account.busy)
                 }
                 account.message?.let {
                     Spacer(Modifier.height(8.dp))
@@ -144,7 +144,7 @@ internal fun CardHeading(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 }
 
 @Composable
-private fun SpiceityAccountForm(state: AppState, busy: Boolean) {
+private fun NoctoriumAccountForm(state: AppState, busy: Boolean) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -173,11 +173,11 @@ private fun SpiceityAccountForm(state: AppState, busy: Boolean) {
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
-            { state.logInToSpiceity(email, password) },
+            { state.logInToNoctorium(email, password) },
             enabled = !busy && email.isNotBlank() && password.isNotBlank(),
         ) { Text("Sign in") }
         OutlinedButton(
-            { state.signUpToSpiceity(email, password, email.substringBefore('@')) },
+            { state.signUpToNoctorium(email, password, email.substringBefore('@')) },
             enabled = !busy && email.isNotBlank() && password.isNotBlank(),
         ) { Text("Create account") }
     }
@@ -193,8 +193,8 @@ private fun SpiceityAccountForm(state: AppState, busy: Boolean) {
 @Composable
 private fun ServiceCard(
     provider: ProviderType,
-    settings: app.spiceity.settings.SettingsState,
-    likes: app.spiceity.core.LikeState,
+    settings: app.noctorium.settings.SettingsState,
+    likes: app.noctorium.core.LikeState,
     state: AppState,
     signIn: (ProviderType) -> Unit,
 ) {
@@ -229,7 +229,7 @@ private fun ServiceCard(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "Your password goes to the service's own page inside Spiceity, never to a form of ours, " +
+            "Your password goes to the service's own page inside Noctorium, never to a form of ours, " +
                 "and only the session is kept.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
@@ -257,7 +257,7 @@ private fun SoundCloudProfileField(saved: String, state: AppState) {
 }
 
 @Composable
-private fun SpotifyCard(settings: app.spiceity.settings.SettingsState, state: AppState) {
+private fun SpotifyCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
     val spotify = settings.spotify
     var clientId by remember(settings.preferences.spotifyClientId) {
         mutableStateOf(settings.preferences.spotifyClientId)
@@ -329,7 +329,7 @@ private fun SpotifyCard(settings: app.spiceity.settings.SettingsState, state: Ap
 }
 
 @Composable
-private fun SavingCard(settings: app.spiceity.settings.SettingsState, state: AppState) {
+private fun SavingCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
     var folder by remember(settings.preferences.exportFolder) { mutableStateOf(settings.preferences.exportFolder) }
     SettingsCardShell {
         CardHeading(Icons.Default.Save, "Saving music")
@@ -360,7 +360,7 @@ private fun SavingCard(settings: app.spiceity.settings.SettingsState, state: App
 }
 
 @Composable
-private fun DiagnosticsCard(settings: app.spiceity.settings.SettingsState, state: AppState) {
+private fun DiagnosticsCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
     SettingsCardShell {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CardHeading(Icons.Default.History, "Diagnostics")

@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
@@ -40,13 +40,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.android.WebViewSignIn
-import app.spiceity.core.AppState
-import app.spiceity.domain.ProviderType
+import app.noctorium.android.WebViewSignIn
+import app.noctorium.core.AppState
+import app.noctorium.domain.ProviderType
 import kotlinx.coroutines.launch
 
 /**
- * The service's own sign-in page, inside Spiceity.
+ * The service's own sign-in page, inside Noctorium.
  *
  * The password is typed into Google's or SoundCloud's real page, never into anything of ours, and the
  * session it produces is kept in this app's cookie store. That is the same bargain the desktop makes with

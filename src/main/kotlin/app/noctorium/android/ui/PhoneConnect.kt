@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -33,17 +33,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.connect.DeviceKind
-import app.spiceity.core.AppState
-import app.spiceity.settings.SettingsState
+import app.noctorium.connect.DeviceKind
+import app.noctorium.core.AppState
+import app.noctorium.settings.SettingsState
 
 /**
- * Spiceity Connect, from the phone.
+ * Noctorium Connect, from the phone.
  *
  * The same feature as on the desktop and the same button, sized for a thumb. Tapping a device moves the
  * music there from the second it is at; while something else is playing it, this is how it is taken back.
  *
- * It only ever lists the listener's own devices. Two Spiceitys recognise each other by a secret derived
+ * It only ever lists the listener's own devices. Two Noctoriums recognise each other by a secret derived
  * from the account they are both signed in to, so somebody else on the same wifi is not merely hidden from
  * this list -- they cannot be seen, and cannot be answered.
  */
@@ -58,7 +58,7 @@ internal fun ConnectButton(state: AppState, haptics: Haptics) {
     IconButton({ haptics.tick(); open = true }) {
         Icon(
             Icons.Default.Devices,
-            if (connect.target != null) "Playing on ${connect.target?.name}" else "Spiceity Connect",
+            if (connect.target != null) "Playing on ${connect.target?.name}" else "Noctorium Connect",
             tint = if (connect.target != null) {
                 MaterialTheme.colorScheme.primary
             } else {
@@ -70,7 +70,7 @@ internal fun ConnectButton(state: AppState, haptics: Haptics) {
     if (!open) return
     AlertDialog(
         onDismissRequest = { open = false },
-        title = { Text("Spiceity Connect", fontSize = 16.sp) },
+        title = { Text("Noctorium Connect", fontSize = 16.sp) },
         text = {
             Column {
                 Text(
@@ -117,10 +117,10 @@ internal fun ConnectButton(state: AppState, haptics: Haptics) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (connect.available) {
-                            "Nothing else yet. Open Spiceity on your computer, on this wifi, " +
+                            "Nothing else yet. Open Noctorium on your computer, on this wifi, " +
                                 "signed in to the same account."
                         } else {
-                            "Sign in to your Spiceity account under Settings to use Connect."
+                            "Sign in to your Noctorium account under Settings to use Connect."
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
@@ -182,13 +182,13 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
     }
 
     SettingsCardShell {
-        CardHeading(Icons.Default.Devices, "Spiceity Connect")
+        CardHeading(Icons.Default.Devices, "Noctorium Connect")
         Text(
             if (connect.available) {
                 "Your devices on this wifi can hand playback to each other. " +
                     "This one appears as \"${connect.thisDevice}\"."
             } else {
-                "Sign in to your Spiceity account, below, and your devices will find each other on this wifi."
+                "Sign in to your Noctorium account, below, and your devices will find each other on this wifi."
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,

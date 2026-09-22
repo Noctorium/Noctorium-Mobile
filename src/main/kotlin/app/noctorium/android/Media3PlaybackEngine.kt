@@ -1,4 +1,4 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.content.Context
 import androidx.media3.common.AudioAttributes
@@ -9,12 +9,12 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
-import app.spiceity.domain.Track
-import app.spiceity.net.networkFailureMessage
-import app.spiceity.playback.MusicBackend
-import app.spiceity.playback.PlaybackEngine
-import app.spiceity.playback.PlaybackState
-import app.spiceity.playback.PlaybackStatus
+import app.noctorium.domain.Track
+import app.noctorium.net.networkFailureMessage
+import app.noctorium.playback.MusicBackend
+import app.noctorium.playback.PlaybackEngine
+import app.noctorium.playback.PlaybackState
+import app.noctorium.playback.PlaybackStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,7 +30,7 @@ import kotlinx.coroutines.withContext
 import java.nio.file.Path
 
 /** The logcat tag playback failures are written under. */
-private const val PLAYER_LOG_TAG = "SpiceityPlayer"
+private const val PLAYER_LOG_TAG = "NoctoriumPlayer"
 
 /** The range the rate is clamped to, past which speech stops being speech. */
 private const val MIN_SPEED = 0.5f
@@ -130,7 +130,7 @@ class Media3PlaybackEngine(
                  * The same track starting over, because it was told to loop.
                  *
                  * This is the whole of repeat-one now: ExoPlayer carries on from the top without a gap
-                 * and without a request, and says so here. The count is how the rest of Spiceity learns
+                 * and without a request, and says so here. The count is how the rest of Noctorium learns
                  * that a listen finished and another began.
                  */
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -226,7 +226,7 @@ class Media3PlaybackEngine(
      *
      * Media3 builds the notification, the lock screen and whatever a car or a watch shows from the
      * metadata on the item — not from anything the app draws. Without this it had the address and nothing
-     * else, so the notification read "Spiceity is running" while a named song with cover art was playing
+     * else, so the notification read "Noctorium is running" while a named song with cover art was playing
      * three centimetres above it.
      */
     private fun mediaItemFor(track: Track, source: String): MediaItem = MediaItem.Builder()

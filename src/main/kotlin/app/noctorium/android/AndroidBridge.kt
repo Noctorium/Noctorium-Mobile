@@ -1,4 +1,4 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -7,7 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import androidx.core.content.FileProvider
-import app.spiceity.platform.SystemBridge
+import app.noctorium.platform.SystemBridge
 import java.nio.file.Path
 
 /**
@@ -28,7 +28,7 @@ class AndroidBridge(private val context: Context) : SystemBridge {
 
     override fun copyToClipboard(text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("Spiceity", text))
+        clipboard.setPrimaryClip(ClipData.newPlainText("Noctorium", text))
     }
 
     /**

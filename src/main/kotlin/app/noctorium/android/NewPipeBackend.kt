@@ -1,17 +1,17 @@
-package app.spiceity.android
+package app.noctorium.android
 
-import app.spiceity.net.networkFailureMessage
-import app.spiceity.net.retryingTransientFailures
-import app.spiceity.playback.AudioAddressCache
-import app.spiceity.domain.Album
-import app.spiceity.domain.Artist
-import app.spiceity.domain.Playlist
-import app.spiceity.domain.ProviderType
-import app.spiceity.domain.Track
-import app.spiceity.downloads.ExportFormat
-import app.spiceity.playback.BackendException
-import app.spiceity.playback.MusicBackend
-import app.spiceity.settings.CookieSource
+import app.noctorium.net.networkFailureMessage
+import app.noctorium.net.retryingTransientFailures
+import app.noctorium.playback.AudioAddressCache
+import app.noctorium.domain.Album
+import app.noctorium.domain.Artist
+import app.noctorium.domain.Playlist
+import app.noctorium.domain.ProviderType
+import app.noctorium.domain.Track
+import app.noctorium.downloads.ExportFormat
+import app.noctorium.playback.BackendException
+import app.noctorium.playback.MusicBackend
+import app.noctorium.settings.CookieSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -35,7 +35,7 @@ import java.nio.file.StandardCopyOption
 import java.util.concurrent.ConcurrentHashMap
 
 /** The logcat tag every extraction failure is written under. */
-private const val LOG_TAG = "SpiceityBackend"
+private const val LOG_TAG = "NoctoriumBackend"
 
 /**
  * What a track is, and where its audio is, read the way NewPipe reads it.
@@ -211,7 +211,7 @@ class NewPipeBackend(
     private suspend fun readPage(sourceUrl: String): String = withContext(Dispatchers.IO) {
         val provider = providerOf(sourceUrl)
         val service = serviceFor(provider)
-            ?: throw BackendException("Spiceity cannot play this address on Android yet.")
+            ?: throw BackendException("Noctorium cannot play this address on Android yet.")
         val startedAt = System.nanoTime()
         val extractor = attempt("resolve $sourceUrl") {
             retryingTransientFailures { service.getStreamExtractor(sourceUrl).also { it.fetchPage() } }
@@ -339,7 +339,7 @@ class NewPipeBackend(
     ) {
         if (format == ExportFormat.MP3) {
             throw BackendException(
-                "Spiceity on Android saves audio as it comes rather than converting it to MP3. Your phone " +
+                "Noctorium on Android saves audio as it comes rather than converting it to MP3. Your phone " +
                     "plays it either way.",
             )
         }
@@ -435,7 +435,7 @@ class NewPipeBackend(
             ?.let { listOf(Artist("$provider:$it", it, provider)) }
             .orEmpty()
 
-    /** The id the rest of Spiceity addresses a track by, which has to match what the desktop uses. */
+    /** The id the rest of Noctorium addresses a track by, which has to match what the desktop uses. */
     private fun idOf(url: String, provider: ProviderType): String = when (provider) {
         ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO ->
             Regex("""[?&]v=([\w-]{11})""").find(url)?.groupValues?.get(1)
@@ -491,7 +491,7 @@ class OkHttpNewPipeDownloader(private val client: OkHttpClient) : Downloader() {
             values.forEach { value -> builder.addHeader(name, value) }
         }
         if (request.headers()["User-Agent"] == null) {
-            builder.header("User-Agent", app.spiceity.net.Http.DESKTOP_USER_AGENT)
+            builder.header("User-Agent", app.noctorium.net.Http.DESKTOP_USER_AGENT)
         }
 
         return try {

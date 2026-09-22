@@ -1,8 +1,8 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.content.Context
 import android.net.wifi.WifiManager
-import app.spiceity.connect.NetworkPresence
+import app.noctorium.connect.NetworkPresence
 
 /**
  * Permission to hear the announcements at all.
@@ -24,7 +24,7 @@ class WifiPresence(context: Context) : NetworkPresence {
     override fun acquire() {
         if (lock != null) return
         lock = runCatching {
-            wifi?.createMulticastLock("spiceity-connect")?.apply {
+            wifi?.createMulticastLock("noctorium-connect")?.apply {
                 setReferenceCounted(false)
                 acquire()
             }

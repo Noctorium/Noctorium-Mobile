@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -43,8 +43,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
-import app.spiceity.core.ProviderFilter
-import app.spiceity.core.SearchMode
+import app.noctorium.core.ProviderFilter
+import app.noctorium.core.SearchMode
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -71,13 +71,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.core.AppState
-import app.spiceity.domain.HomeSection
-import app.spiceity.domain.pluralTracks
-import app.spiceity.domain.Playlist
-import app.spiceity.domain.Track
-import app.spiceity.downloads.DownloadStage
-import app.spiceity.settings.SpiceityPreferences
+import app.noctorium.core.AppState
+import app.noctorium.domain.HomeSection
+import app.noctorium.domain.pluralTracks
+import app.noctorium.domain.Playlist
+import app.noctorium.domain.Track
+import app.noctorium.downloads.DownloadStage
+import app.noctorium.settings.NoctoriumPreferences
 import kotlin.math.roundToInt
 
 
@@ -183,7 +183,7 @@ private fun TrackCarousel(
     subtitle: String?,
     tracks: List<Track>,
     state: AppState,
-    preferences: SpiceityPreferences,
+    preferences: NoctoriumPreferences,
 ) {
     if (tracks.isEmpty()) return
     val width = preferences.cardSize.phoneWidth()
@@ -358,7 +358,7 @@ internal fun LibraryScreen(state: AppState) {
             }
 
             if (library.localPlaylists.isNotEmpty()) {
-                item { SectionHeading("Made in Spiceity") }
+                item { SectionHeading("Made in Noctorium") }
                 items(library.localPlaylists, key = { it.id }) { playlist ->
                     PlaylistRow(
                         title = playlist.title,
@@ -483,7 +483,7 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
 
 /** What is kept on the phone, and what is arriving. */
 @Composable
-private fun DownloadsCard(downloads: app.spiceity.downloads.DownloadsState, state: AppState) {
+private fun DownloadsCard(downloads: app.noctorium.downloads.DownloadsState, state: AppState) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f),
         shape = RoundedCornerShape(14.dp),

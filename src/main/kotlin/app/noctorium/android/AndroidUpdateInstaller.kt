@@ -1,12 +1,12 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
-import app.spiceity.update.UpdateChannel
-import app.spiceity.update.UpdateInstaller
-import app.spiceity.update.Version
+import app.noctorium.update.UpdateChannel
+import app.noctorium.update.UpdateInstaller
+import app.noctorium.update.Version
 import java.nio.file.Path
 
 /**
@@ -16,7 +16,7 @@ import java.nio.file.Path
  * system shows its own screen, names the application, and asks -- and the first time, it also sends the
  * listener to a settings page to allow this application to install others at all. That is three deliberate
  * steps between a download finishing and anything being replaced, and all three belong to Android rather
- * than to Spiceity, which is the right way round.
+ * than to Noctorium, which is the right way round.
  *
  * Only for a sideloaded build. Anything installed from a store is updated by that store, and an
  * application that went round the back of one would be removed from it.

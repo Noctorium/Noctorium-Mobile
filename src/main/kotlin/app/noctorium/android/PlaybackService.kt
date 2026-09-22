@@ -1,11 +1,11 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.content.Intent
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
 /**
- * What keeps the music going when Spiceity is not on screen.
+ * What keeps the music going when Noctorium is not on screen.
  *
  * On Android, audio that continues past the activity has to belong to a foreground service, and a
  * `MediaSessionService` is the one that also gets the lock-screen controls, the notification and the
@@ -21,7 +21,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        val application = application as SpiceityApplication
+        val application = application as NoctoriumApplication
         val state = application.state
         // Wrapped, so that skipping from the lock screen reaches the queue that actually holds the tracks.
         // See QueueAwarePlayer: the bare ExoPlayer only ever has one item and reports, correctly and

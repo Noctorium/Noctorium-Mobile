@@ -1,4 +1,4 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -28,9 +28,9 @@ internal fun Context.isOnMeteredConnection(): Boolean {
  * resolver does. The cases it can tell apart:
  *
  * - No network at all. Said as such.
- * - No network *for this app*. When Data Saver restricts Spiceity, or a phone's own per-app rules cut it
+ * - No network *for this app*. When Data Saver restricts Noctorium, or a phone's own per-app rules cut it
  *   off, `activeNetwork` is null for this process while the rest of the phone is happily online. That is
- *   the case worth naming, because the fix is in the phone's settings and nowhere in Spiceity.
+ *   the case worth naming, because the fix is in the phone's settings and nowhere in Noctorium.
  * - A network that goes nowhere: connected to a Wi-Fi that has not passed the portal, or whose upstream
  *   has gone. Android marks it as not validated.
  * - A validated network. The service could not be reached anyway, which is nearly always a lookup that
@@ -42,7 +42,7 @@ internal fun Context.describeNetworkProblem(): String? {
     if (network == null) {
         val restricted = manager.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
         return if (restricted) {
-            "Spiceity has been cut off from the network. Data Saver is on and Spiceity is not allowed " +
+            "Noctorium has been cut off from the network. Data Saver is on and Noctorium is not allowed " +
                 "unrestricted data, so it cannot reach the service in the background."
         } else {
             "No internet connection. Check your connection and try again."
@@ -54,5 +54,5 @@ internal fun Context.describeNetworkProblem(): String? {
             "page, or its own connection may be down."
     }
     return "The service could not be reached, though this phone is online. Try again in a moment. If it " +
-        "keeps happening, check that Spiceity is allowed to use data in this phone's settings."
+        "keeps happening, check that Noctorium is allowed to use data in this phone's settings."
 }

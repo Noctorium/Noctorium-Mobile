@@ -1,10 +1,10 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import app.spiceity.settings.SecretStore
+import app.noctorium.settings.SecretStore
 
 /**
  * The Android answer to [SecretStore]: the Keystore holds the key, the app holds only ciphertext.
@@ -22,7 +22,7 @@ class KeystoreSecretStore(context: Context) : SecretStore {
      * Built once, and allowed to fail.
      *
      * Creating the key touches the Keystore, which on a small number of devices with broken vendor
-     * implementations throws. When that happens Spiceity has to keep working without remembering
+     * implementations throws. When that happens Noctorium has to keep working without remembering
      * sign-ins, rather than refusing to start — so the failure is held here and answered as "no secrets"
      * rather than thrown at every caller.
      */
@@ -46,7 +46,7 @@ class KeystoreSecretStore(context: Context) : SecretStore {
         SecretStore.requireValidKey(key)
         require(secret.isNotBlank()) { "Credential cannot be blank" }
         val store = preferences
-            ?: error("This device's keystore is unavailable, so Spiceity cannot store a sign-in.")
+            ?: error("This device's keystore is unavailable, so Noctorium cannot store a sign-in.")
         // commit rather than apply: a token written asynchronously and lost to a process death would
         // present itself later as an unexplained sign-out.
         store.edit().putString(key, secret).commit()
@@ -64,6 +64,6 @@ class KeystoreSecretStore(context: Context) : SecretStore {
     }
 
     private companion object {
-        const val FILE_NAME = "spiceity-credentials"
+        const val FILE_NAME = "noctorium-credentials"
     }
 }

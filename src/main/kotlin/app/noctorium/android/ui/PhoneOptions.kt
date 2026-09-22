@@ -1,4 +1,4 @@
-package app.spiceity.android.ui
+package app.noctorium.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,9 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.spiceity.core.AppState
-import app.spiceity.settings.ArtworkShape
-import app.spiceity.settings.SettingsState
+import app.noctorium.core.AppState
+import app.noctorium.settings.ArtworkShape
+import app.noctorium.settings.SettingsState
 
 /**
  * The settings that only exist because this is a phone.

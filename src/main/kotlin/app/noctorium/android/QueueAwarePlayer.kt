@@ -1,8 +1,8 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
-import app.spiceity.playback.RepeatMode
+import app.noctorium.playback.RepeatMode
 
 /**
  * The player as the lock screen, the notification and a headset see it.

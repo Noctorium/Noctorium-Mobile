@@ -1,4 +1,4 @@
-package app.spiceity.android
+package app.noctorium.android
 
 import android.content.ComponentName
 import android.os.Bundle
@@ -14,8 +14,8 @@ import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import app.spiceity.android.ui.spiceityColors
-import app.spiceity.android.ui.SpiceityPhone
+import app.noctorium.android.ui.noctoriumColors
+import app.noctorium.android.ui.NoctoriumPhone
 import com.google.common.util.concurrent.ListenableFuture
 
 /**
@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super.onCreate, which is where the library insists on being asked. It draws the icon
-        // named in Theme.Spiceity.Starting and hands over to the real theme once Compose has a frame.
+        // named in Theme.Noctorium.Starting and hands over to the real theme once Compose has a frame.
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
             SessionToken(this, ComponentName(this, PlaybackService::class.java)),
         ).buildAsync()
 
-        val state = (application as SpiceityApplication).state
+        val state = (application as NoctoriumApplication).state
         setContent {
             // Read live, so changing the accent or the background in Settings repaints at once rather
             // than at the next launch.
@@ -98,17 +98,17 @@ class MainActivity : ComponentActivity() {
                 settings.preferences.phone.playbackSpeed,
                 settings.preferences.phone.skipSilence,
             ) {
-                (application as SpiceityApplication).player.applyAudioOptions(
+                (application as NoctoriumApplication).player.applyAudioOptions(
                     settings.preferences.phone.playbackSpeed,
                     settings.preferences.phone.skipSilence,
                 )
             }
             MaterialTheme(
-                colorScheme = spiceityColors(
+                colorScheme = noctoriumColors(
                     settings.preferences.accent,
                     settings.preferences.backgroundDepth,
                 ),
-            ) { SpiceityPhone(state) }
+            ) { NoctoriumPhone(state) }
         }
     }
 
