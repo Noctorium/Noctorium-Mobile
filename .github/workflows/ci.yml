@@ -20,23 +20,12 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
-
-      # The core is checked out by hand rather than as a submodule. A submodule fetch reaches for the
-      # same credential as the repository holding it -- here, a job token that can see this repository
-      # and nothing else -- so it cannot reach a private Noctorium-Base. NOCTORIUM_BASE_KEY is a
-      # read-only deploy key on that repository, and it is read at exactly the commit the submodule
-      # pins, so CI builds what a checkout of this commit would build.
-      - name: Which core this commit is built against
-        id: core
-        run: echo "sha=$(git rev-parse HEAD:base)" >> "$GITHUB_OUTPUT"
-
+      # The core comes in as the base/ submodule, at the commit this one pins, so CI builds what a
+      # checkout of this commit builds. It needs no credential: the job's own token reads a public
+      # repository, which Noctorium-Base now is.
       - uses: actions/checkout@v4
         with:
-          repository: Noctorium/Noctorium-Base
-          ref: ${{ steps.core.outputs.sha }}
-          path: base
-          ssh-key: ${{ secrets.NOCTORIUM_BASE_KEY }}
+          submodules: true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
