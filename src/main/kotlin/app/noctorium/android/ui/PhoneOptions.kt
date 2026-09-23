@@ -115,13 +115,6 @@ internal fun PhoneOptionsCard(settings: SettingsState, state: AppState) {
             settings.preferences.skipNonMusic,
             state::setSkipNonMusic,
         )
-
-        Toggle(
-            "Lyrics in the player bar",
-            "Shows the line being sung in place of the artist, while the lyrics are timed.",
-            settings.preferences.lyricsInPlayerBar,
-            state::setLyricsInPlayerBar,
-        )
     }
 }
 

@@ -54,7 +54,6 @@ import app.noctorium.settings.ThemeColours
 import app.noctorium.settings.ThemePreset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import app.noctorium.lyrics.currentLine
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -358,17 +357,12 @@ private fun PlayerBar(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    // The line being sung, where the artist would be, while the lyrics are timed. The
-                    // artist is one glance up on the now playing screen; the lyric is only ever now.
-                    val lyrics by state.lyrics.collectAsState()
-                    val showLyric = state.settings.collectAsState().value.preferences.lyricsInPlayerBar
-                    val lyricLine = if (showLyric && playback.isPlaying) lyrics.currentLine(playback.positionMs) else null
                     Text(
-                        playback.errorMessage ?: lyricLine ?: track.artistLine.ifBlank { "Unknown artist" },
-                        color = when {
-                            playback.errorMessage != null -> MaterialTheme.colorScheme.error
-                            lyricLine != null -> MaterialTheme.colorScheme.primary
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        playback.errorMessage ?: track.artistLine.ifBlank { "Unknown artist" },
+                        color = if (playback.errorMessage != null) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         },
                         fontSize = 12.sp,
                         maxLines = 2,
