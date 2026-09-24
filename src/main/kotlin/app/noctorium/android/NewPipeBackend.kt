@@ -2,7 +2,9 @@ package app.noctorium.android
 
 import app.noctorium.net.networkFailureMessage
 import app.noctorium.net.retryingTransientFailures
+import app.noctorium.playback.AddressVerdict
 import app.noctorium.playback.AudioAddressCache
+import app.noctorium.playback.checkAudioAddress
 import app.noctorium.domain.Album
 import app.noctorium.domain.Artist
 import app.noctorium.domain.Playlist
@@ -26,6 +28,7 @@ import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.search.SearchInfo
+import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
 import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.io.IOException
@@ -36,6 +39,14 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** The logcat tag every extraction failure is written under. */
 private const val LOG_TAG = "NoctoriumBackend"
+
+/**
+ * The providers whose addresses carry a signature solved with the service's own player code.
+ *
+ * Only these have a cached player that can go stale, so only these are worth clearing it for.
+ * SoundCloud hands out addresses that need no such solving.
+ */
+private val SIGNED_PROVIDERS = setOf(ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO)
 
 /**
  * What a track is, and where its audio is, read the way NewPipe reads it.
@@ -192,10 +203,51 @@ class NewPipeBackend(
         require(sourceUrl.startsWith("https://") || sourceUrl.startsWith("http://")) {
             "Only HTTP media sources are accepted"
         }
-        return addresses.resolve(sourceUrl) { readPage(sourceUrl) }
+        return addresses.resolve(sourceUrl) { freshAddress(sourceUrl) }
     }
 
     override fun forgetAudio(sourceUrl: String) = addresses.forget(sourceUrl)
+
+    /**
+     * Reads the page for an address, and makes sure the service will actually serve it.
+     *
+     * The check is here rather than in the cache because this is where something can be done about a
+     * bad answer. A signature solved with a stale copy of YouTube's player code is well formed and
+     * wrong: nothing throws, every field is present, and the address is refused the instant the player
+     * opens it. Before this, that address went into [addresses] and answered for the next half hour, so
+     * one stale player meant half an hour of a track that would not start -- and the player's own
+     * retry, which drops the cached address and asks again, got the same wrong signature back because
+     * nothing had told the extractor its player was out of date.
+     *
+     * So a refusal clears NewPipe's cached player code and asks once more. Only a refusal: an
+     * inconclusive check plays anyway, because a rate limit or a moment without signal says nothing
+     * about the address and refusing to play would be inventing a failure.
+     */
+    private suspend fun freshAddress(sourceUrl: String): String {
+        val address = readPage(sourceUrl)
+        if (checkAudioAddress(address) != AddressVerdict.REJECTED) return address
+
+        android.util.Log.i(
+            LOG_TAG,
+            "The service refused the address for $sourceUrl; clearing the cached player and asking again",
+        )
+        // Only YouTube signs its addresses with player code, and this is the only handle NewPipe offers
+        // on that cache -- it is shared by every video, so it is cleared no more often than necessary.
+        if (providerOf(sourceUrl) in SIGNED_PROVIDERS) {
+            runCatching { YoutubeJavaScriptPlayerManager.clearAllCaches() }
+                .onFailure { android.util.Log.w(LOG_TAG, "Could not clear the player caches: ${it.message}") }
+        }
+
+        val second = readPage(sourceUrl)
+        if (checkAudioAddress(second) != AddressVerdict.REJECTED) return second
+
+        // Twice refused with a freshly fetched player is not a stale signature any more. Saying so is
+        // better than handing the player an address it is about to fail on with a codec error.
+        throw BackendException(
+            "This track's audio was refused by the service twice over. It may be blocked in your " +
+                "country, or available only to members of the channel.",
+        )
+    }
 
     /**
      * One visit to the track's page: the facts into [facts], the audio address returned.
