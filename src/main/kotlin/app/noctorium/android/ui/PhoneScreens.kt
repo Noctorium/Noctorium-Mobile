@@ -78,6 +78,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
+import app.noctorium.core.Destination
 import app.noctorium.domain.HomeSection
 import app.noctorium.domain.pluralTracks
 import app.noctorium.domain.Playlist
@@ -170,7 +171,13 @@ internal fun HomeScreen(state: AppState) {
             }
 
             items(ui.homeSections.filter { it.matches(ui.providerFilter) }, key = HomeSection::id) { section ->
-                TrackCarousel(section.title, section.subtitle, section.tracks, state, preferences)
+                // A row is one kind or the other. The services build them that way, and a strip mixing
+                // cards that play with cards that open would make every tap a guess.
+                if (section.playlists.isNotEmpty()) {
+                    PlaylistCarousel(section.title, section.subtitle, section.playlists, state, preferences)
+                } else {
+                    TrackCarousel(section.title, section.subtitle, section.tracks, state, preferences)
+                }
             }
 
             if (!ui.homeLoading && ui.homeSections.isEmpty() && ui.recentTracks.isEmpty()) {
@@ -234,6 +241,67 @@ private fun TrackCarousel(
                     )
                     Text(
                         track.artistLine.ifBlank { track.provider.displayName },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A row of playlist and album cards, which open rather than play.
+ *
+ * Most of what a service puts on its home page is this: the mixes it has made, the albums it thinks are
+ * worth a look. A card leads to the playlist screen the library already uses, which is why tapping one
+ * also moves to the library -- that screen lives there, and opening something the listener cannot see
+ * would be the same as doing nothing.
+ */
+@Composable
+private fun PlaylistCarousel(
+    title: String,
+    subtitle: String?,
+    playlists: List<Playlist>,
+    state: AppState,
+    preferences: NoctoriumPreferences,
+) {
+    if (playlists.isEmpty()) return
+    val width = preferences.cardSize.phoneWidth()
+    Column(Modifier.padding(top = 14.dp)) {
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            subtitle?.let {
+                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(playlists, key = Playlist::id) { playlist ->
+                Column(
+                    Modifier
+                        .width(width)
+                        .clickable {
+                            state.openPlaylist(playlist)
+                            state.navigate(Destination.LIBRARY)
+                        },
+                ) {
+                    Artwork(playlist.artworkUrl, width, corner = 10.dp)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        playlist.title,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        playlist.ownerName ?: playlist.provider.displayName,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         maxLines = 1,
