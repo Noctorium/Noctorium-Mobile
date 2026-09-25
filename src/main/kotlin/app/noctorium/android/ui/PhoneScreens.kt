@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
@@ -253,6 +254,41 @@ private fun TrackCarousel(
 }
 
 /**
+ * Asking for a name, which is all a new playlist needs.
+ *
+ * Private, without asking. A playlist made on a phone in one tap is not one somebody meant to publish,
+ * and making it public later is a choice they can go and make; the other way round is not recoverable.
+ */
+@Composable
+private fun NewPlaylistDialog(dismiss: () -> Unit, create: (String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("New playlist") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    singleLine = true,
+                    label = { Text("Name") },
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Made on YouTube Music, and private until you say otherwise.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = name.isNotBlank(), onClick = { create(name.trim()) }) { Text("Create") }
+        },
+        dismissButton = { TextButton(dismiss) { Text("Cancel") } },
+    )
+}
+
+/**
  * A row of playlist and album cards, which open rather than play.
  *
  * Most of what a service puts on its home page is this: the mixes it has made, the albums it thinks are
@@ -408,6 +444,7 @@ internal fun LibraryScreen(state: AppState) {
     val library by state.library.collectAsState()
     val downloads by state.downloadState.collectAsState()
     val playback by state.playback.collectAsState()
+    val settings by state.settings.collectAsState()
 
     // Opening the library is what asks for it; the state itself decides whether that means a fetch.
     androidx.compose.runtime.LaunchedEffect(Unit) { state.refreshLibrary() }
@@ -418,8 +455,24 @@ internal fun LibraryScreen(state: AppState) {
         return
     }
 
+    var naming by remember { mutableStateOf(false) }
+    if (naming) {
+        NewPlaylistDialog(
+            dismiss = { naming = false },
+            create = { name ->
+                state.createYouTubePlaylist(name)
+                naming = false
+            },
+        )
+    }
+
     ScreenScaffold {
         ScreenTitle("Library", "Your playlists, and what is kept on this phone") {
+            // Only where there is an account to make one on. A button that can only explain why it does
+            // not work is worse than no button.
+            if (settings.preferences.youtubeCookies.cookieFile.isNotBlank()) {
+                IconButton({ naming = true }) { Icon(Icons.Default.Add, "New playlist") }
+            }
             IconButton({ state.refreshLibrary(force = true) }) { Icon(Icons.Default.Refresh, "Reload") }
         }
 
