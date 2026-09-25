@@ -3,6 +3,8 @@ package app.noctorium.android.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -83,6 +86,7 @@ import app.noctorium.core.Destination
 import app.noctorium.domain.HomeSection
 import app.noctorium.domain.pluralTracks
 import app.noctorium.domain.Playlist
+import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
 import app.noctorium.downloads.DownloadStage
 import app.noctorium.settings.NoctoriumPreferences
@@ -711,8 +715,13 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
     val kept = downloads.isDownloaded(onDisk)
     val pinned = ui.pinnedTracks.any { it.queueKey == track.queueKey }
 
+    var addOpen by remember { mutableStateOf(false) }
+
     if (editOpen) {
         EditTrackDialog(track, ui.trackEdits[track.queueKey], state) { editOpen = false }
+    }
+    if (addOpen) {
+        AddToPlaylistDialog(track, state) { addOpen = false }
     }
 
     Box {
@@ -765,6 +774,15 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
                 leadingIcon = { Icon(Icons.Default.SaveAlt, null) },
                 onClick = { state.exportTrack(track); open = false },
             )
+            // Only YouTube tracks: a YouTube Music playlist will not take a SoundCloud one, and the
+            // place to say so is by not offering it rather than by refusing afterwards.
+            if (track.provider in YOUTUBE_PROVIDERS) {
+                DropdownMenuItem(
+                    text = { Text("Add to playlist…") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
+                    onClick = { open = false; addOpen = true },
+                )
+            }
             HorizontalDivider()
             DropdownMenuItem(
                 text = { Text(if (pinned) "Unpin from Home" else "Pin to Home") },
@@ -783,6 +801,83 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
             )
         }
     }
+}
+
+/** The providers whose tracks a YouTube Music playlist will accept. */
+private val YOUTUBE_PROVIDERS = setOf(ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO)
+
+/**
+ * YouTube's own lists, which cannot be added to.
+ *
+ * Liked Music fills itself from the heart, Episodes for Later from podcasts. Offering them here would be
+ * offering something that quietly does nothing.
+ */
+private val YOUTUBE_SYSTEM_PLAYLISTS = setOf("LM", "SE", "HL", "WL", "LL")
+
+/**
+ * Choosing which playlist a track goes into, or making one to hold it.
+ *
+ * The listing is the library's, which is the same one the library screen shows, so a playlist made a
+ * moment ago is already here. Asking for it on opening covers the case this is reached from Home, where
+ * nothing has loaded the library yet.
+ */
+@Composable
+private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Unit) {
+    val library by state.library.collectAsState()
+    var naming by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) { state.refreshLibrary() }
+
+    if (naming) {
+        NewPlaylistDialog(
+            dismiss = { naming = false },
+            create = { name ->
+                state.createYouTubePlaylist(name, listOf(track))
+                naming = false
+                dismiss()
+            },
+        )
+        return
+    }
+
+    val writable = library.playlists.filter {
+        it.provider == ProviderType.YOUTUBE_MUSIC && it.id !in YOUTUBE_SYSTEM_PLAYLISTS
+    }
+
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text("Add to playlist") },
+        text = {
+            if (writable.isEmpty()) {
+                Text(
+                    "No playlists of your own yet. Make one and this track goes into it.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                )
+            } else {
+                // Bounded, because an account can have a great many and a dialog cannot grow forever.
+                Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                    writable.forEach { playlist ->
+                        Text(
+                            playlist.title,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    state.addTrackToYouTubePlaylist(playlist.id, track)
+                                    dismiss()
+                                }
+                                .padding(vertical = 13.dp),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton({ naming = true }) { Text("New playlist…") } },
+        dismissButton = { TextButton(dismiss) { Text("Cancel") } },
+    )
 }
 
 /**
