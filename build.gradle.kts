@@ -89,6 +89,14 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Its own identity, so a build being worked on installs beside the real one instead of
+            // replacing it. Android decides what is an update by the application id, and a debug build
+            // is signed with a different key, so without this the only way to try a change on a phone
+            // is to uninstall whatever is on it -- taking the sessions and downloads with it.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             // Left off for now. NewPipeExtractor leans on reflection through its parser stack, and a
             // release build that silently returns no results is a poor first thing to debug on a phone.

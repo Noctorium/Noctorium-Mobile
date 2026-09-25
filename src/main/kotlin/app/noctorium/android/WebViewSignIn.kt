@@ -1,7 +1,13 @@
 package app.noctorium.android
 
 import android.annotation.SuppressLint
+import android.os.Message
+import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import app.noctorium.auth.HarvestedCookie
@@ -30,14 +36,27 @@ import kotlin.coroutines.resume
  * — the session checks, the signed requests, the library — was written against that file and does not care
  * which browser filled it.
  */
+/** Where the sign-in says what it is doing, so a page that quietly refuses can be told from one that broke. */
+private const val SIGN_IN_LOG = "NoctoriumSignIn"
+
 object WebViewSignIn {
 
     /** Where each service's sign-in starts. */
     fun startUrlFor(provider: ProviderType): String = when (provider) {
         ProviderType.SOUNDCLOUD -> "https://soundcloud.com/signin"
-        // The music site rather than accounts.google.com: it redirects into Google's flow itself and lands
-        // back somewhere that proves the session took, which a bare accounts page does not.
-        else -> "https://music.youtube.com/"
+        // Google's sign-in directly, rather than the music site's own button.
+        //
+        // Starting at music.youtube.com was the obvious thing and it does not work: the page loads,
+        // its Sign in button highlights when pressed, and nothing whatever happens -- no navigation,
+        // no popup, no error, nothing in the log. The button is script that decides for itself whether
+        // the browser it is in deserves a login, and in a WebView it decides no, silently.
+        //
+        // ServiceLogin takes that decision away from the page. `continue` is where Google sends the
+        // browser once the password is accepted, so the session lands on the music site exactly as it
+        // would have, and `service=youtube` is what gets the YouTube cookies set rather than a bare
+        // Google session.
+        else -> "https://accounts.google.com/ServiceLogin" +
+            "?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F"
     }
 
     /** Which hosts hold the cookies worth taking for this service. */
@@ -138,11 +157,26 @@ object WebViewSignIn {
         ?.takeIf(String::isNotBlank)
 
     /**
+     * The user agent to sign in with: the phone's own, with the tell removed.
+     *
+     * Android's WebView announces itself by putting `wv` in its user agent, and Google refuses to serve
+     * its sign-in to anything that does — the policy against embedded browsers is theirs and it is
+     * deliberate. The refusal is not an error page; the button simply does nothing, which is a horrible
+     * thing to debug and is exactly what this app did.
+     *
+     * Everything else is left alone. The phone's real Chrome version, its Android version and its model
+     * stay, so the mobile layout is still served to a 6-inch screen: the only difference between this
+     * string and the one Chrome sends on the same phone is the token that says "I am embedded".
+     */
+    fun signInUserAgent(deviceUserAgent: String): String =
+        deviceUserAgent.replace("; wv)", ")").replace(" wv)", ")")
+
+    /**
      * Prepares a WebView to host a real sign-in.
      *
      * JavaScript and DOM storage are on because neither Google's nor SoundCloud's login works without
-     * them. The user agent is left as the phone's own: presenting a desktop string here would serve a
-     * desktop layout to a 6-inch screen, and the sign-in is the one place the mobile page is the right one.
+     * them. Windows are supported because sign-in buttons open them: SoundCloud's "continue with"
+     * choices are popups, and a WebView that has not been told to expect one silently drops it.
      */
     @SuppressLint("SetJavaScriptEnabled")
     fun configure(webView: WebView, onPageFinished: (String?) -> Unit) {
@@ -152,11 +186,72 @@ object WebViewSignIn {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
+            userAgentString = signInUserAgent(userAgentString)
+            // Logged once, because "the button does nothing" is what a refused user agent looks like and
+            // this is the line that tells you whether that is what happened.
+            Log.i(SIGN_IN_LOG, "signing in as: $userAgentString")
+            // Both are needed for a popup to arrive at onCreateWindow at all.
+            setSupportMultipleWindows(true)
+            javaScriptCanOpenWindowsAutomatically = true
         }
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
+                Log.i(SIGN_IN_LOG, "page: $url")
                 CookieManager.getInstance().flush()
                 onPageFinished(url)
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?,
+            ) {
+                // Only the page's own failure is worth a line; a missing tracking pixel is not.
+                if (request?.isForMainFrame == true) {
+                    Log.w(SIGN_IN_LOG, "failed: ${request.url} -- ${error?.description}")
+                }
+            }
+        }
+        webView.webChromeClient = object : WebChromeClient() {
+            /**
+             * A popup, given the WebView it asked for.
+             *
+             * The window is opened in the one already on screen rather than in a second one floating
+             * above it. A sign-in popup is a full-screen affair on a phone anyway, and its cookies have
+             * to land in the same store the session is harvested from, which they do only if it is the
+             * same WebView. The throwaway below exists because that is the only way to be handed the
+             * address the page wanted to open -- there is no other API that reports it.
+             */
+            override fun onCreateWindow(
+                view: WebView,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: Message,
+            ): Boolean {
+                val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
+                val messenger = WebView(view.context)
+                messenger.webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        popup: WebView?,
+                        request: WebResourceRequest?,
+                    ): Boolean {
+                        request?.url?.toString()?.let {
+                            Log.i(SIGN_IN_LOG, "popup -> $it")
+                            view.loadUrl(it)
+                        }
+                        popup?.destroy()
+                        return true
+                    }
+                }
+                transport.webView = messenger
+                resultMsg.sendToTarget()
+                return true
+            }
+
+            override fun onConsoleMessage(message: ConsoleMessage?): Boolean {
+                message?.takeIf { it.messageLevel() == ConsoleMessage.MessageLevel.ERROR }
+                    ?.let { Log.w(SIGN_IN_LOG, "page error: ${it.message()}") }
+                return true
             }
         }
     }
