@@ -12,6 +12,7 @@ import app.noctorium.net.BrowserRequester
 import app.noctorium.net.Http
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -51,6 +52,9 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
 
     /** Whether the protection has answered this browser at all yet. Set by the first request it allows. */
     private var cleared = false
+
+    /** Counts pages started, so a redirect can be told from the page having settled. */
+    private val navigations = AtomicLong(0)
 
     override suspend fun send(
         method: String,
@@ -105,6 +109,17 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
         }
     }
 
+    /**
+     * Runs the request on the page, and runs it again if the page went somewhere mid-flight.
+     *
+     * A fetch belongs to the document that started it and dies with it, and `soundcloud.com` is a site
+     * that moves: it forwarded to `/discover` and then to `/welcome`, and the request started on the one
+     * in between simply never came back. Waiting longer for the page to settle only makes the window
+     * bigger; asking again on whatever page is there now is what actually holds.
+     *
+     * Only for a request that repeating cannot harm. Creating a playlist is not one, which is why the
+     * caller settles the clearance on a plain read before ever sending one of those.
+     */
     private suspend fun attempt(
         method: String,
         url: String,
@@ -115,16 +130,40 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
             Log.w(LOG, "no WebView to make the request with", it)
             return null
         }
-        val id = nextId.getAndIncrement().toString()
-        val answer = CompletableDeferred<BrowserReply>()
-        pending[id] = answer
-        view.evaluateJavascript(script(id, method, url, headers, body), null)
-        return try {
+        val repeatable = method.uppercase() in REPEATABLE
+        repeat(if (repeatable) DOCUMENT_ATTEMPTS else 1) { round ->
+            val startedOn = navigations.get()
+            val id = nextId.getAndIncrement().toString()
+            val answer = CompletableDeferred<BrowserReply>()
+            pending[id] = answer
+            view.evaluateJavascript(script(id, method, url, headers, body), null)
+            val reply = try {
+                withTimeoutOrNull(DOCUMENT_TIMEOUT_MILLIS) { answer.await() }
+            } finally {
+                pending.remove(id)
+            }
             // Logged because this is the one request in the application that nothing else can make, and a
             // status is the difference between "SoundCloud said no" and "the page never ran it".
-            answer.await().also { Log.i(LOG, "$method ${url.substringBefore('?')} answered ${it.status}") }
-        } finally {
-            pending.remove(id)
+            if (reply != null) {
+                Log.i(LOG, "$method ${url.substringBefore(Q)} answered ${reply.status}")
+                return reply
+            }
+            if (!repeatable || navigations.get() == startedOn) return null
+            Log.i(LOG, "the page moved under attempt ${round + 1}; asking again where it landed")
+            settled()
+        }
+        return null
+    }
+
+    /** Waits for the page to stop moving, or gives up and uses whatever is there. */
+    private suspend fun settled() {
+        val deadline = System.currentTimeMillis() + LOAD_TIMEOUT_MILLIS
+        var seen = navigations.get()
+        while (System.currentTimeMillis() < deadline) {
+            delay(SETTLE_QUIET_MILLIS)
+            val now = navigations.get()
+            if (now == seen) return
+            seen = now
         }
     }
 
@@ -147,7 +186,14 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
             settings.userAgentString = Http.DESKTOP_USER_AGENT
             addJavascriptInterface(Bridge(), BRIDGE)
             webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    // Somewhere new. Anything already running on the old page is about to be thrown away
+                    // with it, so the wait is re-armed rather than left thinking the page had settled.
+                    navigations.incrementAndGet()
+                }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
+                    Log.i(LOG, "loaded $url")
                     loaded?.takeIf { !it.isCompleted }?.complete(Unit)
                 }
             }
@@ -161,13 +207,22 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
 
     private suspend fun reload() = webView?.let { load(it) }
 
+    /**
+     * Loads the page and waits for it to stop moving, not merely to finish once.
+     *
+     * `soundcloud.com` does not stay where it is put: it went to `/discover` and then to `/welcome`, and
+     * the first of those finished loading, which was taken for arrival. The request was started on a page
+     * that navigated away a moment later, and a fetch in flight goes with the document that started it --
+     * so nothing ever came back, the whole thing timed out after thirty seconds, and the write quietly
+     * fell through to the client SoundCloud refuses.
+     */
     private suspend fun load(view: WebView) {
         val finished = CompletableDeferred<Unit>()
         loaded = finished
         view.loadUrl(ORIGIN_PAGE)
-        // A page that never finishes still has its origin and its cookies, and a request from it may well
-        // be answered; waiting past this point would cost the listener their like for nothing.
         withTimeoutOrNull(LOAD_TIMEOUT_MILLIS) { finished.await() }
+        // And then until it stops moving, because the first page to finish is often not the last.
+        settled()
     }
 
     /**
@@ -224,6 +279,7 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
 
     private companion object {
         const val LOG = "NoctoriumBrowser"
+        const val Q = '?'
         const val BRIDGE = "NoctoriumBridge"
 
         /** The site itself: the origin the website makes this call from, with its own scripts running. */
@@ -243,7 +299,16 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
         /** A read on the protected host, used to earn the clearance where a retry would not be safe. */
         const val SETTLING_URL = "https://api-v2.soundcloud.com/me"
 
-        const val LOAD_TIMEOUT_MILLIS = 15_000L
+        /** How long a page gets to stay put before it counts as settled. */
+        const val SETTLE_QUIET_MILLIS = 700L
+
+        /** How long one document gets to answer before the page is presumed to have moved on. */
+        const val DOCUMENT_TIMEOUT_MILLIS = 12_000L
+
+        /** How many documents a repeatable request will follow the page through. */
+        const val DOCUMENT_ATTEMPTS = 3
+
+        const val LOAD_TIMEOUT_MILLIS = 20_000L
         const val REQUEST_TIMEOUT_MILLIS = 30_000L
     }
 }

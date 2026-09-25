@@ -809,9 +809,14 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
                 leadingIcon = { Icon(Icons.Default.SaveAlt, null) },
                 onClick = { state.exportTrack(track); open = false },
             )
-            // Only YouTube tracks: a YouTube Music playlist will not take a SoundCloud one, and the
-            // place to say so is by not offering it rather than by refusing afterwards.
-            if (track.provider in YOUTUBE_PROVIDERS) {
+            // Wherever the track's own service keeps playlists. Not Spotify, which is read here and never
+            // written to, and not a local file, which belongs to no account at all.
+            //
+            // This said YouTube only, left behind when the dialog underneath it learned about SoundCloud:
+            // the dialog could add a SoundCloud track to a SoundCloud playlist perfectly well and no menu
+            // ever opened it. Which is worth remembering -- changing what a screen can do and not the one
+            // line that decides whether anybody reaches it leaves no trace at all.
+            if (track.provider in YOUTUBE_PROVIDERS || track.provider == ProviderType.SOUNDCLOUD) {
                 DropdownMenuItem(
                     text = { Text("Add to playlist…") },
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
