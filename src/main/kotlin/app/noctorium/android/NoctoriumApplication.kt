@@ -12,6 +12,7 @@ import app.noctorium.settings.AppDirectories
 import app.noctorium.settings.SecretStore
 import app.noctorium.settings.SettingsRepository
 import app.noctorium.social.SoundCloudLikeClient
+import app.noctorium.social.SoundCloudPlaylistClient
 import org.schabi.newpipe.extractor.NewPipe
 
 /**
@@ -33,6 +34,9 @@ class NoctoriumApplication : Application() {
         private set
     lateinit var state: AppState
         private set
+
+    /** One browser for every SoundCloud write, shared so there is one page rather than one each. */
+    private lateinit var soundCloudBrowser: WebViewRequester
 
     override fun onCreate() {
         super.onCreate()
@@ -71,6 +75,8 @@ class NoctoriumApplication : Application() {
             networkProblem = { describeNetworkProblem() },
         )
         val downloads = DownloadManager(backend)
+
+        soundCloudBrowser = WebViewRequester(this)
         player = Media3PlaybackEngine(
             this,
             backend,
@@ -99,15 +105,18 @@ class NoctoriumApplication : Application() {
                 ).distinct().joinToString(" ").ifBlank { "Phone" }
             },
             deviceKind = DeviceKind.PHONE,
-            // Liking is written from the phone's own browser. SoundCloud's bot protection answers an
-            // ordinary request with a captcha however it is dressed; see [WebViewRequester].
-            likeClient = SoundCloudLikeClient(WebViewRequester(this)),
+            // Likes and playlists are both written from the phone's own browser, through one WebView
+            // between them. SoundCloud's bot protection answers an ordinary request with a captcha
+            // however it is dressed; see [WebViewRequester].
+            likeClient = SoundCloudLikeClient(soundCloudBrowser),
+            playlistClient = SoundCloudPlaylistClient(soundCloudBrowser),
             networkPresence = WifiPresence(this),
             updateInstaller = AndroidUpdateInstaller(this),
         )
     }
 
     override fun onTerminate() {
+        soundCloudBrowser.close()
         state.close()
         super.onTerminate()
     }

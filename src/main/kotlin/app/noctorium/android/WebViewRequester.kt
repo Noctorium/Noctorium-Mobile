@@ -49,25 +49,68 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
     /** Completed when the origin page finishes loading, so a request waits for the page it runs on. */
     private var loaded: CompletableDeferred<Unit>? = null
 
-    override suspend fun send(method: String, url: String, headers: Map<String, String>): BrowserReply? =
-        turn.withLock {
-            withTimeoutOrNull(REQUEST_TIMEOUT_MILLIS) {
-                withContext(Dispatchers.Main) { request(method, url, headers) }
-            }
-        }
+    /** Whether the protection has answered this browser at all yet. Set by the first request it allows. */
+    private var cleared = false
 
-    private suspend fun request(method: String, url: String, headers: Map<String, String>): BrowserReply? {
-        val first = attempt(method, url, headers) ?: return null
-        if (first.status != REFUSED) return first
-        // A refusal on the first write of a run is usually the clearance not being settled yet rather than
-        // a real no: the page has loaded but the protection's own script has not finished deciding about
-        // this browser. Loading it again and asking once more is what turned a 403 into "OK" every time.
-        Log.i(LOG, "refused; reloading ${ORIGIN_PAGE} and asking once more")
-        reload()
-        return attempt(method, url, headers) ?: first
+    override suspend fun send(
+        method: String,
+        url: String,
+        headers: Map<String, String>,
+        body: String?,
+    ): BrowserReply? = turn.withLock {
+        withTimeoutOrNull(REQUEST_TIMEOUT_MILLIS) {
+            withContext(Dispatchers.Main) { request(method, url, headers, body) }
+        }
     }
 
-    private suspend fun attempt(method: String, url: String, headers: Map<String, String>): BrowserReply? {
+    private suspend fun request(
+        method: String,
+        url: String,
+        headers: Map<String, String>,
+        body: String?,
+    ): BrowserReply? {
+        // Settled on something harmless first, when this is a request that must not be made twice.
+        if (!cleared && method.uppercase() !in REPEATABLE) settle(headers)
+
+        val first = attempt(method, url, headers, body) ?: return null
+        if (first.status != REFUSED) return first.also { cleared = true }
+        // Asking a second time is how a refusal on the first request of a run is cured -- the page has
+        // loaded but the protection's own script has not finished deciding about this browser, and a
+        // reload settles it. Only for a request that repeating cannot harm.
+        //
+        // Creating a playlist is not one. The first attempt at one came back 403 and the retry came back
+        // 201, and the account ended up with two playlists of the same name: the refusal was handed out
+        // after SoundCloud had already made the first. Hence the settling above, and this guard.
+        if (method.uppercase() !in REPEATABLE) return first
+        Log.i(LOG, "refused; reloading $ORIGIN_PAGE and asking once more")
+        reload()
+        return attempt(method, url, headers, body)?.also { cleared = it.status != REFUSED } ?: first
+    }
+
+    /**
+     * Earns the clearance on a request that costs nothing to repeat, so the one that follows need not be.
+     *
+     * The account endpoint, because it is a plain read on the same protected host, is answered by the same
+     * session the caller is already using, and changes nothing whether it succeeds, fails or happens twice.
+     */
+    private suspend fun settle(headers: Map<String, String>) {
+        val session = headers.filterKeys { it.equals("Authorization", ignoreCase = true) }
+        repeat(2) { round ->
+            if (round > 0) reload()
+            val reply = attempt("GET", SETTLING_URL, session, null) ?: return
+            if (reply.status != REFUSED) {
+                cleared = true
+                return
+            }
+        }
+    }
+
+    private suspend fun attempt(
+        method: String,
+        url: String,
+        headers: Map<String, String>,
+        body: String?,
+    ): BrowserReply? {
         val view = runCatching { browser() }.getOrElse {
             Log.w(LOG, "no WebView to make the request with", it)
             return null
@@ -75,7 +118,7 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
         val id = nextId.getAndIncrement().toString()
         val answer = CompletableDeferred<BrowserReply>()
         pending[id] = answer
-        view.evaluateJavascript(script(id, method, url, headers), null)
+        view.evaluateJavascript(script(id, method, url, headers, body), null)
         return try {
             // Logged because this is the one request in the application that nothing else can make, and a
             // status is the difference between "SoundCloud said no" and "the page never ran it".
@@ -133,8 +176,17 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
      * `evaluateJavascript` reports the value of an expression, and a fetch has none to report yet, so the
      * reply comes back the other way rather than as this call's result.
      */
-    private fun script(id: String, method: String, url: String, headers: Map<String, String>): String {
+    private fun script(
+        id: String,
+        method: String,
+        url: String,
+        headers: Map<String, String>,
+        body: String?,
+    ): String {
         val headerJson = JSONObject(headers.toMap()).toString()
+        // Absent rather than null: `fetch` refuses a body on a GET at all, and gives a DELETE one it does
+        // not need. Quoted, because what goes in is JSON and what this builds is a JavaScript literal.
+        val bodyLine = body?.let { "body: ${quote(it)}," }.orEmpty()
         return """
             (function () {
               var deliver = function (status, body) {
@@ -144,6 +196,7 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
                 fetch(${quote(url)}, {
                   method: ${quote(method)},
                   headers: $headerJson,
+                  $bodyLine
                   credentials: 'include'
                 }).then(function (reply) {
                   return reply.text().then(function (body) { deliver(reply.status, body); });
@@ -178,6 +231,17 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
 
         /** What the bot protection answers a browser it has not cleared. */
         const val REFUSED = 403
+
+        /**
+         * The methods a refusal may be retried on, because sending one twice changes nothing.
+         *
+         * Liking is a PUT and unliking a DELETE, both of which land on the same state either way. Creating
+         * a playlist is a POST and lands on two.
+         */
+        val REPEATABLE = setOf("GET", "HEAD", "PUT", "DELETE")
+
+        /** A read on the protected host, used to earn the clearance where a retry would not be safe. */
+        const val SETTLING_URL = "https://api-v2.soundcloud.com/me"
 
         const val LOAD_TIMEOUT_MILLIS = 15_000L
         const val REQUEST_TIMEOUT_MILLIS = 30_000L

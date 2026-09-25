@@ -258,14 +258,22 @@ private fun TrackCarousel(
 }
 
 /**
- * Asking for a name, which is all a new playlist needs.
+ * Asking for a name, and for which account it belongs to when there is more than one.
  *
  * Private, without asking. A playlist made on a phone in one tap is not one somebody meant to publish,
  * and making it public later is a choice they can go and make; the other way round is not recoverable.
+ *
+ * The chooser appears only when it is a real choice. Somebody signed into one service does not want to be
+ * asked which one, and the caption says where the playlist will end up either way.
  */
 @Composable
-private fun NewPlaylistDialog(dismiss: () -> Unit, create: (String) -> Unit) {
+private fun NewPlaylistDialog(
+    services: List<ProviderType>,
+    dismiss: () -> Unit,
+    create: (String, ProviderType) -> Unit,
+) {
     var name by remember { mutableStateOf("") }
+    var service by remember { mutableStateOf(services.firstOrNull() ?: ProviderType.YOUTUBE_MUSIC) }
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text("New playlist") },
@@ -277,19 +285,44 @@ private fun NewPlaylistDialog(dismiss: () -> Unit, create: (String) -> Unit) {
                     singleLine = true,
                     label = { Text("Name") },
                 )
+                if (services.size > 1) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        services.forEach { option ->
+                            FilterChip(
+                                selected = option == service,
+                                onClick = { service = option },
+                                label = { Text(option.displayName) },
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Made on YouTube Music, and private until you say otherwise.",
+                    "Made on ${service.displayName}, and private until you say otherwise.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                 )
             }
         },
         confirmButton = {
-            TextButton(enabled = name.isNotBlank(), onClick = { create(name.trim()) }) { Text("Create") }
+            TextButton(enabled = name.isNotBlank(), onClick = { create(name.trim(), service) }) { Text("Create") }
         },
         dismissButton = { TextButton(dismiss) { Text("Cancel") } },
     )
+}
+
+/** The accounts a playlist can actually be made on, in the order the rest of the application names them. */
+@Composable
+private fun playlistServices(state: AppState): List<ProviderType> {
+    val settings by state.settings.collectAsState()
+    val likes by state.likes.collectAsState()
+    return buildList {
+        if (settings.preferences.youtubeCookies.cookieFile.isNotBlank()) add(ProviderType.YOUTUBE_MUSIC)
+        // The session, not the cookie file: SoundCloud's playlists are written with the token, and a
+        // saved file whose session has ended would offer a button that can only fail.
+        if (likes.soundCloudReady) add(ProviderType.SOUNDCLOUD)
+    }
 }
 
 /**
@@ -460,11 +493,13 @@ internal fun LibraryScreen(state: AppState) {
     }
 
     var naming by remember { mutableStateOf(false) }
+    val services = playlistServices(state)
     if (naming) {
         NewPlaylistDialog(
+            services = services,
             dismiss = { naming = false },
-            create = { name ->
-                state.createYouTubePlaylist(name)
+            create = { name, service ->
+                state.createPlaylist(name, service)
                 naming = false
             },
         )
@@ -474,7 +509,7 @@ internal fun LibraryScreen(state: AppState) {
         ScreenTitle("Library", "Your playlists, and what is kept on this phone") {
             // Only where there is an account to make one on. A button that can only explain why it does
             // not work is worse than no button.
-            if (settings.preferences.youtubeCookies.cookieFile.isNotBlank()) {
+            if (services.isNotEmpty()) {
                 IconButton({ naming = true }) { Icon(Icons.Default.Add, "New playlist") }
             }
             IconButton({ state.refreshLibrary(force = true) }) { Icon(Icons.Default.Refresh, "Reload") }
@@ -830,9 +865,12 @@ private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Un
 
     if (naming) {
         NewPlaylistDialog(
+            // A playlist made to hold this track is made where the track can go into it: SoundCloud's
+            // playlists take SoundCloud tracks and nothing else, and the same is true of YouTube Music's.
+            services = playlistServices(state).filter { it == track.provider },
             dismiss = { naming = false },
-            create = { name ->
-                state.createYouTubePlaylist(name, listOf(track))
+            create = { name, service ->
+                state.createPlaylist(name, service, listOf(track))
                 naming = false
                 dismiss()
             },
@@ -840,8 +878,12 @@ private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Un
         return
     }
 
+    // Only the ones this track can actually join. A SoundCloud track in a YouTube Music playlist is not
+    // something either service will accept, so offering it would only produce a failure at the end.
     val writable = library.playlists.filter {
-        it.provider == ProviderType.YOUTUBE_MUSIC && it.id !in YOUTUBE_SYSTEM_PLAYLISTS
+        it.provider == track.provider &&
+            (track.provider != ProviderType.YOUTUBE_MUSIC || it.id !in YOUTUBE_SYSTEM_PLAYLISTS) &&
+            (track.provider != ProviderType.SOUNDCLOUD || it.id != "likes")
     }
 
     AlertDialog(
@@ -866,7 +908,7 @@ private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Un
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    state.addTrackToYouTubePlaylist(playlist.id, track)
+                                    state.addTrackToPlaylist(playlist, track)
                                     dismiss()
                                 }
                                 .padding(vertical = 13.dp),
