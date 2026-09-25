@@ -11,6 +11,7 @@ import app.noctorium.playback.UncheckedSession
 import app.noctorium.settings.AppDirectories
 import app.noctorium.settings.SecretStore
 import app.noctorium.settings.SettingsRepository
+import app.noctorium.social.SoundCloudLikeClient
 import org.schabi.newpipe.extractor.NewPipe
 
 /**
@@ -98,6 +99,9 @@ class NoctoriumApplication : Application() {
                 ).distinct().joinToString(" ").ifBlank { "Phone" }
             },
             deviceKind = DeviceKind.PHONE,
+            // Liking is written from the phone's own browser. SoundCloud's bot protection answers an
+            // ordinary request with a captcha however it is dressed; see [WebViewRequester].
+            likeClient = SoundCloudLikeClient(WebViewRequester(this)),
             networkPresence = WifiPresence(this),
             updateInstaller = AndroidUpdateInstaller(this),
         )
