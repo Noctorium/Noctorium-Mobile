@@ -254,6 +254,12 @@ private fun SoundCloudProfileField(saved: String, state: AppState) {
         },
         modifier = Modifier.fillMaxWidth(),
     )
+    // Nobody knows their own profile name -- it is not the display name and not the email -- so the box
+    // above is an unanswerable question until something answers it. The session can: SoundCloud's own
+    // API names the account it belongs to. The desktop has had this button all along.
+    if (saved.isBlank()) {
+        TextButton({ state.detectSoundCloudProfile() }) { Text("Find it from my account") }
+    }
 }
 
 @Composable

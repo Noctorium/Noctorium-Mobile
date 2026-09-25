@@ -147,13 +147,17 @@ object WebViewSignIn {
         manager.removeAllCookies { manager.flush(); if (continuation.isActive) continuation.resume(Unit) }
     }
 
-    /** The SoundCloud token, which its API needs in a header rather than as a cookie. */
-    fun soundCloudToken(): String? = CookieManager.getInstance()
-        .getCookie("https://soundcloud.com/").orEmpty()
-        .split(';')
-        .map(String::trim)
-        .firstOrNull { it.startsWith("oauth_token=") }
-        ?.removePrefix("oauth_token=")
+    /**
+     * The SoundCloud token, which its API needs in a header rather than as a cookie.
+     *
+     * Looked for across every host a session lives on, not just soundcloud.com. On a phone it is set on
+     * m.soundcloud.com and nowhere else, so asking the plain host returned nothing -- the token was never
+     * stored, and everything that needs one gave up quietly: the profile was never worked out, and likes
+     * were never ready. The session itself looked perfect the whole time.
+     */
+    fun soundCloudToken(): String? = harvest(SOUNDCLOUD_SESSION_URLS)
+        .firstOrNull { it.name == "oauth_token" }
+        ?.value
         ?.takeIf(String::isNotBlank)
 
     /**
