@@ -178,22 +178,36 @@ object WebViewSignIn {
      * them. Windows are supported because sign-in buttons open them: SoundCloud's "continue with"
      * choices are popups, and a WebView that has not been told to expect one silently drops it.
      */
+    /** What every window in a sign-in needs, the popup as much as the page that opened it. */
     @SuppressLint("SetJavaScriptEnabled")
-    fun configure(webView: WebView, onPageFinished: (String?) -> Unit) {
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+    private fun applySettings(webView: WebView) {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
             userAgentString = signInUserAgent(userAgentString)
-            // Logged once, because "the button does nothing" is what a refused user agent looks like and
-            // this is the line that tells you whether that is what happened.
-            Log.i(SIGN_IN_LOG, "signing in as: $userAgentString")
             // Both are needed for a popup to arrive at onCreateWindow at all.
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
         }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    fun configure(
+        webView: WebView,
+        onPageFinished: (String?) -> Unit,
+        /**
+         * Called with the window a page has asked to open, and with null when it closes itself.
+         *
+         * The caller has to put it on the screen. That is not a detail of presentation: see
+         * [WebChromeClient.onCreateWindow] below for why the window has to be real.
+         */
+        onPopup: (WebView?) -> Unit = {},
+    ) {
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+        applySettings(webView)
+        Log.i(SIGN_IN_LOG, "signing in as: ${webView.settings.userAgentString}")
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 Log.i(SIGN_IN_LOG, "page: $url")
@@ -214,13 +228,20 @@ object WebViewSignIn {
         }
         webView.webChromeClient = object : WebChromeClient() {
             /**
-             * A popup, given the WebView it asked for.
+             * A real second window, because an OAuth popup is not a link.
              *
-             * The window is opened in the one already on screen rather than in a second one floating
-             * above it. A sign-in popup is a full-screen affair on a phone anyway, and its cookies have
-             * to land in the same store the session is harvested from, which they do only if it is the
-             * same WebView. The throwaway below exists because that is the only way to be handed the
-             * address the page wanted to open -- there is no other API that reports it.
+             * The obvious shortcut -- take the address the page wanted to open and load it in the window
+             * already on screen -- is what this did first, and it fails in a way that looks like the
+             * listener's fault. SoundCloud's "continue with Google" opens a popup which, when Google is
+             * done, hands the result back to the page that opened it through `window.opener`. Loading it
+             * in the main window destroys that page, so there is nothing left to hand anything back to:
+             * Google signs in perfectly, SoundCloud never hears about it, and Done reports no session
+             * with nothing in any log. The cookie store afterwards had a google_auth_nonce and no token,
+             * which is exactly the shape of a conversation that was interrupted halfway.
+             *
+             * So the popup gets a WebView of its own, with the same settings and the same cookie store,
+             * and the caller puts it on the screen. It closes itself when the exchange is done, which is
+             * what onCloseWindow reports.
              */
             override fun onCreateWindow(
                 view: WebView,
@@ -229,22 +250,27 @@ object WebViewSignIn {
                 resultMsg: Message,
             ): Boolean {
                 val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
-                val messenger = WebView(view.context)
-                messenger.webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(
-                        popup: WebView?,
-                        request: WebResourceRequest?,
-                    ): Boolean {
-                        request?.url?.toString()?.let {
-                            Log.i(SIGN_IN_LOG, "popup -> $it")
-                            view.loadUrl(it)
-                        }
-                        popup?.destroy()
-                        return true
+                val popup = WebView(view.context)
+                applySettings(popup)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(popup, true)
+                popup.webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(window: WebView?, url: String?) {
+                        Log.i(SIGN_IN_LOG, "popup page: $url")
+                        CookieManager.getInstance().flush()
                     }
                 }
-                transport.webView = messenger
+                popup.webChromeClient = object : WebChromeClient() {
+                    override fun onCloseWindow(window: WebView) {
+                        Log.i(SIGN_IN_LOG, "popup closed")
+                        CookieManager.getInstance().flush()
+                        onPopup(null)
+                    }
+
+                    override fun onConsoleMessage(message: ConsoleMessage?): Boolean = true
+                }
+                transport.webView = popup
                 resultMsg.sendToTarget()
+                onPopup(popup)
                 return true
             }
 

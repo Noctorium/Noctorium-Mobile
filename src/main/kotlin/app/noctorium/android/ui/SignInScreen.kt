@@ -64,8 +64,17 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
     var saving by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<WebView?>(null) }
+    var popup by remember { mutableStateOf<WebView?>(null) }
 
-    BackHandler { if (webView?.canGoBack() == true) webView?.goBack() else close() }
+    // Back closes the popup first, the way a browser does: it is a window in front of the page, and the
+    // page is still where the listener was.
+    BackHandler {
+        when {
+            popup != null -> { popup?.destroy(); popup = null }
+            webView?.canGoBack() == true -> webView?.goBack()
+            else -> close()
+        }
+    }
 
     // Always from a clean store. Reusing whatever was there opens a page already signed in as the previous
     // account, asks the listener for nothing, and harvests the same stale cookies again — the loop this
@@ -144,13 +153,32 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                 AndroidView(
                     factory = { context ->
                         WebView(context).also { view ->
-                            WebViewSignIn.configure(view) { loading = false }
+                            WebViewSignIn.configure(
+                                webView = view,
+                                onPageFinished = { loading = false },
+                                onPopup = { popup = it },
+                            )
                             view.loadUrl(WebViewSignIn.startUrlFor(provider))
                             webView = view
                         }
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
+
+                /*
+                 * The second window, over the first rather than instead of it.
+                 *
+                 * A "continue with Google" popup hands its result back to the page that opened it, so
+                 * that page has to still be there underneath, loaded and waiting. Covering it is the
+                 * whole trick: the listener sees one screen at a time, and the conversation between the
+                 * two windows carries on behind it.
+                 */
+                popup?.let { window ->
+                    AndroidView(
+                        factory = { window },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
     }
