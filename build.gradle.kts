@@ -96,8 +96,13 @@ android {
             // is to uninstall whatever is on it -- taking the sessions and downloads with it.
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            // And its own name on the launcher, which is not a nicety. Two identical icons both called
+            // Noctorium sat on a home screen and somebody signed into the wrong one, then reported that
+            // the fix had not worked -- which it had, in the other app.
+            manifestPlaceholders["appLabel"] = "Noctorium (debug)"
         }
         release {
+            manifestPlaceholders["appLabel"] = "Noctorium"
             // Left off for now. NewPipeExtractor leans on reflection through its parser stack, and a
             // release build that silently returns no results is a poor first thing to debug on a phone.
             isMinifyEnabled = false

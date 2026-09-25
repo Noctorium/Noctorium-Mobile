@@ -31,7 +31,7 @@
 
     <application
         android:name=".NoctoriumApplication"
-        android:label="Noctorium"
+        android:label="${appLabel}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
@@ -42,7 +42,7 @@
             android:name=".MainActivity"
             android:theme="@style/Theme.Noctorium.Starting"
             android:exported="true"
-            android:label="Noctorium"
+            android:label="${appLabel}"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
