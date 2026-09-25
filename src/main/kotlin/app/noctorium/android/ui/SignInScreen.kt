@@ -40,9 +40,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.noctorium.auth.SOUNDCLOUD_OWN_LIKES
+import app.noctorium.auth.permalinkFromBrowserUrl
 import app.noctorium.android.WebViewSignIn
 import app.noctorium.core.AppState
 import app.noctorium.domain.ProviderType
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -57,6 +60,33 @@ import kotlinx.coroutines.launch
  * arrangement is a Done button — pressed when they can see they are signed in — which then checks whether
  * a usable session really was left behind rather than assuming it.
  */
+/**
+ * Asks SoundCloud which account just signed in, by going somewhere only it can answer.
+ *
+ * SoundCloud does not put the profile name in a cookie, and the library needs it: playlists and likes are
+ * addressed by profile, not by session, so without it a signed-in account has an empty library and a box
+ * to type into that nobody knows the answer to.
+ *
+ * The trick is SoundCloud's own: once signed in, `/you/likes` is answered by moving to `/<profile>/likes`,
+ * so the address the browser settles on names the account without a request of ours. It is watched rather
+ * than read once, because there are two or three redirects on the way and only the last one is the answer.
+ *
+ * Null when it cannot be worked out, which leaves the box empty and typed in by hand, exactly as before.
+ */
+private suspend fun askWhoIsSignedIn(webView: WebView?, settledUrl: () -> String?): String? {
+    val view = webView ?: return null
+    view.loadUrl(SOUNDCLOUD_OWN_LIKES)
+    repeat(WHO_AM_I_ATTEMPTS) {
+        delay(WHO_AM_I_INTERVAL_MS)
+        permalinkFromBrowserUrl(settledUrl())?.let { return it }
+    }
+    return null
+}
+
+/** Ten seconds in quarter seconds: long enough for three redirects on a slow connection. */
+private const val WHO_AM_I_ATTEMPTS = 40
+private const val WHO_AM_I_INTERVAL_MS = 250L
+
 @Composable
 internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -65,6 +95,8 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
     var problem by remember { mutableStateOf<String?>(null) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var popup by remember { mutableStateOf<WebView?>(null) }
+    // The address the page last settled on, which is how SoundCloud is asked who just signed in.
+    var lastUrl by remember { mutableStateOf<String?>(null) }
 
     // Back closes the popup first, the way a browser does: it is a window in front of the page, and the
     // page is still where the listener was.
@@ -121,6 +153,7 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                                 state.completeSoundCloudSignIn(
                                     saved.toString(),
                                     WebViewSignIn.soundCloudToken(),
+                                    askWhoIsSignedIn(webView) { lastUrl },
                                 )
                             } else {
                                 state.completeYouTubeSignIn(saved.toString())
@@ -155,7 +188,10 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                         WebView(context).also { view ->
                             WebViewSignIn.configure(
                                 webView = view,
-                                onPageFinished = { loading = false },
+                                onPageFinished = { url ->
+                                    loading = false
+                                    lastUrl = url
+                                },
                                 onPopup = { popup = it },
                             )
                             view.loadUrl(WebViewSignIn.startUrlFor(provider))
