@@ -137,6 +137,9 @@ internal fun UpdatePrompt(state: AppState) {
     val itself = updates.canInstall && offer.file != null && offer.sha256 != null
     AlertDialog(
         onDismissRequest = state::dismissUpdate,
+        // Opaque even under glass. A pane of glass in the middle of the page is the effect; a modal you
+        // can read the track list through is a modal competing with what it is covering.
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 1f),
         icon = { Icon(Icons.Default.SystemUpdateAlt, null) },
         title = { Text("Noctorium ${offer.version} is out") },
         text = {

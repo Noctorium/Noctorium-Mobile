@@ -8,12 +8,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Density
+import app.noctorium.android.ui.asGlass
+import app.noctorium.android.ui.noctoriumShapes
 import androidx.core.view.WindowCompat
 import app.noctorium.settings.resolvedAccent
 import app.noctorium.settings.themeColours
@@ -120,9 +125,29 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = theme.light
                 }
             }
+            val density = LocalDensity.current
             MaterialTheme(
-                colorScheme = noctoriumColors(theme, Color(settings.preferences.resolvedAccent(null))),
-            ) { NoctoriumPhone(state) }
+                colorScheme = noctoriumColors(theme, Color(settings.preferences.resolvedAccent(null)))
+                    .asGlass(settings.preferences.surfaceStyle),
+                shapes = noctoriumShapes(settings.preferences.cornerStyle),
+            ) {
+                /*
+                 * Text size, applied to the density rather than to the typography.
+                 *
+                 * Almost every size in this application is written at the call site as a literal `.sp`,
+                 * so scaling MaterialTheme's typography would have moved a handful of labels and left
+                 * the rest exactly where they were. fontScale is the one lever that reaches every `.sp`
+                 * there is. It multiplies what Android is already asking for, so a phone set to large
+                 * text and Noctorium set to large text get both, which is what somebody who set both
+                 * meant.
+                 */
+                CompositionLocalProvider(
+                    LocalDensity provides Density(
+                        density.density,
+                        density.fontScale * settings.preferences.textSize.scale,
+                    ),
+                ) { NoctoriumPhone(state) }
+            }
         }
     }
 

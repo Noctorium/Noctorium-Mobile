@@ -48,6 +48,9 @@ import app.noctorium.settings.themeColours
 import app.noctorium.settings.toHexColour
 import app.noctorium.settings.BadgePolicy
 import app.noctorium.settings.CardSize
+import app.noctorium.settings.CornerStyle
+import app.noctorium.settings.SurfaceStyle
+import app.noctorium.settings.TextSize
 import app.noctorium.settings.PlayerBarPosition
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.ScrobbleConnectionStatus
@@ -141,6 +144,48 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
                 )
             }
         }
+
+        ChoiceRow("Surfaces") {
+            SurfaceStyle.entries.forEach { style ->
+                FilterChip(
+                    selected = preferences.surfaceStyle == style,
+                    onClick = { state.setSurfaceStyle(style) },
+                    label = { Text(style.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+        Text(
+            preferences.surfaceStyle.description,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+
+        ChoiceRow("Corners") {
+            CornerStyle.entries.forEach { corner ->
+                FilterChip(
+                    selected = preferences.cornerStyle == corner,
+                    onClick = { state.setCornerStyle(corner) },
+                    label = { Text(corner.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+
+        ChoiceRow("Text size") {
+            TextSize.entries.forEach { size ->
+                FilterChip(
+                    selected = preferences.textSize == size,
+                    onClick = { state.setTextSize(size) },
+                    label = { Text(size.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+        Text(
+            "Everything at once, on top of the phone's own text size.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
 
         ChoiceRow("Card size") {
             CardSize.entries.forEach { size ->

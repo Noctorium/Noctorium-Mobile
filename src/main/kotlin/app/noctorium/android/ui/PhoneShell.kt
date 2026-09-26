@@ -202,8 +202,12 @@ fun NoctoriumPhone(state: AppState) {
             ui.destination != Destination.HOME,
     ) { state.navigate(Destination.HOME) }
 
+    val glass = settings.preferences.surfaceStyle.isGlass
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
+            // Behind everything, and only under glass: the panels above are translucent precisely so
+            // that this shows through them. Without it they are translucent over nothing.
+            if (glass) GlassBackdrop(playback.track?.artworkUrl)
             /*
              * The player bar at the head of the screen, for anyone who asked for it there.
              *
