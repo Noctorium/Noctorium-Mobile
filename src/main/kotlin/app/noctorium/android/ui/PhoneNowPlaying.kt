@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -66,6 +67,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import kotlin.math.roundToInt
 
 /**
  * One track, filling the screen.
@@ -221,13 +223,12 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 }
             }
 
-            VolumeRow(playback, state)
-
             Row(
                 Modifier.fillMaxWidth().padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                VolumeButton(playback, state)
                 if (likes.supports(track)) {
                     val liked = likes.isLiked(track)
                     IconButton({ state.toggleLike(track) }, enabled = !likes.isBusy(track)) {
@@ -246,52 +247,79 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
 }
 
 /**
- * Noctorium's own volume, and the boost.
+ * Volume, mute and the boost behind one icon, the way the desktop's player bar does it.
  *
- * The phone has volume keys already, and for a long time that was the argument for not having this: they
- * set the stream, which is the loudest the phone can be. What they cannot do is set Noctorium relative to
- * everything else -- turning a podcast down without turning the next notification down with it -- and they
- * cannot reach the boost at all.
+ * The phone has volume keys already, and for a long time that was the argument for not having this at
+ * all: they set the stream, which is the loudest the phone can be. What they cannot do is set Noctorium
+ * relative to everything else -- turning a podcast down without turning the next notification down with
+ * it -- and they cannot reach the boost.
+ *
+ * Behind a button rather than spread across a row of its own, which is what it was first: that cost a
+ * line of a screen with less of it to spare, and left a slider directly under the transport buttons for
+ * a thumb reaching for pause to catch. Closed, the icon still says which of muted, quiet or loud it is.
  *
  * The boost is the same bargain as the desktop's: not more gain past unity, which only clips, but
  * Android's `LoudnessEnhancer` lifting the quiet parts. Off when the platform will not give it, and the
  * chip follows what actually happened rather than what was asked for.
  */
 @Composable
-private fun VolumeRow(playback: PlaybackState, state: AppState) {
-    Row(
-        Modifier.fillMaxWidth().padding(bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(state::toggleMute) {
+private fun VolumeButton(playback: PlaybackState, state: AppState) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton({ open = true }) {
             Icon(
                 when {
                     playback.isMuted || playback.volume <= 0f -> Icons.AutoMirrored.Filled.VolumeOff
                     playback.volume < .5f -> Icons.AutoMirrored.Filled.VolumeDown
                     else -> Icons.AutoMirrored.Filled.VolumeUp
                 },
-                if (playback.isMuted) "Unmute" else "Mute",
-                tint = if (playback.isMuted) {
+                "Volume",
+                tint = if (playback.isMuted || playback.volumeBoostEnabled) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )
         }
-        Slider(
-            value = playback.volume.coerceIn(0f, 1f),
-            onValueChange = state::setVolume,
-            valueRange = 0f..1f,
-            modifier = Modifier.weight(1f),
-        )
-        FilterChip(
-            selected = playback.volumeBoostEnabled,
-            onClick = state::toggleVolumeBoost,
-            label = { Text("Boost", fontSize = 11.sp) },
-            leadingIcon = { Icon(Icons.Default.Bolt, null, Modifier.size(14.dp)) },
-            modifier = Modifier.height(30.dp),
-        )
+        DropdownMenu(open, { open = false }) {
+            Column(Modifier.width(260.dp).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Volume", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(
+                        "${(playback.volume * 100).roundToInt()}%",
+                        color = if (playback.volumeBoostEnabled) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Slider(
+                    value = playback.volume.coerceIn(0f, 1f),
+                    onValueChange = state::setVolume,
+                    valueRange = 0f..1f,
+                )
+                // Taller than the same two chips on the desktop. Thirty density-independent pixels is a
+                // comfortable click and an awkward tap; this is what a thumb wants.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FilterChip(
+                        selected = playback.isMuted,
+                        onClick = state::toggleMute,
+                        label = { Text(if (playback.isMuted) "Muted" else "Mute", fontSize = 12.sp) },
+                        modifier = Modifier.height(38.dp),
+                    )
+                    FilterChip(
+                        selected = playback.volumeBoostEnabled,
+                        onClick = state::toggleVolumeBoost,
+                        label = { Text("Boost", fontSize = 12.sp) },
+                        leadingIcon = { Icon(Icons.Default.Bolt, null, Modifier.size(16.dp)) },
+                        modifier = Modifier.height(38.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
