@@ -223,23 +223,27 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 }
             }
 
-            Row(
-                Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                VolumeButton(playback, state)
-                if (likes.supports(track)) {
-                    val liked = likes.isLiked(track)
-                    IconButton({ state.toggleLike(track) }, enabled = !likes.isBusy(track)) {
-                        Icon(
-                            if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            if (liked) "Remove from likes" else "Like",
-                            tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+            // The like and the menu are about this track, so they stay under the middle of it. Volume is
+            // not about the track at all, and sitting in that group it read as a third thing of the same
+            // kind; out at the edge, under the end of the seek bar, it is plainly its own.
+            Box(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                Row(
+                    Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (likes.supports(track)) {
+                        val liked = likes.isLiked(track)
+                        IconButton({ state.toggleLike(track) }, enabled = !likes.isBusy(track)) {
+                            Icon(
+                                if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                if (liked) "Remove from likes" else "Like",
+                                tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
+                    TrackMenuButton(track, state)
                 }
-                TrackMenuButton(track, state)
+                VolumeButton(playback, state, Modifier.align(Alignment.CenterEnd))
             }
         }
       }
@@ -263,9 +267,9 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
  * chip follows what actually happened rather than what was asked for.
  */
 @Composable
-private fun VolumeButton(playback: PlaybackState, state: AppState) {
+private fun VolumeButton(playback: PlaybackState, state: AppState, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier) {
         IconButton({ open = true }) {
             Icon(
                 when {
