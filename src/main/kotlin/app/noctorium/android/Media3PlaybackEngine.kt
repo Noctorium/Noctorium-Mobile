@@ -117,6 +117,14 @@ class Media3PlaybackEngine(
         )
         .build()
         .apply {
+            // Start where the state says, not where ExoPlayer's own default is.
+            //
+            // Noctorium opens at 72%, and until something moved the slider nobody told the player
+            // that: it began every session at unity while the slider drew 72%, and the first touch
+            // of the slider was a jump down rather than the small change it looked like. The desktop
+            // never had this because mpv is handed --volume on the command line of every track.
+            volume = mutableState.value.volume
+
             // The volume boost hangs off the audio session, and there is no session until the audio
             // sink opens -- nor is it the same session afterwards if the sink is torn down and rebuilt.
             // Re-applying whenever it changes keeps the boost attached to the thing actually playing.
