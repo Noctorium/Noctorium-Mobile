@@ -1,6 +1,10 @@
 package app.noctorium.android.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import app.noctorium.settings.SeekBar
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -407,13 +411,40 @@ internal fun PlayPauseButton(playback: PlaybackState, state: AppState, size: Dp 
  */
 @Composable
 internal fun PlaybackLine(playback: PlaybackState, style: ProgressBarStyle = ProgressBarStyle.MINIMAL) {
+    // Segments is the one style with a shape small enough to survive being two pixels tall, and it is
+    // what makes the mini bar recognisably the same choice as the one on the now playing screen. The
+    // rest come down to a thickness here: this is a line under a title, not the seek bar itself, and
+    // a travelling wave or a fat capsule in the player bar is noise in the corner of every screen.
+    if (style == ProgressBarStyle.SEGMENTS) {
+        val filled = MaterialTheme.colorScheme.primary
+        val track = MaterialTheme.colorScheme.surfaceVariant
+        val fraction = playbackFraction(playback.positionMs, playback.durationMs)
+        Canvas(Modifier.fillMaxWidth().height(3.dp)) {
+            val count = (size.width / SeekBar.SEGMENT_PITCH_DP.dp.toPx()).toInt().coerceAtLeast(4)
+            val pitch = size.width / count
+            val width = (pitch * (1f - SeekBar.SEGMENT_GAP_RATIO)).coerceAtLeast(1f)
+            val head = size.width * fraction
+            repeat(count) { index ->
+                val left = index * pitch
+                drawRect(
+                    color = if (left < head) filled else track,
+                    topLeft = Offset(left, 0f),
+                    size = Size(width, size.height),
+                )
+            }
+        }
+        return
+    }
     LinearProgressIndicator(
         progress = { playbackFraction(playback.positionMs, playback.durationMs) },
-        // The desktop's two styles, meaning the same thing here: a hairline that stays out of the way, or
-        // a track thick enough to see across a room.
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (style == ProgressBarStyle.MATERIAL) 5.dp else 2.dp),
+            .height(
+                when (style) {
+                    ProgressBarStyle.MATERIAL, ProgressBarStyle.CAPSULE -> 5.dp
+                    else -> 2.dp
+                },
+            ),
         trackColor = MaterialTheme.colorScheme.surfaceVariant,
     )
 }

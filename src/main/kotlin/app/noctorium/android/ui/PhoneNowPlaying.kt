@@ -1,6 +1,14 @@
 package app.noctorium.android.ui
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +55,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -62,10 +71,13 @@ import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.RepeatMode
+import app.noctorium.settings.ProgressBarStyle
+import app.noctorium.settings.SeekBar
 import app.noctorium.settings.TimeDisplay
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import coil.compose.AsyncImage
 import kotlin.math.roundToInt
 
@@ -188,6 +200,8 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 playback.positionMs,
                 playback.durationMs,
                 settings.preferences.timeDisplay,
+                settings.preferences.progressBarStyle,
+                playback.isPlaying,
                 state::seekTo,
             )
 
@@ -338,12 +352,27 @@ private fun Seekbar(
     positionMs: Long,
     durationMs: Long,
     display: TimeDisplay,
+    style: ProgressBarStyle,
+    playing: Boolean,
     seekTo: (Long) -> Unit,
 ) {
     var dragging by remember { mutableStateOf<Float?>(null) }
     val fraction = dragging ?: playbackFraction(positionMs, durationMs)
 
     Column {
+        if (style.isDrawn) {
+            DrawnSeekbar(
+                style = style,
+                fraction = fraction,
+                canSeek = durationMs > 0,
+                moving = playing && dragging == null,
+                onScrub = { dragging = it },
+                onScrubFinished = {
+                    dragging?.let { if (durationMs > 0) seekTo((it * durationMs).toLong()) }
+                    dragging = null
+                },
+            )
+        } else {
         Slider(
             value = fraction,
             onValueChange = { dragging = it },
@@ -353,6 +382,7 @@ private fun Seekbar(
             },
             enabled = durationMs > 0,
         )
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 formatDuration((fraction * durationMs).toLong()),
@@ -368,6 +398,75 @@ private fun Seekbar(
     }
 }
 
+
+/**
+ * The seek bars that are drawn rather than handed to Material's slider.
+ *
+ * A thumb is not a mouse pointer, so the touch area is 36dp tall whatever the bar inside it is: the
+ * Capsule is ten of those and the hairline is three, and neither would be reliably hittable at its own
+ * height. Tapping seeks straight there, which is what everybody tries first on a phone.
+ */
+@Composable
+private fun DrawnSeekbar(
+    style: ProgressBarStyle,
+    fraction: Float,
+    canSeek: Boolean,
+    moving: Boolean,
+    onScrub: (Float) -> Unit,
+    onScrubFinished: () -> Unit,
+) {
+    var widthPx by remember { mutableIntStateOf(1) }
+    val track = MaterialTheme.colorScheme.onSurface.copy(alpha = SeekBar.TRACK_ALPHA)
+    val filled = MaterialTheme.colorScheme.primary
+
+    // The wave travels one wavelength per cycle, and fades to flat rather than stopping when the music
+    // does -- a wave frozen mid-crest looks like something broken rather than like a paused song.
+    val travel = rememberInfiniteTransition(label = "wave")
+    val phase by travel.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween((SeekBar.WAVE_SECONDS_PER_CYCLE * 1000).toInt(), easing = LinearEasing),
+        ),
+        label = "wavePhase",
+    )
+    val amplitude by animateFloatAsState(
+        if (style == ProgressBarStyle.WAVE && moving) 1f else 0f,
+        tween(450),
+        label = "waveAmplitude",
+    )
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .onSizeChanged { widthPx = it.width.coerceAtLeast(1) }
+            .pointerInput(canSeek, widthPx) {
+                if (!canSeek) return@pointerInput
+                detectTapGestures { offset ->
+                    onScrub((offset.x / widthPx).coerceIn(0f, 1f))
+                    onScrubFinished()
+                }
+            }
+            .pointerInput(canSeek, widthPx) {
+                if (!canSeek) return@pointerInput
+                detectHorizontalDragGestures(
+                    onDragStart = { offset -> onScrub((offset.x / widthPx).coerceIn(0f, 1f)) },
+                    onDragEnd = { onScrubFinished() },
+                    onDragCancel = { onScrubFinished() },
+                    onHorizontalDrag = { change, _ ->
+                        onScrub((change.position.x / widthPx).coerceIn(0f, 1f))
+                        change.consume()
+                    },
+                )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxWidth().height(24.dp)) {
+            drawSeekBar(style, fraction, canSeek, track, filled, phase, amplitude)
+        }
+    }
+}
 
 /**
  * The artwork, blurred and dimmed, behind the track it belongs to.
