@@ -22,6 +22,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
+import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.RepeatMode
 import app.noctorium.settings.TimeDisplay
 import androidx.compose.ui.draw.blur
@@ -215,6 +221,8 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 }
             }
 
+            VolumeRow(playback, state)
+
             Row(
                 Modifier.fillMaxWidth().padding(bottom = 10.dp),
                 horizontalArrangement = Arrangement.Center,
@@ -234,6 +242,56 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
             }
         }
       }
+    }
+}
+
+/**
+ * Noctorium's own volume, and the boost.
+ *
+ * The phone has volume keys already, and for a long time that was the argument for not having this: they
+ * set the stream, which is the loudest the phone can be. What they cannot do is set Noctorium relative to
+ * everything else -- turning a podcast down without turning the next notification down with it -- and they
+ * cannot reach the boost at all.
+ *
+ * The boost is the same bargain as the desktop's: not more gain past unity, which only clips, but
+ * Android's `LoudnessEnhancer` lifting the quiet parts. Off when the platform will not give it, and the
+ * chip follows what actually happened rather than what was asked for.
+ */
+@Composable
+private fun VolumeRow(playback: PlaybackState, state: AppState) {
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(state::toggleMute) {
+            Icon(
+                when {
+                    playback.isMuted || playback.volume <= 0f -> Icons.AutoMirrored.Filled.VolumeOff
+                    playback.volume < .5f -> Icons.AutoMirrored.Filled.VolumeDown
+                    else -> Icons.AutoMirrored.Filled.VolumeUp
+                },
+                if (playback.isMuted) "Unmute" else "Mute",
+                tint = if (playback.isMuted) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        Slider(
+            value = playback.volume.coerceIn(0f, 1f),
+            onValueChange = state::setVolume,
+            valueRange = 0f..1f,
+            modifier = Modifier.weight(1f),
+        )
+        FilterChip(
+            selected = playback.volumeBoostEnabled,
+            onClick = state::toggleVolumeBoost,
+            label = { Text("Boost", fontSize = 11.sp) },
+            leadingIcon = { Icon(Icons.Default.Bolt, null, Modifier.size(14.dp)) },
+            modifier = Modifier.height(30.dp),
+        )
     }
 }
 

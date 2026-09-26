@@ -1,6 +1,7 @@
 package app.noctorium.android
 
 import android.content.Context
+import android.media.audiofx.LoudnessEnhancer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -9,6 +10,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import app.noctorium.domain.Track
 import app.noctorium.net.networkFailureMessage
 import app.noctorium.playback.MusicBackend
@@ -115,6 +117,13 @@ class Media3PlaybackEngine(
         )
         .build()
         .apply {
+            // The volume boost hangs off the audio session, and there is no session until the audio
+            // sink opens -- nor is it the same session afterwards if the sink is torn down and rebuilt.
+            // Re-applying whenever it changes keeps the boost attached to the thing actually playing.
+            addAnalyticsListener(object : AnalyticsListener {
+                override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) =
+                    applyBoost(audioSessionId)
+            })
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) = publish()
 
@@ -258,14 +267,67 @@ class Media3PlaybackEngine(
     }
 
     /**
-     * Not offered here.
+     * Android's own loudness enhancer, attached to this player's audio session.
      *
-     * The desktop boosts past 100% because mpv can, and because a laptop speaker sometimes needs it.
-     * ExoPlayer's volume is capped at unity, and the honest thing is to say so rather than to add gain
-     * that clips. The phone's own volume keys are louder than this anyway.
+     * ExoPlayer's `volume` stops at unity and multiplying past it would only clip, which is why this used
+     * to say no. `LoudnessEnhancer` is the part of the platform meant for exactly this: it sits in the
+     * effect chain on the session and applies a target gain in millibels, compressing rather than simply
+     * scaling, so a quiet track gets louder instead of squarer. The same trade the desktop's compressor
+     * makes, done by the phone's own audio framework.
+     *
+     * Best-effort throughout. The effect needs a real audio session, some devices refuse to allocate one,
+     * and a phone with nothing playing has no session at all -- so a failure leaves the toggle off rather
+     * than pretending.
      */
-    override suspend fun setVolumeBoost(enabled: Boolean) {
-        mutableState.update { it.copy(volumeBoostEnabled = false) }
+    override suspend fun setVolumeBoost(enabled: Boolean) = withContext(Dispatchers.Main) {
+        boostWanted = enabled
+        applyBoost()
+    }
+
+    /**
+     * Put the wanted boost on whatever session the player has right now.
+     *
+     * Kept apart from the toggle because the answer changes underneath it. A player that has not opened
+     * its audio sink yet has no session to attach an effect to, and one that reopens it -- a headset
+     * arriving, a phone call ending -- gets a different one. Asking again every time the session changes
+     * is what stops a boost switched on during a buffering track from quietly doing nothing.
+     */
+    private fun applyBoost(session: Int = player.audioSessionId) {
+        val applied = runCatching {
+            if (!boostWanted || session == C.AUDIO_SESSION_ID_UNSET) {
+                loudness?.enabled = false
+                return@runCatching false
+            }
+            if (loudnessSession != session) {
+                loudness?.release()
+                loudness = LoudnessEnhancer(session)
+                loudnessSession = session
+            }
+            loudness?.setTargetGain(BOOST_GAIN_MILLIBELS)
+            loudness?.enabled = true
+            true
+        }.getOrDefault(false)
+        mutableState.update { it.copy(volumeBoostEnabled = applied) }
+    }
+
+    /** What the listener asked for, as opposed to what the audio session currently has on it. */
+    private var boostWanted = false
+
+    /** Released with the player; an effect outlives its session otherwise and leaks the native object. */
+    private var loudness: LoudnessEnhancer? = null
+
+    /** The session [loudness] was built for, so a replacement is noticed instead of boosting nothing. */
+    private var loudnessSession = C.AUDIO_SESSION_ID_UNSET
+
+    private companion object {
+        /**
+         * Nine decibels, in the hundredths Android counts them in.
+         *
+         * Enough to be plainly louder on a phone speaker and short of where a loudness enhancer starts
+         * sounding pumped and flat. It is a fixed amount rather than a second slider because the one
+         * question somebody has here is whether this is loud enough, not by how many decibels.
+         */
+        const val BOOST_GAIN_MILLIBELS = 900
     }
 
     override suspend fun setMuted(muted: Boolean) = withContext(Dispatchers.Main) {
@@ -334,6 +396,10 @@ class Media3PlaybackEngine(
         ticker?.cancel()
         // Release has to happen on the thread the player was built on, and the process may be going away,
         // so this does not wait for a coroutine to be scheduled.
+        // The effect first: it holds a native object tied to the session the player is about to drop.
+        runCatching { loudness?.release() }
+        loudness = null
+        loudnessSession = C.AUDIO_SESSION_ID_UNSET
         player.release()
         scope.cancel()
     }
