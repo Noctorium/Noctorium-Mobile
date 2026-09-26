@@ -1,6 +1,14 @@
 package app.noctorium.android.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import app.noctorium.settings.Glass
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -207,11 +215,19 @@ fun NoctoriumPhone(state: AppState) {
     ) { state.navigate(Destination.HOME) }
 
     val glass = settings.preferences.surfaceStyle.isGlass
+    val screens: @Composable () -> Unit = {
+        when (ui.destination) {
+            Destination.SEARCH -> SearchScreen(state)
+            Destination.LIBRARY -> LibraryScreen(state)
+            Destination.SETTINGS -> SettingsScreen(state) { signingInTo = it }
+            Destination.QUEUE -> QueueScreen(state)
+            // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
+            // Home with the sheet open instead of on an empty screen.
+            Destination.HOME, Destination.NOW_PLAYING -> HomeScreen(state)
+        }
+    }
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
-            // Behind everything, and only under glass: the panels above are translucent precisely so
-            // that this shows through them. Without it they are translucent over nothing.
-            if (glass) GlassBackdrop(playback.track?.artworkUrl)
             /*
              * The player bar at the head of the screen, for anyone who asked for it there.
              *
@@ -221,7 +237,17 @@ fun NoctoriumPhone(state: AppState) {
              * and tells the screens beneath that the inset is spent, or each would pad for it again.
              */
             val barAtTop = settings.preferences.playerBarPosition == PlayerBarPosition.TOP && playback.track != null
-            Column(Modifier.fillMaxSize()) {
+            if (glass) {
+                GlassChrome(
+                    state = state,
+                    playback = playback,
+                    settings = settings,
+                    destination = ui.destination,
+                    barAtTop = barAtTop,
+                    openNowPlaying = { nowPlayingOpen = true },
+                    screens = screens,
+                )
+            } else Column(Modifier.fillMaxSize()) {
                 if (barAtTop) {
                     Column(Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
                         PlayerBar(
@@ -236,17 +262,7 @@ fun NoctoriumPhone(state: AppState) {
                     Modifier
                         .weight(1f)
                         .then(if (barAtTop) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
-                ) {
-                    when (ui.destination) {
-                        Destination.SEARCH -> SearchScreen(state)
-                        Destination.LIBRARY -> LibraryScreen(state)
-                        Destination.SETTINGS -> SettingsScreen(state) { signingInTo = it }
-                        Destination.QUEUE -> QueueScreen(state)
-                        // Now playing is a sheet here rather than a destination, so anything that asks for
-                        // it lands on Home with the sheet open instead of on an empty screen.
-                        Destination.HOME, Destination.NOW_PLAYING -> HomeScreen(state)
-                    }
-                }
+                ) { screens() }
 
                 Column(Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))) {
                     if (playback.track != null && !barAtTop) {
@@ -289,16 +305,141 @@ fun NoctoriumPhone(state: AppState) {
     }
 }
 
+/**
+ * The screen under liquid glass: content running the full height, and the player and the tabs floating
+ * over it as panes.
+ *
+ * The content goes *underneath*, which is the whole reason for the arrangement. A pane over a flat patch
+ * of page has nothing to bend; a pane over a list of covers that is being scrolled bends every one of
+ * them as it passes. The lists are told how much of them the panes cover, through [LocalChromeInsets],
+ * so their last rows can still be scrolled clear of the tab bar.
+ *
+ * The panes are drawn after the content and outside what is recorded for them, or each would be looking
+ * at itself.
+ */
+@Composable
+private fun BoxScope.GlassChrome(
+    state: AppState,
+    playback: PlaybackState,
+    settings: app.noctorium.settings.SettingsState,
+    destination: Destination,
+    barAtTop: Boolean,
+    openNowPlaying: () -> Unit,
+    screens: @Composable () -> Unit,
+) {
+    val backdrop = rememberGlassBackdrop()
+    val density = LocalDensity.current
+    var topCover by remember { mutableIntStateOf(0) }
+    var bottomCover by remember { mutableIntStateOf(0) }
+    val inset = Glass.FLOAT_INSET_DP.dp
+
+    Box(Modifier.fillMaxSize().glassSource(backdrop)) {
+        GlassWash(playback.track?.artworkUrl)
+        CompositionLocalProvider(
+            LocalChromeInsets provides with(density) { ChromeInsets(topCover.toDp(), bottomCover.toDp()) },
+        ) { screens() }
+    }
+
+    if (barAtTop) {
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                // Measured inside the status-bar padding: the screens pad the status bar themselves, and
+                // counting it here as well would leave a strip of nothing above every list.
+                .onSizeChanged { topCover = it.height }
+                .padding(horizontal = inset, vertical = 6.dp),
+        ) {
+            GlassPane(backdrop) {
+                PlayerBar(
+                    playback,
+                    state,
+                    settings.preferences.progressBarStyle,
+                    settings.preferences.phone.swipeToChangeTrack,
+                    glass = true,
+                    open = openNowPlaying,
+                )
+            }
+        }
+    }
+
+    Column(
+        Modifier
+            .align(Alignment.BottomCenter)
+            // Measured outside the navigation-bar padding: nothing else pads for it under glass, so the
+            // lists have to be told about it along with the panes.
+            .onSizeChanged { bottomCover = it.height }
+            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+            .padding(start = inset, end = inset, bottom = inset / 2),
+    ) {
+        if (playback.track != null && !barAtTop) {
+            GlassPane(backdrop) {
+                PlayerBar(
+                    playback,
+                    state,
+                    settings.preferences.progressBarStyle,
+                    settings.preferences.phone.swipeToChangeTrack,
+                    glass = true,
+                    open = openNowPlaying,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        GlassPane(backdrop) {
+            GlassNavigation(destination, settings.preferences.phone.navigationLabels, state::navigate)
+        }
+    }
+}
+
+/** The five places, shared by the ordinary tab bar and the glass one so they cannot drift apart. */
+private val PHONE_TABS = listOf(
+    Triple(Destination.HOME, Icons.Default.Home, "Home"),
+    Triple(Destination.SEARCH, Icons.Default.Search, "Search"),
+    Triple(Destination.LIBRARY, Icons.Default.LibraryMusic, "Library"),
+    Triple(Destination.QUEUE, Icons.AutoMirrored.Filled.QueueMusic, "Queue"),
+    Triple(Destination.SETTINGS, Icons.Default.Settings, "Settings"),
+)
+
+/**
+ * The tabs as they sit inside a pane of glass.
+ *
+ * Not Material's navigation bar with its background taken away: that bar is eighty pixels tall by rule
+ * and pads itself for the system's navigation, both of which are wrong inside a floating pill that has
+ * already been padded. This is the same five tabs at the height a pill wants, with the chosen one marked
+ * by a lighter lozenge under it -- the way a lens looks when something inside the glass is pressed.
+ */
+@Composable
+private fun GlassNavigation(current: Destination, labels: Boolean, go: (Destination) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(if (labels) 60.dp else 52.dp).padding(horizontal = 6.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PHONE_TABS.forEach { (destination, icon, label) ->
+            // Now playing is a sheet, so Home stays lit underneath it rather than nothing being lit.
+            val selected = current == destination ||
+                (destination == Destination.HOME && current == Destination.NOW_PLAYING)
+            val colour = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selected) MaterialTheme.colorScheme.onSurface.copy(alpha = .12f) else Color.Transparent)
+                    .clickable { go(destination) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(icon, label, tint = colour, modifier = Modifier.size(22.dp))
+                if (labels) Text(label, fontSize = 10.sp, color = colour, maxLines = 1)
+            }
+        }
+    }
+}
+
 @Composable
 private fun PhoneNavigation(current: Destination, labels: Boolean, go: (Destination) -> Unit) {
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-        listOf(
-            Triple(Destination.HOME, Icons.Default.Home, "Home"),
-            Triple(Destination.SEARCH, Icons.Default.Search, "Search"),
-            Triple(Destination.LIBRARY, Icons.Default.LibraryMusic, "Library"),
-            Triple(Destination.QUEUE, Icons.AutoMirrored.Filled.QueueMusic, "Queue"),
-            Triple(Destination.SETTINGS, Icons.Default.Settings, "Settings"),
-        ).forEach { (destination, icon, label) ->
+        PHONE_TABS.forEach { (destination, icon, label) ->
             NavigationBarItem(
                 // Now playing is a sheet, so Home stays lit underneath it rather than nothing being lit.
                 selected = current == destination ||
@@ -332,11 +473,20 @@ private fun PlayerBar(
     state: AppState,
     style: ProgressBarStyle,
     swipeToChangeTrack: Boolean,
+    /**
+     * Inside a pane of glass, which changes three things: no background of its own, the progress line
+     * along the bottom inset from the curve instead of across a top edge that a pill does not have, and
+     * the cover round, so it sits in the pill's end rather than jutting into it.
+     */
+    glass: Boolean = false,
     open: () -> Unit,
 ) {
     val track = playback.track ?: return
     val haptics = rememberHaptics(state)
-    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 3.dp) {
+    Surface(
+        color = if (glass) Color.Transparent else MaterialTheme.colorScheme.surface,
+        tonalElevation = if (glass) 0.dp else 3.dp,
+    ) {
         Column(
             Modifier
                 .clickable(onClick = open)
@@ -355,12 +505,12 @@ private fun PlayerBar(
                     },
                 ),
         ) {
-            PlaybackLine(playback, style)
+            if (!glass) PlaybackLine(playback, style)
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Artwork(track.artworkUrl, 44.dp)
+                Artwork(track.artworkUrl, 44.dp, corner = if (glass) 22.dp else 8.dp)
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -385,6 +535,13 @@ private fun PlayerBar(
                 PlayPauseButton(playback, state)
                 IconButton({ haptics.tick(); state.next() }) {
                     Icon(Icons.Default.SkipNext, "Next track")
+                }
+            }
+            // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
+            // rounded ends would be cut off at an angle, which reads as a mistake.
+            if (glass) {
+                Box(Modifier.padding(start = 28.dp, end = 28.dp, bottom = 5.dp).clip(RoundedCornerShape(50))) {
+                    PlaybackLine(playback, style)
                 }
             }
         }

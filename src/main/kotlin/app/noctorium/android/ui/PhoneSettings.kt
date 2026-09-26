@@ -68,7 +68,7 @@ internal fun SettingsScreen(state: AppState, signIn: (ProviderType) -> Unit) {
     // the clock, which on this phone is exactly where the clock is.
     LazyColumn(
         modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
-        contentPadding = PaddingValues(bottom = 28.dp),
+        contentPadding = chromePadding(28.dp),
     ) {
         item { ScreenTitle("Settings", "Accounts, and where things go") }
 

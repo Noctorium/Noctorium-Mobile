@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Density
-import app.noctorium.android.ui.asGlass
 import app.noctorium.android.ui.noctoriumShapes
 import androidx.core.view.WindowCompat
 import app.noctorium.settings.resolvedAccent
@@ -127,8 +126,7 @@ class MainActivity : ComponentActivity() {
             }
             val density = LocalDensity.current
             MaterialTheme(
-                colorScheme = noctoriumColors(theme, Color(settings.preferences.resolvedAccent(null)))
-                    .asGlass(settings.preferences.surfaceStyle),
+                colorScheme = noctoriumColors(theme, Color(settings.preferences.resolvedAccent(null))),
                 shapes = noctoriumShapes(settings.preferences.cornerStyle),
             ) {
                 /*

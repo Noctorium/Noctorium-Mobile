@@ -68,6 +68,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -112,7 +113,14 @@ internal fun ScreenTitle(title: String, subtitle: String? = null, action: @Compo
 
 @Composable
 private fun ScreenScaffold(content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) { content() }
+    // A player floating at the top under glass covers the title, and the title is not in the list, so no
+    // amount of list padding moves it: the first attempt pushed the list down, left the title underneath
+    // the pane, and opened a gap between them. The scaffold takes the top inset itself, for the title,
+    // and tells the list inside that it is spent -- the way consumed window insets work.
+    val chrome = LocalChromeInsets.current
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).padding(top = chrome.top)) {
+        CompositionLocalProvider(LocalChromeInsets provides chrome.copy(top = 0.dp)) { content() }
+    }
 }
 
 // --- Home ---
@@ -128,7 +136,7 @@ internal fun HomeScreen(state: AppState) {
             IconButton({ state.refreshHome() }) { Icon(Icons.Default.Refresh, "Reload") }
         }
 
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(contentPadding = chromePadding(24.dp)) {
             item {
                 Row(
                     Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -461,7 +469,7 @@ internal fun SearchScreen(state: AppState) {
                 "Nothing found",
                 "No track matched \"${ui.searchQuery}\".",
             )
-            else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            else -> LazyColumn(contentPadding = chromePadding(24.dp)) {
                 items(results, key = { it.queueKey }) { track ->
                     TrackRow(
                         track,
@@ -515,7 +523,7 @@ internal fun LibraryScreen(state: AppState) {
             IconButton({ state.refreshLibrary(force = true) }) { Icon(Icons.Default.Refresh, "Reload") }
         }
 
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(contentPadding = chromePadding(24.dp)) {
             if (downloads.entries.isNotEmpty() || downloads.active.isNotEmpty()) {
                 item { DownloadsCard(downloads, state) }
             }
@@ -642,7 +650,7 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
 
             playlist.tracks.isEmpty() -> EmptyNote("Nothing in here", "This playlist came back empty.")
 
-            else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            else -> LazyColumn(contentPadding = chromePadding(24.dp)) {
                 items(playlist.tracks, key = { it.queueKey }) { track ->
                     TrackRow(
                         track,
@@ -718,7 +726,7 @@ internal fun QueueScreen(state: AppState) {
             EmptyNote("Nothing queued", "Play something and it will show up here.")
             return@ScreenScaffold
         }
-        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(contentPadding = chromePadding(24.dp)) {
             items(queue.tracks.size) { index ->
                 val track = queue.tracks[index]
                 TrackRow(
