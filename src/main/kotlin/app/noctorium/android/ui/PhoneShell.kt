@@ -272,6 +272,11 @@ fun NoctoriumPhone(state: AppState) {
             ) {
                 NowPlayingScreen(state) { nowPlayingOpen = false }
             }
+
+            // Last, so it sits over the sheet as well: the launch check found something newer and this is
+            // the once it gets to say so. Not while signing in, though -- that page is somebody halfway
+            // through handing over a password, and it is no moment to put a dialog in front of them.
+            if (signingInTo == null) UpdatePrompt(state)
         }
     }
 }

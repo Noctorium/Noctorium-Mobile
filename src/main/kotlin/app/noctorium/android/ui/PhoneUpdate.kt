@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SystemUpdateAlt
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -113,3 +115,57 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
 
 private fun megabytes(bytes: Long): String =
     if (bytes <= 0) "size unknown" else "%.0f MB".format(bytes / 1_048_576.0)
+
+/**
+ * The one time updating interrupts: the launch check found something and nobody has been told.
+ *
+ * Until now the answer only ever appeared on the settings screen, which means it only reached people who
+ * already suspected there was something to find. On a sideloaded phone app, where nothing else is going
+ * to do the updating, that is a release sitting unnoticed indefinitely.
+ *
+ * A question with two answers and no third state. Nothing counts down, nothing installs if the dialog is
+ * ignored, and tapping away is the same as saying no. No is remembered, so this asks once per version
+ * rather than once per launch -- and the settings card still has all of it for anybody who shuts this
+ * and then changes their mind.
+ */
+@Composable
+internal fun UpdatePrompt(state: AppState) {
+    val updates by state.updates.collectAsState()
+    val offer = updates.prompt ?: return
+    // Whether Noctorium can do it, or can only point at the page: a release with no file for this phone,
+    // or none that published a checksum, is one it will not fetch and run unseen.
+    val itself = updates.canInstall && offer.file != null && offer.sha256 != null
+    AlertDialog(
+        onDismissRequest = state::dismissUpdate,
+        icon = { Icon(Icons.Default.SystemUpdateAlt, null) },
+        title = { Text("Noctorium ${offer.version} is out") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    if (updates.currentVersion.isBlank()) {
+                        "Do you want to update?"
+                    } else {
+                        "You have ${updates.currentVersion}. Do you want to update?"
+                    },
+                    fontSize = 14.sp,
+                )
+                Text(
+                    if (itself) {
+                        "Noctorium downloads it" +
+                            (offer.file?.bytes?.takeIf { it > 0 }?.let { " (${megabytes(it)})" } ?: "") +
+                            " and hands it to Android's installer, which asks again before anything " +
+                            "is replaced."
+                    } else {
+                        "There is no file here this phone can install, so this opens the release page."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                )
+            }
+        },
+        confirmButton = {
+            Button(state::acceptUpdate) { Text(if (itself) "Update" else "Open the release page") }
+        },
+        dismissButton = { TextButton(state::dismissUpdate) { Text("Not now") } },
+    )
+}
