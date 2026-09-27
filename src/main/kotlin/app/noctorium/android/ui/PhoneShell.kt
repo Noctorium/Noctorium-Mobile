@@ -20,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,8 +41,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -218,7 +221,9 @@ fun NoctoriumPhone(state: AppState) {
     val screens: @Composable () -> Unit = {
         when (ui.destination) {
             Destination.SEARCH -> SearchScreen(state)
+            Destination.LINK -> LinkScreen(state)
             Destination.LIBRARY -> LibraryScreen(state)
+            Destination.DOWNLOADS -> DownloadsScreen(state)
             Destination.SETTINGS -> SettingsScreen(state) { signingInTo = it }
             Destination.QUEUE -> QueueScreen(state)
             // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
@@ -391,14 +396,19 @@ private fun BoxScope.GlassChrome(
     }
 }
 
-/** The five places, shared by the ordinary tab bar and the glass one so they cannot drift apart. */
+/** The places, shared by the ordinary tab bar and the glass one so they cannot drift apart. */
 private val PHONE_TABS = listOf(
     Triple(Destination.HOME, Icons.Default.Home, "Home"),
     Triple(Destination.SEARCH, Icons.Default.Search, "Search"),
+    Triple(Destination.LINK, Icons.Default.Link, "Link"),
     Triple(Destination.LIBRARY, Icons.Default.LibraryMusic, "Library"),
+    Triple(Destination.DOWNLOADS, Icons.Default.DownloadForOffline, "Downloads"),
     Triple(Destination.QUEUE, Icons.AutoMirrored.Filled.QueueMusic, "Queue"),
     Triple(Destination.SETTINGS, Icons.Default.Settings, "Settings"),
 )
+
+/** More tabs than fit a name each at a readable size. See [GlassNavigation]. */
+private val CROWDED = PHONE_TABS.size > 5
 
 /**
  * The tabs as they sit inside a pane of glass.
@@ -411,7 +421,7 @@ private val PHONE_TABS = listOf(
 @Composable
 private fun GlassNavigation(current: Destination, labels: Boolean, go: (Destination) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().height(if (labels) 60.dp else 52.dp).padding(horizontal = 6.dp, vertical = 5.dp),
+        Modifier.fillMaxWidth().height(if (labels && !CROWDED) 60.dp else 52.dp).padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PHONE_TABS.forEach { (destination, icon, label) ->
@@ -419,18 +429,33 @@ private fun GlassNavigation(current: Destination, labels: Boolean, go: (Destinat
             val selected = current == destination ||
                 (destination == Destination.HOME && current == Destination.NOW_PLAYING)
             val colour = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(50))
-                    .background(if (selected) MaterialTheme.colorScheme.onSurface.copy(alpha = .12f) else Color.Transparent)
-                    .clickable { go(destination) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+            // Seven tabs leave fifty-odd points each, and "Downloads" and "Settings" were cut to "Downlo"
+            // and "Setting". So with labels on, the chosen tab widens into a pill with its name beside the
+            // icon, and the others give up theirs: every name that shows is whole.
+            // The pill is as wide as its name and the rest share what is left, rather than the pill taking
+            // a fixed share: at a large system font size a fixed share still cut "Downloads" short.
+            val widened = labels && CROWDED && selected
+            val tab = Modifier
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(50))
+                .background(if (selected) MaterialTheme.colorScheme.onSurface.copy(alpha = .12f) else Color.Transparent)
+                .clickable { go(destination) }
+            Box(
+                if (widened) tab.animateContentSize().padding(horizontal = 12.dp) else Modifier.weight(1f).then(tab),
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(icon, label, tint = colour, modifier = Modifier.size(22.dp))
-                if (labels) Text(label, fontSize = 10.sp, color = colour, maxLines = 1)
+                if (widened) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(icon, null, tint = colour, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text(label, fontSize = 12.sp, color = colour, maxLines = 1, softWrap = false, fontWeight = FontWeight.SemiBold)
+                    }
+                } else {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(icon, label, tint = colour, modifier = Modifier.size(22.dp))
+                        if (labels && !CROWDED) Text(label, fontSize = 10.sp, color = colour, maxLines = 1)
+                    }
+                }
             }
         }
     }
@@ -447,10 +472,12 @@ private fun PhoneNavigation(current: Destination, labels: Boolean, go: (Destinat
                 onClick = { go(destination) },
                 icon = { Icon(icon, label) },
                 label = if (labels) {
-                    { Text(label, fontSize = 10.sp) }
+                    { Text(label, fontSize = 10.sp, maxLines = 1, softWrap = false) }
                 } else {
                     null
                 },
+                // The same answer to seven tabs as the glass bar's: only the chosen one is named.
+                alwaysShowLabel = !CROWDED,
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,

@@ -10,7 +10,6 @@ import app.noctorium.domain.Artist
 import app.noctorium.domain.Playlist
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
-import app.noctorium.downloads.ExportFormat
 import app.noctorium.playback.BackendException
 import app.noctorium.playback.MusicBackend
 import app.noctorium.settings.CookieSource
@@ -378,27 +377,16 @@ class NewPipeBackend(
     }
 
     /**
-     * No, and it is not worth changing.
+     * The audio as it comes, never converted.
      *
      * Converting to MP3 would mean bundling an encoder, and the reason MP3 exists on the desktop is to put
      * a file on a phone — which is this. What the services serve is m4a or opus, and Android plays both.
      */
-    override fun canConvertAudio(): Boolean = false
-
     override suspend fun exportAudio(
         sourceUrl: String,
         outputTemplate: String,
-        format: ExportFormat,
         onProgress: (Float) -> Unit,
-    ) {
-        if (format == ExportFormat.MP3) {
-            throw BackendException(
-                "Noctorium on Android saves audio as it comes rather than converting it to MP3. Your phone " +
-                    "plays it either way.",
-            )
-        }
-        downloadAudio(sourceUrl, outputTemplate, onProgress)
-    }
+    ) = downloadAudio(sourceUrl, outputTemplate, onProgress)
 
     override suspend fun describe(): String = "NewPipeExtractor ${NewPipe.getDownloader()?.let { "ready" } ?: "not started"}"
 
@@ -484,10 +472,17 @@ class NewPipeBackend(
      * how a YouTube Music track once came to be credited to "YouTube Music", and an empty artist line reads
      * as missing information, which is what it is.
      */
+    /**
+     * The uploader as an artist. YouTube's automatic artist channels are called "Burial - Topic", and the
+     * "- Topic" is YouTube's filing, not part of anybody's name; the desktop already dropped it, so a song
+     * played on the phone showed a different artist from the same song on the computer.
+     */
     private fun artistsOf(name: String?, provider: ProviderType): List<Artist> =
-        name?.trim()?.takeIf(String::isNotBlank)
+        name?.replace(TOPIC_SUFFIX, "")?.trim()?.takeIf(String::isNotBlank)
             ?.let { listOf(Artist("$provider:$it", it, provider)) }
             .orEmpty()
+
+    private val TOPIC_SUFFIX = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
 
     /** The id the rest of Noctorium addresses a track by, which has to match what the desktop uses. */
     private fun idOf(url: String, provider: ProviderType): String = when (provider) {

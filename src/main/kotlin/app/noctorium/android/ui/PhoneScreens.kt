@@ -112,7 +112,7 @@ internal fun ScreenTitle(title: String, subtitle: String? = null, action: @Compo
 }
 
 @Composable
-private fun ScreenScaffold(content: @Composable () -> Unit) {
+internal fun ScreenScaffold(content: @Composable () -> Unit) {
     // A player floating at the top under glass covers the title, and the title is not in the list, so no
     // amount of list padding moves it: the first attempt pushed the list down, left the title underneath
     // the pane, and opened a gap between them. The scaffold takes the top inset itself, for the title,

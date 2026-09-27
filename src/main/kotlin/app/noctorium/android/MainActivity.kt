@@ -1,6 +1,7 @@
 package app.noctorium.android
 
 import android.content.ComponentName
+import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -26,6 +27,8 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import app.noctorium.android.ui.noctoriumColors
 import app.noctorium.android.ui.NoctoriumPhone
+import app.noctorium.core.AppState
+import app.noctorium.core.Destination
 import com.google.common.util.concurrent.ListenableFuture
 
 /**
@@ -77,6 +80,9 @@ class MainActivity : ComponentActivity() {
         ).buildAsync()
 
         val state = (application as NoctoriumApplication).state
+        // Only on a real start: a rotation recreates the activity with the same intent, and replaying the
+        // link would start the song again from the top.
+        if (savedInstanceState == null) openShared(intent)
         setContent {
             // Read live, so changing the accent or the background in Settings repaints at once rather
             // than at the next launch.
@@ -147,6 +153,28 @@ class MainActivity : ComponentActivity() {
                 ) { NoctoriumPhone(state) }
             }
         }
+    }
+
+    /** A link shared while Noctorium was already open: singleTask brings this one forward rather than a new one. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openShared(intent)
+    }
+
+    /**
+     * Plays what another app shared, when it was shared here.
+     *
+     * YouTube shares a line of text with the link at the end of it, SoundCloud a short `on.soundcloud.com`
+     * link; [AppState.openLink] reads both. The link screen is opened so what happened is on the screen --
+     * the song, or why not -- rather than the music simply starting behind whatever was showing.
+     */
+    private fun openShared(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf(String::isNotBlank) ?: return
+        val state = (application as NoctoriumApplication).state
+        state.openLink(text)
+        state.navigate(Destination.LINK)
     }
 
     override fun onDestroy() {

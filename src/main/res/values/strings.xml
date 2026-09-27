@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- What the share sheet calls Noctorium, under its icon. -->
+    <string name="share_to_play">Play in Noctorium</string>
+</resources>
