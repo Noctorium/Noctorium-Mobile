@@ -199,6 +199,10 @@ dependencies {
     // Where a token goes on Android. Hardware-backed where the device has it.
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Scans the QR code the computer shows to take this phone's YouTube Music sign-in. Its own camera
+    // screen and its own permission request, so nothing here has to drive a camera.
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     // Artwork. Everything Noctorium shows comes from a service's own CDN over https.
     implementation("io.coil-kt:coil-compose:2.7.0")
 

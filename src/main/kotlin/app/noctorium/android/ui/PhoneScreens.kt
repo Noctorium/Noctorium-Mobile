@@ -6,6 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
@@ -651,11 +654,29 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
             playlist.tracks.isEmpty() -> EmptyNote("Nothing in here", "This playlist came back empty.")
 
             else -> LazyColumn(contentPadding = chromePadding(24.dp)) {
-                items(playlist.tracks, key = { it.queueKey }) { track ->
+                // The account's own YouTube playlists can be put in order from here, as on YouTube Music.
+                val reorderable = (playlist.provider == ProviderType.YOUTUBE_MUSIC || playlist.provider == ProviderType.YOUTUBE_VIDEO) &&
+                    (playlist.id.startsWith("PL") || playlist.id.startsWith("VL"))
+                itemsIndexed(playlist.tracks, key = { _, track -> track.queueKey }) { index, track ->
                     TrackRow(
                         track,
                         state,
                         isCurrent = playback.track?.queueKey == track.queueKey,
+                        trailing = if (!reorderable) null else {
+                            {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton({ state.moveInYouTubePlaylist(index, index - 1) }, enabled = index > 0, modifier = Modifier.size(36.dp)) {
+                                        Icon(Icons.Default.KeyboardArrowUp, "Move up")
+                                    }
+                                    IconButton(
+                                        { state.moveInYouTubePlaylist(index, index + 1) },
+                                        enabled = index < playlist.tracks.lastIndex,
+                                        modifier = Modifier.size(36.dp),
+                                    ) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
+                                    TrackMenuButton(track, state)
+                                }
+                            }
+                        },
                     ) { state.playPlaylist(playlist, startAt = track) }
                 }
             }

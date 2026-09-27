@@ -1,7 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Reading the services, and nothing else. Noctorium asks for no storage, no contacts, no location. -->
+    <!--
+        Reading the services, and nothing else. Noctorium asks for no storage, no contacts, no location.
+        The camera, which the QR scanner library declares, is asked for only when scanning the code a
+        computer shows to take this phone's YouTube Music sign-in, and used for nothing else.
+    -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!--
@@ -87,5 +92,11 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- The code scanner, turned the way the phone is held rather than locked sideways. -->
+        <activity
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="fullSensor"
+            tools:replace="screenOrientation" />
     </application>
 </manifest>

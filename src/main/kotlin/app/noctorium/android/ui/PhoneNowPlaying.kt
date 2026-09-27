@@ -190,6 +190,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            PhoneFollowArtistChip(track, state, Modifier.padding(top = 4.dp))
             playback.errorMessage?.let {
                 Spacer(Modifier.height(6.dp))
                 Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)

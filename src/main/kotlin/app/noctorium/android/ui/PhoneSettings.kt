@@ -227,6 +227,7 @@ private fun ServiceCard(
                 OutlinedButton({ state.disconnectAccount(provider) }) { Text("Disconnect") }
             }
         }
+        if (!isSoundCloud) PhoneYouTubeExtras(settings, likes, state)
         Spacer(Modifier.height(8.dp))
         Text(
             "Your password goes to the service's own page inside Noctorium, never to a form of ours, " +
