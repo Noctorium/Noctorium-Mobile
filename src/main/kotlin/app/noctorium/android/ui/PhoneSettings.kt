@@ -208,6 +208,8 @@ private fun ServiceCard(
         Text(
             when {
                 connected -> "Signed in. Your playlists and likes are in the library."
+                // Said once, below, in red, with what to do; this line must not contradict it.
+                !isSoundCloud && settings.youtubeAccount.status == app.noctorium.settings.AccountConnectionStatus.ERROR -> "Signed out."
                 source.isConfigured -> "A session is saved. It has not been checked on this device."
                 else -> "Not connected on this phone."
             },

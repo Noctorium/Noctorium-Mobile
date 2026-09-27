@@ -132,7 +132,8 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                                     WebViewSignIn.soundCloudToken(),
                                 )
                             } else {
-                                state.completeYouTubeSignIn(saved.toString())
+                                // With what the WebView called itself, so every later request says the same.
+                                state.completeYouTubeSignIn(saved.toString(), webView?.settings?.userAgentString)
                                 // The WebView's copy goes once Noctorium has its own, as SimpMusic does it:
                                 // two holders of one session is how a copy dies, whichever renews the
                                 // cookies turning the other's into yesterday's.
