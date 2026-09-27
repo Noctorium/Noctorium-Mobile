@@ -21,6 +21,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.animateContentSize
+import app.noctorium.playback.RepeatMode
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Shuffle
+import app.noctorium.settings.PhonePlayerBarStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.draw.blur
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -260,6 +271,7 @@ fun NoctoriumPhone(state: AppState) {
                             state,
                             settings.preferences.progressBarStyle,
                             settings.preferences.phone.swipeToChangeTrack,
+                            settings.preferences.phone.playerBarStyle,
                         ) { nowPlayingOpen = true }
                     }
                 }
@@ -276,6 +288,7 @@ fun NoctoriumPhone(state: AppState) {
                             state,
                             settings.preferences.progressBarStyle,
                             settings.preferences.phone.swipeToChangeTrack,
+                            settings.preferences.phone.playerBarStyle,
                         ) { nowPlayingOpen = true }
                     }
                     PhoneNavigation(
@@ -361,6 +374,7 @@ private fun BoxScope.GlassChrome(
                     state,
                     settings.preferences.progressBarStyle,
                     settings.preferences.phone.swipeToChangeTrack,
+                    settings.preferences.phone.playerBarStyle,
                     glass = true,
                     open = openNowPlaying,
                 )
@@ -384,6 +398,7 @@ private fun BoxScope.GlassChrome(
                     state,
                     settings.preferences.progressBarStyle,
                     settings.preferences.phone.swipeToChangeTrack,
+                    settings.preferences.phone.playerBarStyle,
                     glass = true,
                     open = openNowPlaying,
                 )
@@ -489,10 +504,12 @@ private fun PhoneNavigation(current: Destination, labels: Boolean, go: (Destinat
 }
 
 /**
- * The strip above the tabs: what is playing, and the two controls worth having at a thumb's reach.
+ * The strip above the tabs: what is playing, and the controls worth having at a thumb's reach.
  *
- * Tapping anywhere but the buttons opens the full screen. Skip-previous is deliberately absent — there is
- * room for two icons at this size, and next is the one people reach for.
+ * Tapping anywhere but the buttons opens the full screen, and swiping it walks the queue, whichever
+ * [layout] it is in. The layouts are what the strip is for: Classic is the cover, the track, play and next;
+ * Slim gives the list above it as much of the screen as it can; Controls adds previous and a seek bar for
+ * somebody who drives the music from here rather than from the full screen; Spotlight is about the record.
  */
 @Composable
 private fun PlayerBar(
@@ -500,6 +517,7 @@ private fun PlayerBar(
     state: AppState,
     style: ProgressBarStyle,
     swipeToChangeTrack: Boolean,
+    layout: PhonePlayerBarStyle,
     /**
      * Inside a pane of glass, which changes three things: no background of its own, the progress line
      * along the bottom inset from the curve instead of across a top edge that a pill does not have, and
@@ -510,68 +528,277 @@ private fun PlayerBar(
 ) {
     val track = playback.track ?: return
     val haptics = rememberHaptics(state)
+    // Controls carries a seek bar of its own, and a line under a seek bar is the same thing twice.
+    val line = layout != PhonePlayerBarStyle.CONTROLS
     Surface(
         color = if (glass) Color.Transparent else MaterialTheme.colorScheme.surface,
         tonalElevation = if (glass) 0.dp else 3.dp,
     ) {
-        Column(
-            Modifier
-                .clickable(onClick = open)
-                // Swiping the bar walks the queue. A drag threshold rather than a tap target, so it
-                // cannot be triggered by the small movement that comes with an ordinary press.
-                .then(
-                    if (!swipeToChangeTrack) {
-                        Modifier
-                    } else {
-                        Modifier.pointerInput(Unit) {
-                            detectHorizontalDragGestures { _, drag ->
-                                if (drag < -SWIPE_THRESHOLD) { haptics.tick(); state.next() }
-                                if (drag > SWIPE_THRESHOLD) { haptics.tick(); state.previous() }
-                            }
-                        }
-                    },
-                ),
-        ) {
-            if (!glass) PlaybackLine(playback, style)
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Artwork(track.artworkUrl, 44.dp, corner = if (glass) 22.dp else 8.dp)
-                Spacer(Modifier.width(11.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        track.title,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        playback.errorMessage ?: track.artistLine.ifBlank { "Unknown artist" },
-                        color = if (playback.errorMessage != null) {
-                            MaterialTheme.colorScheme.error
+        Box {
+            if (layout == PhonePlayerBarStyle.SPOTLIGHT) SpotlightBackdrop(track.artworkUrl, glass)
+            Column(
+                Modifier
+                    .clickable(onClick = open)
+                    // Swiping the bar walks the queue. A drag threshold rather than a tap target, so it
+                    // cannot be triggered by the small movement that comes with an ordinary press.
+                    .then(
+                        if (!swipeToChangeTrack) {
+                            Modifier
                         } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                            Modifier.pointerInput(Unit) {
+                                detectHorizontalDragGestures { _, drag ->
+                                    if (drag < -SWIPE_THRESHOLD) { haptics.tick(); state.next() }
+                                    if (drag > SWIPE_THRESHOLD) { haptics.tick(); state.previous() }
+                                }
+                            }
                         },
-                        fontSize = 12.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    ),
+            ) {
+                if (!glass && line) PlaybackLine(playback, style)
+                when (layout) {
+                    PhonePlayerBarStyle.CLASSIC -> ClassicBar(track, playback, state, glass)
+                    PhonePlayerBarStyle.SLIM -> SlimBar(track, playback, state, glass)
+                    PhonePlayerBarStyle.SLIM_LEFT -> SlimBar(track, playback, state, glass, controlsFirst = true)
+                    PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass)
+                    PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass)
                 }
-                PlayPauseButton(playback, state)
-                IconButton({ haptics.tick(); state.next() }) {
-                    Icon(Icons.Default.SkipNext, "Next track")
-                }
-            }
-            // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
-            // rounded ends would be cut off at an angle, which reads as a mistake.
-            if (glass) {
-                Box(Modifier.padding(start = 28.dp, end = 28.dp, bottom = 5.dp).clip(RoundedCornerShape(50))) {
-                    PlaybackLine(playback, style)
+                // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
+                // rounded ends would be cut off at an angle, which reads as a mistake.
+                if (glass && line) {
+                    Box(Modifier.padding(start = 28.dp, end = 28.dp, bottom = 5.dp).clip(RoundedCornerShape(50))) {
+                        PlaybackLine(playback, style)
+                    }
                 }
             }
         }
+    }
+}
+
+/** The cover, the track, play and next. The bar as it has always been. */
+@Composable
+private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean) {
+    val haptics = rememberHaptics(state)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Artwork(track.artworkUrl, 44.dp, corner = if (glass) 22.dp else 8.dp)
+        Spacer(Modifier.width(11.dp))
+        TrackLines(track, playback, Modifier.weight(1f))
+        PlayPauseButton(playback, state)
+        IconButton({ haptics.tick(); state.next() }) {
+            Icon(Icons.Default.SkipNext, "Next track")
+        }
+    }
+}
+
+/**
+ * The track in two small lines and every control, about two thirds the height of Classic.
+ *
+ * The first version had play alone, to keep it short, and short is no use if turning shuffle on means
+ * opening the full screen. So it has all five -- shuffle, previous, play, next, repeat -- and the song's
+ * line is what gives way on a narrow phone. [controlsFirst] is Slim left: the controls at the start, where
+ * a left thumb reaches, and the song after them.
+ */
+@Composable
+private fun SlimBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, controlsFirst: Boolean = false) {
+    val edge = if (glass) 10.dp else 12.dp
+    Row(
+        Modifier.fillMaxWidth().padding(
+            start = if (controlsFirst) 2.dp else edge,
+            end = if (controlsFirst) edge else 2.dp,
+            top = 3.dp,
+            bottom = 3.dp,
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (controlsFirst) {
+            SlimControls(playback, state)
+            Spacer(Modifier.width(6.dp))
+        } else {
+            Artwork(track.artworkUrl, 32.dp, corner = if (glass) 16.dp else 6.dp)
+            Spacer(Modifier.width(10.dp))
+        }
+        // Two small lines rather than one: at a large font size "title  ·  artist" on one line was
+        // squeezed to "Archangel · …", a dot leading nowhere. The row is as tall as its buttons either way.
+        Column(Modifier.weight(1f)) {
+            Text(
+                track.title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                lineHeight = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                playback.errorMessage ?: track.artistLine.ifBlank { "Unknown artist" },
+                color = if (playback.errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                lineHeight = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (controlsFirst) {
+            Spacer(Modifier.width(10.dp))
+            Artwork(track.artworkUrl, 32.dp, corner = if (glass) 16.dp else 6.dp)
+        } else {
+            Spacer(Modifier.width(4.dp))
+            SlimControls(playback, state)
+        }
+    }
+}
+
+/** Shuffle, previous, play, next and repeat, at the size a slim strip can carry and a thumb can still hit. */
+@Composable
+private fun SlimControls(playback: PlaybackState, state: AppState) {
+    val haptics = rememberHaptics(state)
+    val queue by state.queue.state.collectAsState()
+    val lit = MaterialTheme.colorScheme.primary
+    val quiet = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton({ haptics.tick(); state.toggleShuffle() }, Modifier.size(SLIM_BUTTON)) {
+            Icon(Icons.Default.Shuffle, "Shuffle", Modifier.size(19.dp), tint = if (queue.shuffleEnabled) lit else quiet)
+        }
+        IconButton({ haptics.tick(); state.previous() }, Modifier.size(SLIM_BUTTON)) {
+            Icon(Icons.Default.SkipPrevious, "Previous track", Modifier.size(22.dp))
+        }
+        Box(Modifier.size(SLIM_BUTTON), contentAlignment = Alignment.Center) { PlayPauseButton(playback, state, size = 24.dp) }
+        IconButton({ haptics.tick(); state.next() }, Modifier.size(SLIM_BUTTON)) {
+            Icon(Icons.Default.SkipNext, "Next track", Modifier.size(22.dp))
+        }
+        IconButton({ haptics.tick(); state.cycleRepeat() }, Modifier.size(SLIM_BUTTON)) {
+            Icon(
+                if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                when (queue.repeatMode) {
+                    RepeatMode.OFF -> "Repeat off"
+                    RepeatMode.ALL -> "Repeat all"
+                    RepeatMode.ONE -> "Repeat one"
+                },
+                Modifier.size(19.dp),
+                tint = if (queue.repeatMode != RepeatMode.OFF) lit else quiet,
+            )
+        }
+    }
+}
+
+/** Five of these and the song's line still gets the better part of a phone's width. */
+private val SLIM_BUTTON = 38.dp
+
+/**
+ * Previous, play and next beside the track, and a seek bar beneath that can be dragged.
+ *
+ * The seek bar takes its own gestures, so dragging it scrubs the song rather than swiping to the next one,
+ * and tapping it seeks rather than opening the full screen.
+ */
+@Composable
+private fun ControlsBar(track: Track, playback: PlaybackState, state: AppState, style: ProgressBarStyle, glass: Boolean) {
+    val haptics = rememberHaptics(state)
+    val settings by state.settings.collectAsState()
+    Column(Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Artwork(track.artworkUrl, 44.dp, corner = if (glass) 22.dp else 8.dp)
+            Spacer(Modifier.width(11.dp))
+            TrackLines(track, playback, Modifier.weight(1f))
+            IconButton({ haptics.tick(); state.previous() }) {
+                Icon(Icons.Default.SkipPrevious, "Previous track")
+            }
+            PlayPauseButton(playback, state)
+            IconButton({ haptics.tick(); state.next() }) {
+                Icon(Icons.Default.SkipNext, "Next track")
+            }
+        }
+        Box(Modifier.padding(horizontal = if (glass) 14.dp else 4.dp)) {
+            Seekbar(
+                playback.positionMs,
+                playback.durationMs,
+                settings.preferences.timeDisplay,
+                style,
+                playback.isPlaying,
+                state::seekTo,
+            )
+        }
+    }
+}
+
+/** A larger cover and a larger title, over the artwork itself blurred behind them. */
+@Composable
+private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean) {
+    val haptics = rememberHaptics(state)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Artwork(track.artworkUrl, 62.dp, corner = if (glass) 31.dp else 12.dp)
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(track.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                playback.errorMessage ?: track.artistLine.ifBlank { "Unknown artist" },
+                color = if (playback.errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        FilledIconButton(state::togglePlayback, Modifier.size(48.dp)) {
+            when {
+                playback.status == PlaybackStatus.RESOLVING ->
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                playback.isPlaying -> Icon(Icons.Default.Pause, "Pause", Modifier.size(28.dp))
+                else -> Icon(Icons.Default.PlayArrow, "Play", Modifier.size(28.dp))
+            }
+        }
+        IconButton({ haptics.tick(); state.next() }) {
+            Icon(Icons.Default.SkipNext, "Next track")
+        }
+    }
+}
+
+/**
+ * The cover, blurred, behind the Spotlight bar, and dimmed enough that the title over it stays readable.
+ *
+ * The now playing screen's ambient backdrop at the size of a strip. Blur needs Android 12; before that
+ * the picture is only faded, which the scrim still makes readable.
+ */
+@Composable
+private fun BoxScope.SpotlightBackdrop(artworkUrl: String?, glass: Boolean) {
+    if (artworkUrl == null) return
+    AsyncImage(
+        model = artworkUrl,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        alpha = if (glass) .35f else .6f,
+        modifier = Modifier
+            .matchParentSize()
+            .then(if (android.os.Build.VERSION.SDK_INT >= 31) Modifier.blur(28.dp) else Modifier),
+    )
+    Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.surface.copy(alpha = if (glass) .25f else .45f)))
+}
+
+/** The title over the artist, or over what went wrong, in red, when something did. */
+@Composable
+private fun TrackLines(track: Track, playback: PlaybackState, modifier: Modifier) {
+    Column(modifier) {
+        Text(
+            track.title,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            playback.errorMessage ?: track.artistLine.ifBlank { "Unknown artist" },
+            color = if (playback.errorMessage != null) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            fontSize = 12.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

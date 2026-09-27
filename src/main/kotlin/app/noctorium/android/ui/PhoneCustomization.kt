@@ -51,6 +51,7 @@ import app.noctorium.settings.CardSize
 import app.noctorium.settings.CornerStyle
 import app.noctorium.settings.SurfaceStyle
 import app.noctorium.settings.TextSize
+import app.noctorium.settings.PhonePlayerBarStyle
 import app.noctorium.settings.PlayerBarPosition
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.ScrobbleConnectionStatus
@@ -226,6 +227,22 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
                 )
             }
         }
+
+        ChoiceRow("Player bar layout") {
+            PhonePlayerBarStyle.entries.forEach { layout ->
+                FilterChip(
+                    selected = preferences.phone.playerBarStyle == layout,
+                    onClick = { state.updatePhone { copy(playerBarStyle = layout) } },
+                    label = { Text(layout.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+        Text(
+            preferences.phone.playerBarStyle.description,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
 
         ChoiceRow("Time shows") {
             TimeDisplay.entries.forEach { display ->

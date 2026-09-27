@@ -348,7 +348,7 @@ private fun VolumeButton(playback: PlaybackState, state: AppState, modifier: Mod
  * would be fought by the position ticker underneath it.
  */
 @Composable
-private fun Seekbar(
+internal fun Seekbar(
     positionMs: Long,
     durationMs: Long,
     display: TimeDisplay,
