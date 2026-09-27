@@ -208,6 +208,8 @@ class NewPipeBackend(
 
     override fun forgetAudio(sourceUrl: String) = addresses.forget(sourceUrl)
 
+    override fun forgetAllAudio() = addresses.clear()
+
     /**
      * Reads the page for an address, and makes sure the service will actually serve it.
      *

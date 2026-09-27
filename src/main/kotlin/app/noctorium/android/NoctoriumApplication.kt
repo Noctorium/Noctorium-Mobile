@@ -1,6 +1,8 @@
 package app.noctorium.android
 
 import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import app.noctorium.connect.DeviceKind
 import app.noctorium.core.AppState
 import app.noctorium.discord.NoPresenceReporter
@@ -24,7 +26,10 @@ import org.schabi.newpipe.extractor.NewPipe
  * framework because there is nothing here one would help with: a handful of objects, in a fixed order,
  * none of them optional.
  */
-class NoctoriumApplication : Application() {
+class NoctoriumApplication : Application(), ImageLoaderFactory {
+
+    /** Every cover in the application comes through here: see [artworkImageLoader]. */
+    override fun newImageLoader(): ImageLoader = artworkImageLoader(this)
 
     lateinit var backend: MusicBackend
         private set

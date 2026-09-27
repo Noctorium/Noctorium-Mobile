@@ -1,6 +1,9 @@
 package app.noctorium.android
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.media.audiofx.LoudnessEnhancer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -29,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.nio.file.Path
 
 /** The logcat tag playback failures are written under. */
@@ -37,6 +41,35 @@ private const val PLAYER_LOG_TAG = "NoctoriumPlayer"
 /** The range the rate is clamped to, past which speech stops being speech. */
 private const val MIN_SPEED = 0.5f
 private const val MAX_SPEED = 2f
+
+/** How many times one track is brought back after its stream fails, before the listener is told. */
+internal const val MAX_RECOVERIES = 2
+
+/** The longest a recovery waits for the network to come back before giving up and saying so. */
+private const val NETWORK_WAIT_MS = 30_000L
+
+/** How a failed stream is brought back: straight away, or once there is a network to bring it back over. */
+internal enum class Recovery { NOW, AFTER_NETWORK }
+
+/**
+ * Whether a player error is one a fresh address can fix, and if so when to fetch it.
+ *
+ * The stream-shaped failures only. A refused or changed stream is fetched again at once. A connection
+ * that failed or timed out waits for the network first, since resolving needs it too. Everything else --
+ * a format the phone cannot decode, a file that is not there, a clear-text address Android forbids -- is
+ * the same the second time, and retrying it would only delay the message by the length of a retry.
+ */
+internal fun recoveryFor(errorCode: Int): Recovery? = when (errorCode) {
+    PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+    PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
+    PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
+    -> Recovery.NOW
+    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+    PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+    -> Recovery.AFTER_NETWORK
+    else -> null
+}
 
 /**
  * Playing on Android, through Media3.
@@ -65,14 +98,44 @@ class Media3PlaybackEngine(
     private var ticker: Job? = null
 
     /**
-     * The track whose refused stream has already been fetched afresh once.
+     * How many times the current track has been brought back after its stream failed.
      *
      * A stream address can be refused after it was handed out -- it expired, or the phone moved to a
-     * network it was not issued for -- and the right answer is a new address, not a message asking the
-     * listener to press play. That is done once per track; a second refusal is reported, because it is
-     * then about the track rather than the address.
+     * network it was not issued for -- and a connection can drop outright, in a tunnel, a lift, or the
+     * moment a phone hands over from Wi-Fi to mobile data. The right answer to all of those is a new
+     * address and the music picking up where it stopped, not a message asking the listener to press play.
+     *
+     * It used to be only the first of those, and only once: a dropped connection, the commonest way a
+     * song stops on a phone that moves, went straight to an error. Now any of them, twice per track, and
+     * a third failure is reported -- by then it is about the track, not the network.
      */
-    private var refreshedFor: String? = null
+    private var recoveries = 0
+
+    private val connectivity: ConnectivityManager? = context.getSystemService(ConnectivityManager::class.java)
+
+    /**
+     * Drops every remembered stream address the moment the phone moves to a different network.
+     *
+     * YouTube's addresses belong to the network that asked for them, and the phone keeps them for hours
+     * now. One fetched on Wi-Fi and played on mobile data is refused. Recovery would still catch that,
+     * but only after a failed start and a gap. Forgetting them as the network changes means the next
+     * track looks its address up again, and nothing has to fail first.
+     *
+     * Android reports the network it is already on as soon as this is registered. That first report is
+     * where things start, not a change, so it is not treated as one.
+     */
+    private val networkWatch = object : ConnectivityManager.NetworkCallback() {
+        private var current: Network? = null
+
+        override fun onAvailable(network: Network) {
+            val previous = current
+            current = network
+            if (previous != null && previous != network) {
+                backend.forgetAllAudio()
+                android.util.Log.i(PLAYER_LOG_TAG, "Network changed; stream addresses from the last one dropped")
+            }
+        }
+    }.also { watch -> runCatching { connectivity?.registerDefaultNetworkCallback(watch) } }
 
     /**
      * Handed to the media session service, and to nothing else.
@@ -161,14 +224,24 @@ class Media3PlaybackEngine(
                     // The whole thing to the log, one line of it to the screen.
                     android.util.Log.w(PLAYER_LOG_TAG, "Playback failed: ${error.errorCodeName}", error)
                     val track = mutableState.value.track
-                    val refused = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-                    if (refused && track != null && refreshedFor != track.queueKey && downloadedFile(track) == null) {
+                    val recovery = recoveryFor(error.errorCode)
+                    if (recovery != null && track != null && recoveries < MAX_RECOVERIES && downloadedFile(track) == null) {
                         // The address, not the track: fetch a new one and pick up where this stopped.
-                        refreshedFor = track.queueKey
+                        recoveries++
                         val resumeAt = mutableState.value.positionMs
-                        android.util.Log.i(PLAYER_LOG_TAG, "Stream refused; fetching a fresh address and resuming at ${resumeAt}ms")
-                        backend.forgetAudio(track.sourceUrl)
-                        scope.launch { start(track, resumeAt) }
+                        android.util.Log.i(
+                            PLAYER_LOG_TAG,
+                            "Stream failed (${error.errorCodeName}); attempt $recoveries of $MAX_RECOVERIES, " +
+                                "fetching a fresh address and resuming at ${resumeAt}ms",
+                        )
+                        // The spinner rather than an error while it works: from the listener's side this
+                        // is buffering, and it usually ends in the music carrying on.
+                        mutableState.update { it.copy(status = PlaybackStatus.RESOLVING, errorMessage = null) }
+                        scope.launch {
+                            if (recovery == Recovery.AFTER_NETWORK) awaitNetwork()
+                            backend.forgetAudio(track.sourceUrl)
+                            start(track, resumeAt)
+                        }
                         return
                     }
                     mutableState.update { it.copy(status = PlaybackStatus.ERROR, errorMessage = describePlayerError(error)) }
@@ -183,8 +256,27 @@ class Media3PlaybackEngine(
      * than kept with the track. A downloaded copy short-circuits that entirely.
      */
     override suspend fun play(track: Track) {
-        refreshedFor = null
+        recoveries = 0
         start(track, startAtMs = 0)
+    }
+
+    /**
+     * Waits, briefly, for the phone to be back on a network that actually reaches the internet.
+     *
+     * A connection that dropped because the phone was between networks is not helped by resolving a new
+     * address at once: the resolve itself needs the network, fails the same way, and turns a gap of a few
+     * seconds into an error. So it waits for a network Android has validated, and gives up after
+     * [NETWORK_WAIT_MS] -- past that, the listener is better told than left looking at a spinner.
+     */
+    private suspend fun awaitNetwork() {
+        val manager = connectivity ?: return
+        withTimeoutOrNull(NETWORK_WAIT_MS) {
+            while (true) {
+                val capabilities = runCatching { manager.getNetworkCapabilities(manager.activeNetwork) }.getOrNull()
+                if (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true) break
+                delay(1_000)
+            }
+        }
     }
 
     /**
@@ -402,6 +494,7 @@ class Media3PlaybackEngine(
 
     override fun close() {
         ticker?.cancel()
+        runCatching { connectivity?.unregisterNetworkCallback(networkWatch) }
         // Release has to happen on the thread the player was built on, and the process may be going away,
         // so this does not wait for a coroutine to be scheduled.
         // The effect first: it holds a native object tied to the session the player is about to drop.
