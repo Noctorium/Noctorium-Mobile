@@ -141,7 +141,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
              */
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (showLyrics) {
-                    LyricsPane(lyrics, playback.positionMs, state)
+                    LyricsPane(lyrics, playback.positionMs, track, state)
                 } else {
                     /*
                      * Double tapping the left or right of the cover jumps back or forward.

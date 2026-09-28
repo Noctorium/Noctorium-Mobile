@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -22,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
-import app.noctorium.settings.ArtworkShape
 import app.noctorium.settings.SettingsState
 
 /**
@@ -40,16 +40,6 @@ internal fun PhoneOptionsCard(settings: SettingsState, state: AppState) {
     SettingsCardShell {
         CardHeading(Icons.Default.PhoneAndroid, "On this phone")
         Spacer(Modifier.height(10.dp))
-
-        OptionRow("Cover shape") {
-            ArtworkShape.entries.forEach { shape ->
-                FilterChip(
-                    selected = phone.artworkShape == shape,
-                    onClick = { state.updatePhone { copy(artworkShape = shape) } },
-                    label = { Text(shape.displayName, fontSize = 11.sp) },
-                )
-            }
-        }
 
         Toggle(
             "Labels under the tabs",
@@ -74,6 +64,18 @@ internal fun PhoneOptionsCard(settings: SettingsState, state: AppState) {
             "A short tick when a control does something.",
             phone.haptics,
         ) { state.updatePhone { copy(haptics = it) } }
+    }
+}
+
+/** How the music itself plays, and the gestures that move through it. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
+    val phone = settings.preferences.phone
+
+    SettingsCardShell {
+        CardHeading(Icons.Default.GraphicEq, "Playback")
+        Spacer(Modifier.height(10.dp))
 
         Toggle(
             "Swipe the player bar",

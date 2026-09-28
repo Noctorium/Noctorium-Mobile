@@ -12,10 +12,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.SmartDisplay
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -40,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.lyrics.LyricsProviderId
 import app.noctorium.settings.AccentPreset
+import app.noctorium.settings.ArtworkShape
 import app.noctorium.settings.ThemeColours
 import app.noctorium.settings.ThemePreset
 import app.noctorium.settings.contrastRatio
@@ -69,16 +76,23 @@ import app.noctorium.settings.TimeDisplay
  * a pointer to hover. The player bar's position used to be left out on the same reasoning and was not
  * the same case at all -- a phone screen has a top, and some people want the bar there.
  */
-@OptIn(ExperimentalLayoutApi::class)
+internal fun LazyListScope.customizationCards(settings: SettingsState, state: AppState) {
+    item { ProfileNameCard(settings, state) }
+    item { ThemeCard(settings, state) }
+    item { ColourCard(settings, state) }
+    item { TextAndLayoutCard(settings, state) }
+    item { PlayerBarCard(settings, state) }
+    item { NowPlayingLookCard(settings, state) }
+}
+
+/** What Noctorium calls you, on the home screen's greeting. */
 @Composable
-internal fun CustomizationCard(settings: SettingsState, state: AppState) {
+private fun ProfileNameCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     var name by remember(preferences.profileName) { mutableStateOf(preferences.profileName) }
-
     SettingsCardShell {
-        CardHeading(Icons.Default.Palette, "Customization")
+        CardHeading(Icons.Default.AccountCircle, "Your name")
         Spacer(Modifier.height(10.dp))
-
         OutlinedTextField(
             name,
             { name = it.take(60) },
@@ -91,8 +105,21 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
             },
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
 
-        Spacer(Modifier.height(14.dp))
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ThemeCard(settings: SettingsState, state: AppState) {
+    val preferences = settings.preferences
+    SettingsCardShell {
+        CardHeading(Icons.Default.Palette, "Theme")
+        Text(
+            "Noctorium's own, and the palettes you may know from your editor. The desktop and the phone share it.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
+        )
         // The themes, by family: "Mocha" on its own means nothing and "Catppuccin Mocha" does. Each chip
         // carries the theme's page with its accent on it, so the choice can be made by eye.
         ThemePreset.entries.groupBy { it.family }.forEach { (family, presets) ->
@@ -125,6 +152,15 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
             CustomThemeEditor(preferences.customTheme, state::setCustomTheme)
             Spacer(Modifier.height(10.dp))
         }
+    }
+}
+
+@Composable
+private fun ColourCard(settings: SettingsState, state: AppState) {
+    val preferences = settings.preferences
+    SettingsCardShell {
+        CardHeading(Icons.Default.ColorLens, "Colour and surfaces")
+        Spacer(Modifier.height(10.dp))
 
         ChoiceRow("Accent") {
             AccentPreset.entries.forEach { accent ->
@@ -171,6 +207,15 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
+    val preferences = settings.preferences
+    SettingsCardShell {
+        CardHeading(Icons.Default.TextFields, "Text and layout")
+        Spacer(Modifier.height(10.dp))
 
         ChoiceRow("Text size") {
             TextSize.entries.forEach { size ->
@@ -208,6 +253,25 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
             }
         }
 
+        ChoiceRow("Opens on") {
+            StartPage.entries.forEach { page ->
+                FilterChip(
+                    selected = preferences.startPage == page,
+                    onClick = { state.setStartPage(page) },
+                    label = { Text(page.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerBarCard(settings: SettingsState, state: AppState) {
+    val preferences = settings.preferences
+    SettingsCardShell {
+        CardHeading(Icons.Default.SmartDisplay, "Player bar")
+        Spacer(Modifier.height(10.dp))
+
         ChoiceRow("Progress bar") {
             ProgressBarStyle.entries.forEach { style ->
                 FilterChip(
@@ -218,7 +282,7 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
             }
         }
 
-        ChoiceRow("Player bar") {
+        ChoiceRow("Where it sits") {
             PlayerBarPosition.entries.forEach { position ->
                 FilterChip(
                     selected = preferences.playerBarPosition == position,
@@ -228,7 +292,7 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
             }
         }
 
-        ChoiceRow("Player bar layout") {
+        ChoiceRow("Layout") {
             PhonePlayerBarStyle.entries.forEach { layout ->
                 FilterChip(
                     selected = preferences.phone.playerBarStyle == layout,
@@ -253,18 +317,27 @@ internal fun CustomizationCard(settings: SettingsState, state: AppState) {
                 )
             }
         }
+    }
+}
 
-        ChoiceRow("Opens on") {
-            StartPage.entries.forEach { page ->
+/** How the full-screen player looks: the cover's shape, and whether its colours spill onto the page. */
+@Composable
+private fun NowPlayingLookCard(settings: SettingsState, state: AppState) {
+    val preferences = settings.preferences
+    SettingsCardShell {
+        CardHeading(Icons.Default.Album, "Now playing")
+        Spacer(Modifier.height(10.dp))
+
+        ChoiceRow("Cover shape") {
+            ArtworkShape.entries.forEach { shape ->
                 FilterChip(
-                    selected = preferences.startPage == page,
-                    onClick = { state.setStartPage(page) },
-                    label = { Text(page.displayName, fontSize = 11.sp) },
+                    selected = preferences.phone.artworkShape == shape,
+                    onClick = { state.updatePhone { copy(artworkShape = shape) } },
+                    label = { Text(shape.displayName, fontSize = 11.sp) },
                 )
             }
         }
 
-        Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Ambient backdrop", fontSize = 13.sp)
@@ -296,15 +369,12 @@ private fun ChoiceRow(label: String, chips: @Composable () -> Unit) {
  * ListenBrainz takes a token pasted in. Neither needed changing for a phone.
  */
 @Composable
-internal fun ScrobblingCard(settings: SettingsState, state: AppState) {
+internal fun LastFmCard(settings: SettingsState, state: AppState) {
     val scrobbling = settings.scrobbling
-    var token by remember { mutableStateOf("") }
 
     SettingsCardShell {
-        CardHeading(Icons.Default.History, "Scrobbling")
-        Spacer(Modifier.height(8.dp))
-
-        Text("Last.fm", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        CardHeading(Icons.Default.History, "Last.fm")
+        Spacer(Modifier.height(6.dp))
         Text(
             scrobbling.lastFm.username?.let { "Connected as $it" }
                 ?: when (scrobbling.lastFm.status) {
@@ -326,9 +396,17 @@ internal fun ScrobblingCard(settings: SettingsState, state: AppState) {
                 else -> Button(state::beginLastFmLogin) { Text("Connect") }
             }
         }
+    }
+}
 
-        Spacer(Modifier.height(16.dp))
-        Text("ListenBrainz", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+@Composable
+internal fun ListenBrainzCard(settings: SettingsState, state: AppState) {
+    val scrobbling = settings.scrobbling
+    var token by remember { mutableStateOf("") }
+
+    SettingsCardShell {
+        CardHeading(Icons.Default.History, "ListenBrainz")
+        Spacer(Modifier.height(6.dp))
         Text(
             scrobbling.listenBrainz.username?.let { "Connected as $it" } ?: "Not connected.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -353,35 +431,38 @@ internal fun ScrobblingCard(settings: SettingsState, state: AppState) {
     }
 }
 
-/** Which lyric source to prefer. The rest are still tried; this one is shown first when it answers. */
+/**
+ * Which lyric source every song opens on. The rest are still asked; this one is shown first when it has an
+ * answer. The same choice the row of sources above the lyrics makes, shown here so it can be put back.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun LyricsCard(state: AppState) {
-    val lyrics by state.lyrics.collectAsState()
+internal fun LyricsCard(settings: SettingsState, state: AppState) {
+    val preferred = settings.preferences.lyricsProvider
 
     SettingsCardShell {
-        CardHeading(Icons.Default.Lyrics, "Lyrics")
+        CardHeading(Icons.Default.Lyrics, "Open lyrics on")
         Spacer(Modifier.height(6.dp))
         Text(
-            "Eight sources are asked at once and the best answer wins. Pick one to read instead, when it " +
-                "has an answer.",
+            "Eight sources are asked at once. Choose one to read first whenever it has the song, or let the " +
+                "best answer win. Tapping a source above the lyrics changes this too.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
         )
         Spacer(Modifier.height(10.dp))
-        LyricsChoices(lyrics.selectedProvider, state::selectLyricsProvider)
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun LyricsChoices(selected: LyricsProviderId?, choose: (LyricsProviderId) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        LyricsProviderId.entries.forEach { provider ->
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FilterChip(
-                selected = selected == provider,
-                onClick = { choose(provider) },
-                label = { Text(provider.displayName, fontSize = 11.sp) },
+                selected = preferred == null,
+                onClick = state::clearPreferredLyricsProvider,
+                label = { Text("The best answer", fontSize = 11.sp) },
             )
+            LyricsProviderId.entries.forEach { provider ->
+                FilterChip(
+                    selected = preferred == provider,
+                    onClick = { state.selectLyricsProvider(provider) },
+                    label = { Text(provider.displayName, fontSize = 11.sp) },
+                )
+            }
         }
     }
 }
