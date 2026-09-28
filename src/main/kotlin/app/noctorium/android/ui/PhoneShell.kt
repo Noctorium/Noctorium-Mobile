@@ -822,11 +822,11 @@ internal fun PlayPauseButton(playback: PlaybackState, state: AppState, size: Dp 
  */
 @Composable
 internal fun PlaybackLine(playback: PlaybackState, style: ProgressBarStyle = ProgressBarStyle.MINIMAL) {
-    // Segments is the one style with a shape small enough to survive being two pixels tall, and it is
-    // what makes the mini bar recognisably the same choice as the one on the now playing screen. The
-    // rest come down to a thickness here: this is a line under a title, not the seek bar itself, and
-    // a travelling wave or a fat capsule in the player bar is noise in the corner of every screen.
-    if (style == ProgressBarStyle.SEGMENTS) {
+    // Segments and Classic are the styles with a shape small enough to survive being two pixels tall --
+    // both are blocks -- and it is what makes the mini bar recognisably the same choice as the one on the
+    // now playing screen. The rest come down to a thickness here: this is a line under a title, not the
+    // seek bar itself, and a travelling wave or a fat capsule in the player bar is noise in every corner.
+    if (style == ProgressBarStyle.SEGMENTS || style == ProgressBarStyle.CLASSIC) {
         val filled = MaterialTheme.colorScheme.primary
         val track = MaterialTheme.colorScheme.surfaceVariant
         val fraction = playbackFraction(playback.positionMs, playback.durationMs)

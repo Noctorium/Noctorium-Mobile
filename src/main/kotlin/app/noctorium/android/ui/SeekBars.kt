@@ -108,5 +108,49 @@ internal fun DrawScope.drawSeekBar(
                 )
             }
         }
+
+        ProgressBarStyle.CLASSIC -> {
+            /*
+             * Windows 98's progress bar with its trackbar's thumb on top. The well is sunk into the page --
+             * dark edge above and to the left, light below and to the right, the way that desktop lit every
+             * control from the top left -- and fills from the left with square blocks. Black and white for
+             * the bevel rather than the theme's own colours, because that is what the bevels were, and they
+             * read on a dark page as well as on the grey one they were made for.
+             */
+            val height = SeekBar.CLASSIC_WELL_DP.dp.toPx()
+            val top = centreY - height / 2f
+            val edge = 1.dp.toPx().coerceAtLeast(1f)
+            val shadow = Color.Black.copy(alpha = .55f)
+            val light = Color.White.copy(alpha = .85f)
+            drawRect(track, Offset(0f, top), Size(size.width, height))
+            drawRect(shadow, Offset(0f, top), Size(size.width, edge))
+            drawRect(shadow, Offset(0f, top), Size(edge, height))
+            drawRect(light, Offset(0f, top + height - edge), Size(size.width, edge))
+            drawRect(light, Offset(size.width - edge, top), Size(edge, height))
+
+            val inset = edge * 2f
+            val block = SeekBar.CLASSIC_BLOCK_DP.dp.toPx()
+            val step = block + SeekBar.CLASSIC_BLOCK_GAP_DP.dp.toPx()
+            val end = size.width - inset
+            var left = inset
+            // Lit once the head has reached the block, as the other blocky bar does.
+            while (left < head && left < end) {
+                drawRect(filled, Offset(left, top + inset), Size(minOf(block, end - left), height - inset * 2f))
+                left += step
+            }
+
+            if (showHead) {
+                val width = SeekBar.CLASSIC_THUMB_WIDTH_DP.dp.toPx()
+                val tall = SeekBar.CLASSIC_THUMB_HEIGHT_DP.dp.toPx().coerceAtMost(size.height)
+                val x = (head - width / 2f).coerceIn(0f, (size.width - width).coerceAtLeast(0f))
+                val y = centreY - tall / 2f
+                // Raised rather than sunk: the same two edges, the other way round.
+                drawRect(Color(SeekBar.CLASSIC_FACE), Offset(x, y), Size(width, tall))
+                drawRect(light, Offset(x, y), Size(width, edge))
+                drawRect(light, Offset(x, y), Size(edge, tall))
+                drawRect(Color.Black.copy(alpha = .7f), Offset(x, y + tall - edge), Size(width, edge))
+                drawRect(Color.Black.copy(alpha = .7f), Offset(x + width - edge, y), Size(edge, tall))
+            }
+        }
     }
 }
