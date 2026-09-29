@@ -262,6 +262,18 @@ private fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
                 )
             }
         }
+
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Animations", fontSize = 13.sp)
+                Text(
+                    "Screens ease in, pages slide, and a new track's name rises into place. Off makes every change instant.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
+            }
+            Switch(preferences.animations, state::setAnimations)
+        }
     }
 }
 

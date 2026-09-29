@@ -15,6 +15,12 @@ import androidx.compose.ui.geometry.Size
 import app.noctorium.settings.SeekBar
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -88,6 +94,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -193,6 +200,8 @@ fun NoctoriumPhone(state: AppState) {
     val playback by state.playback.collectAsState()
     val library by state.library.collectAsState()
     val settings by state.settings.collectAsState()
+    // Asked once, the first time something plays on a phone that could stop it when the screen locks.
+    KeepPlayingPrompt(state, playing = playback.isPlaying)
     /*
      * Start page, including the one the phone was quietly dropping.
      *
@@ -230,16 +239,19 @@ fun NoctoriumPhone(state: AppState) {
 
     val glass = settings.preferences.surfaceStyle.isGlass
     val screens: @Composable () -> Unit = {
-        when (ui.destination) {
-            Destination.SEARCH -> SearchScreen(state)
-            Destination.LINK -> LinkScreen(state)
-            Destination.LIBRARY -> LibraryScreen(state)
-            Destination.DOWNLOADS -> DownloadsScreen(state)
-            Destination.SETTINGS -> SettingsScreen(state, backEnabled = !overlaid && !nowPlayingOpen) { signingInTo = it }
-            Destination.QUEUE -> QueueScreen(state)
-            // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
-            // Home with the sheet open instead of on an empty screen.
-            Destination.HOME, Destination.NOW_PLAYING -> HomeScreen(state)
+        // One tab giving way to the next with a short fade and rise, rather than the screen cutting.
+        MotionContent(ui.destination, Modifier.fillMaxSize()) { destination ->
+            when (destination) {
+                Destination.SEARCH -> SearchScreen(state)
+                Destination.LINK -> LinkScreen(state)
+                Destination.LIBRARY -> LibraryScreen(state)
+                Destination.DOWNLOADS -> DownloadsScreen(state)
+                Destination.SETTINGS -> SettingsScreen(state, backEnabled = !overlaid && !nowPlayingOpen) { signingInTo = it }
+                Destination.QUEUE -> QueueScreen(state)
+                // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
+                // Home with the sheet open instead of on an empty screen.
+                Destination.HOME, Destination.NOW_PLAYING -> HomeScreen(state)
+            }
         }
     }
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
@@ -307,10 +319,22 @@ fun NoctoriumPhone(state: AppState) {
 
             // Over everything too: while a track is open it is the only thing being looked at, and a row
             // of tabs underneath it is just somewhere to lose your place.
+            // Up from the bar it was opened from and back down to it, easing to a stop; instant with animations off.
+            val moving = LocalMotion.current
             AnimatedVisibility(
                 visible = signingInTo == null && nowPlayingOpen && playback.track != null,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it },
+                enter = if (moving) {
+                    slideInVertically(tween(MotionTiming.STANDARD + 60, easing = FastOutSlowInEasing)) { it } +
+                        fadeIn(tween(MotionTiming.STANDARD))
+                } else {
+                    EnterTransition.None
+                },
+                exit = if (moving) {
+                    slideOutVertically(tween(MotionTiming.STANDARD, easing = FastOutSlowInEasing)) { it } +
+                        fadeOut(tween(MotionTiming.STANDARD))
+                } else {
+                    ExitTransition.None
+                },
             ) {
                 NowPlayingScreen(state) { nowPlayingOpen = false }
             }
@@ -621,23 +645,25 @@ private fun SlimBar(track: Track, playback: PlaybackState, state: AppState, glas
         }
         // Two small lines rather than one: at a large font size "title  ·  artist" on one line was
         // squeezed to "Archangel · …", a dot leading nowhere. The row is as tall as its buttons either way.
-        Column(Modifier.weight(1f)) {
-            Text(
-                track.title,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 13.sp,
-                lineHeight = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                playback.errorMessage ?: track.artistLine.ifBlank { "Unknown artist" },
-                color = if (playback.errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 11.sp,
-                lineHeight = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        MotionContent(track, Modifier.weight(1f), kind = MotionKind.TRACK, contentKey = { it.queueKey }) { shown ->
+            Column {
+                Text(
+                    shown.title,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 13.sp,
+                    lineHeight = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    playback.errorMessage ?: shown.artistLine.ifBlank { "Unknown artist" },
+                    color = if (playback.errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (controlsFirst) {
             Spacer(Modifier.width(10.dp))
@@ -731,23 +757,24 @@ private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState,
     ) {
         Artwork(track.artworkUrl, 62.dp, corner = if (glass) 31.dp else 12.dp)
         Spacer(Modifier.width(13.dp))
-        Column(Modifier.weight(1f)) {
-            Text(track.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                playback.errorMessage ?: track.artistLine.ifBlank { "Unknown artist" },
-                color = if (playback.errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        MotionContent(track, Modifier.weight(1f), kind = MotionKind.TRACK, contentKey = { it.queueKey }) { shown ->
+            Column {
+                Text(shown.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    playback.errorMessage ?: shown.artistLine.ifBlank { "Unknown artist" },
+                    color = if (playback.errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Spacer(Modifier.width(6.dp))
         FilledIconButton(state::togglePlayback, Modifier.size(48.dp)) {
             when {
                 playback.status == PlaybackStatus.RESOLVING ->
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                playback.isPlaying -> Icon(Icons.Default.Pause, "Pause", Modifier.size(28.dp))
-                else -> Icon(Icons.Default.PlayArrow, "Play", Modifier.size(28.dp))
+                else -> PlayPauseIcon(playback.isPlaying, 28.dp)
             }
         }
         IconButton({ haptics.tick(); state.next() }) {
@@ -777,28 +804,34 @@ private fun BoxScope.SpotlightBackdrop(artworkUrl: String?, glass: Boolean) {
     Box(Modifier.matchParentSize().background(MaterialTheme.colorScheme.surface.copy(alpha = if (glass) .25f else .45f)))
 }
 
-/** The title over the artist, or over what went wrong, in red, when something did. */
+/**
+ * The title over the artist, or over what went wrong, in red, when something did.
+ *
+ * A new track's name rises into place as the last one lifts away, so a skip is seen as well as heard.
+ */
 @Composable
 private fun TrackLines(track: Track, playback: PlaybackState, modifier: Modifier) {
-    Column(modifier) {
-        Text(
-            track.title,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            playback.errorMessage ?: track.artistLine.ifBlank { "Unknown artist" },
-            color = if (playback.errorMessage != null) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            fontSize = 12.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+    MotionContent(track, modifier, kind = MotionKind.TRACK, contentKey = { it.queueKey }) { shown ->
+        Column {
+            Text(
+                shown.title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                playback.errorMessage ?: shown.artistLine.ifBlank { "Unknown artist" },
+                color = if (playback.errorMessage != null) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                fontSize = 12.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -808,9 +841,21 @@ internal fun PlayPauseButton(playback: PlaybackState, state: AppState, size: Dp 
         when {
             playback.status == PlaybackStatus.RESOLVING ->
                 CircularProgressIndicator(Modifier.size(size * .8f), strokeWidth = 2.dp)
-            playback.isPlaying -> Icon(Icons.Default.Pause, "Pause", Modifier.size(size))
-            else -> Icon(Icons.Default.PlayArrow, "Play", Modifier.size(size))
+            else -> PlayPauseIcon(playback.isPlaying, size)
         }
+    }
+}
+
+/** Play or pause, the one giving way to the other with a small scale rather than a cut. */
+@Composable
+internal fun PlayPauseIcon(playing: Boolean, size: Dp, tint: Color = LocalContentColor.current) {
+    MotionContent(playing, kind = MotionKind.ICON, contentAlignment = Alignment.Center) { isPlaying ->
+        Icon(
+            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+            if (isPlaying) "Pause" else "Play",
+            Modifier.size(size),
+            tint = tint,
+        )
     }
 }
 

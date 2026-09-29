@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
@@ -107,11 +109,13 @@ internal fun SettingsScreen(state: AppState, backEnabled: Boolean = true, signIn
     var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
     BackHandler(enabled = backEnabled && page != null) { page = null }
 
-    val open = page
-    if (open == null) {
-        SettingsHome(state) { page = it }
-    } else {
-        SettingsPageScreen(open, state, signIn) { page = null }
+    // Into a page from the right, and back out to it, as the desktop's Settings do.
+    MotionContent(page, Modifier.fillMaxSize(), kind = MotionKind.PAGE, forward = { _, to -> to != null }) { shown ->
+        if (shown == null) {
+            SettingsHome(state) { page = it }
+        } else {
+            SettingsPageScreen(shown, state, signIn) { page = null }
+        }
     }
 }
 
@@ -205,7 +209,14 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
             ) { open(SettingsPage.PLAYBACK) }
         }
         item {
-            SettingsTile(Icons.Default.PhoneAndroid, "On this phone", "Screen, downloads, tabs and haptics") {
+            // The one thing here that can stop the music, so it is said on the tile when it is not settled.
+            val unrestricted = rememberBackgroundUnrestricted()
+            SettingsTile(
+                if (unrestricted) Icons.Default.PhoneAndroid else Icons.Default.BatteryAlert,
+                "On this phone",
+                if (unrestricted) "Screen, downloads, tabs and haptics" else "The music may stop when the phone locks. Tap to fix it.",
+                tint = if (unrestricted) null else MaterialTheme.colorScheme.error,
+            ) {
                 open(SettingsPage.PHONE)
             }
         }
@@ -308,7 +319,10 @@ private fun SettingsPageScreen(page: SettingsPage, state: AppState, signIn: (Pro
             SettingsPage.SPOTIFY -> item { SpotifyCard(settings, state) }
             SettingsPage.CUSTOMIZATION -> customizationCards(settings, state)
             SettingsPage.PLAYBACK -> item { PlaybackOptionsCard(settings, state) }
-            SettingsPage.PHONE -> item { PhoneOptionsCard(settings, state) }
+            SettingsPage.PHONE -> {
+                item { KeepPlayingCard() }
+                item { PhoneOptionsCard(settings, state) }
+            }
             SettingsPage.LYRICS -> item { LyricsCard(settings, state) }
             SettingsPage.SCROBBLING -> {
                 item { LastFmCard(settings, state) }

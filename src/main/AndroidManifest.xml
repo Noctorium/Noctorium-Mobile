@@ -33,6 +33,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!--
+      Lets Noctorium ask, through Android's own dialog which the listener answers, to be left out of
+      battery optimisation. A foreground service is not always enough: Xiaomi's and some others' power
+      managers stop background apps when the screen locks regardless, music included.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".NoctoriumApplication"

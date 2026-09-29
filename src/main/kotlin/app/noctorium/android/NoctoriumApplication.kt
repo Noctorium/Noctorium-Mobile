@@ -118,6 +118,8 @@ class NoctoriumApplication : Application(), ImageLoaderFactory {
             networkPresence = WifiPresence(this),
             updateInstaller = AndroidUpdateInstaller(this),
         )
+        // Private SoundCloud tracks are found through the state's SoundCloud session, which exists only now.
+        (backend as? NewPipeBackend)?.privateSoundCloudStream = state::soundCloudPrivateStream
     }
 
     override fun onTerminate() {

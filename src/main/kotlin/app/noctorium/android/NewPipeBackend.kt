@@ -10,6 +10,7 @@ import app.noctorium.domain.Artist
 import app.noctorium.domain.Playlist
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
+import app.noctorium.social.secretOf
 import app.noctorium.playback.BackendException
 import app.noctorium.playback.MusicBackend
 import app.noctorium.settings.CookieSource
@@ -94,6 +95,16 @@ class NewPipeBackend(
 
     private val facts = ConcurrentHashMap<String, PageFacts>()
     private val addresses = AudioAddressCache()
+
+    /**
+     * Finds the audio of a private SoundCloud track, whose address the extractor refuses.
+     *
+     * A private track's address ends in its secret -- `/artist/track/s-AbC123` -- and NewPipe accepts no
+     * address with a segment it does not expect, "URL not accepted", before asking SoundCloud anything.
+     * The application's state answers these through SoundCloud's own API, with the secret and the session,
+     * and is handed in once it exists, which is after this does.
+     */
+    @Volatile var privateSoundCloudStream: (suspend (String) -> String?)? = null
 
     /**
      * Sessions, kept per provider.
@@ -225,6 +236,10 @@ class NewPipeBackend(
      * about the address and refusing to play would be inventing a failure.
      */
     private suspend fun freshAddress(sourceUrl: String): String {
+        if (providerOf(sourceUrl) == ProviderType.SOUNDCLOUD && secretOf(sourceUrl) != null) {
+            return privateSoundCloudStream?.invoke(sourceUrl)
+                ?: throw BackendException("SoundCloud would not give Noctorium the audio of this private track.")
+        }
         val address = readPage(sourceUrl)
         if (checkAudioAddress(address) != AddressVerdict.REJECTED) return address
 

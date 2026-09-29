@@ -90,6 +90,7 @@ import app.noctorium.core.Destination
 import app.noctorium.domain.HomeSection
 import app.noctorium.domain.pluralTracks
 import app.noctorium.domain.Playlist
+import app.noctorium.domain.editableOnService
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
 import app.noctorium.downloads.DownloadStage
@@ -491,20 +492,39 @@ internal fun SearchScreen(state: AppState) {
 internal fun LibraryScreen(state: AppState) {
     val library by state.library.collectAsState()
     val downloads by state.downloadState.collectAsState()
-    val playback by state.playback.collectAsState()
-    val settings by state.settings.collectAsState()
 
     // Opening the library is what asks for it; the state itself decides whether that means a fetch.
     androidx.compose.runtime.LaunchedEffect(Unit) { state.refreshLibrary() }
 
-    val open = library.openPlaylist
-    if (open != null) {
-        PlaylistScreen(open, library.openPlaylistLoading, library.openPlaylistError, state)
-        return
-    }
-
-    var naming by remember { mutableStateOf(false) }
     val services = playlistServices(state)
+
+    // Into a playlist from the right and back out to the list, as Settings does.
+    val view = library.openPlaylist?.let { "playlist:${it.playlistKey}" }
+        ?: library.openLocalPlaylist?.let { "local:${it.id}" }
+        ?: "list"
+    MotionContent(view, Modifier.fillMaxSize(), kind = MotionKind.PAGE, forward = { _, to -> to != "list" }) { shown ->
+        // Kept once let go of, so a page sliding away still shows what it showed.
+        val service = rememberLast(library.openPlaylist?.takeIf { "playlist:${it.playlistKey}" == shown })
+        val local = rememberLast(library.openLocalPlaylist?.takeIf { "local:${it.id}" == shown })
+        when {
+            shown.startsWith("playlist:") -> service?.let {
+                PlaylistScreen(it, library.openPlaylistLoading, library.openPlaylistError, library.notice, state)
+            }
+            shown.startsWith("local:") -> local?.let { LocalPlaylistScreen(it, library.notice, services, state) }
+            else -> LibraryList(library, downloads, services, state)
+        }
+    }
+}
+
+/** The library itself: what is kept on the phone, the playlists made here, and the ones from the accounts. */
+@Composable
+private fun LibraryList(
+    library: app.noctorium.core.LibraryState,
+    downloads: app.noctorium.downloads.DownloadsState,
+    services: List<ProviderType>,
+    state: AppState,
+) {
+    var naming by remember { mutableStateOf(false) }
     if (naming) {
         NewPlaylistDialog(
             services = services,
@@ -573,6 +593,7 @@ internal fun LibraryScreen(state: AppState) {
                             title = playlist.title,
                             detail = listOfNotNull(
                                 playlist.provider.displayName,
+                                "Private".takeIf { playlist.isPublic == false },
                                 playlist.trackCount?.let(::pluralTracks),
                                 playlist.ownerName,
                             ).joinToString(" · "),
@@ -619,8 +640,9 @@ private fun PlaylistRow(title: String, detail: String, artworkUrl: String?, open
 
 /** One playlist, opened. Loads in two passes the way the desktop does, so it appears before it is complete. */
 @Composable
-private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?, state: AppState) {
+private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?, notice: String?, state: AppState) {
     val playback by state.playback.collectAsState()
+    val downloads by state.downloadState.collectAsState()
 
     ScreenScaffold {
         Row(
@@ -637,8 +659,22 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
                 )
             }
             if (playlist.tracks.isNotEmpty()) {
+                // The whole playlist kept in one tap, and greyed out once there is nothing left to keep.
+                val missing = playlist.tracks.count { !downloads.isDownloaded(state.downloadableTrack(it)) }
+                IconButton({ state.downloadAll(playlist.tracks) }, enabled = missing > 0) {
+                    Icon(
+                        if (missing > 0) Icons.Default.Download else Icons.Default.DownloadDone,
+                        if (missing > 0) "Download $missing" else "All downloaded",
+                    )
+                }
                 IconButton({ state.playPlaylist(playlist) }) { Icon(Icons.Default.PlayArrow, "Play this playlist") }
             }
+        }
+
+        // The account's own playlists can be made public or private, renamed and deleted from here.
+        if (playlist.editableOnService()) ServicePlaylistControls(playlist, notice, state)
+        notice?.let {
+            Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
         }
 
         error?.let {
@@ -658,26 +694,29 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
                 val reorderable = (playlist.provider == ProviderType.YOUTUBE_MUSIC || playlist.provider == ProviderType.YOUTUBE_VIDEO) &&
                     (playlist.id.startsWith("PL") || playlist.id.startsWith("VL"))
                 itemsIndexed(playlist.tracks, key = { _, track -> track.queueKey }) { index, track ->
-                    TrackRow(
-                        track,
-                        state,
-                        isCurrent = playback.track?.queueKey == track.queueKey,
-                        trailing = if (!reorderable) null else {
-                            {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton({ state.moveInYouTubePlaylist(index, index - 1) }, enabled = index > 0, modifier = Modifier.size(36.dp)) {
-                                        Icon(Icons.Default.KeyboardArrowUp, "Move up")
+                    // Rows glide to their new places when one moves or is taken out, instead of jumping.
+                    Box(if (LocalMotion.current) Modifier.animateItem() else Modifier) {
+                        TrackRow(
+                            track,
+                            state,
+                            isCurrent = playback.track?.queueKey == track.queueKey,
+                            trailing = if (!reorderable) null else {
+                                {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton({ state.moveInYouTubePlaylist(index, index - 1) }, enabled = index > 0, modifier = Modifier.size(36.dp)) {
+                                            Icon(Icons.Default.KeyboardArrowUp, "Move up")
+                                        }
+                                        IconButton(
+                                            { state.moveInYouTubePlaylist(index, index + 1) },
+                                            enabled = index < playlist.tracks.lastIndex,
+                                            modifier = Modifier.size(36.dp),
+                                        ) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
+                                        TrackMenuButton(track, state)
                                     }
-                                    IconButton(
-                                        { state.moveInYouTubePlaylist(index, index + 1) },
-                                        enabled = index < playlist.tracks.lastIndex,
-                                        modifier = Modifier.size(36.dp),
-                                    ) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
-                                    TrackMenuButton(track, state)
                                 }
-                            }
-                        },
-                    ) { state.playPlaylist(playlist, startAt = track) }
+                            },
+                        ) { state.playPlaylist(playlist, startAt = track) }
+                    }
                 }
             }
         }

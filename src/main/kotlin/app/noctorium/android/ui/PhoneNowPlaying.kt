@@ -248,7 +248,8 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 ) {
                     if (likes.supports(track)) {
                         val liked = likes.isLiked(track)
-                        IconButton({ state.toggleLike(track) }, enabled = !likes.isBusy(track)) {
+                        // The heart pops as it fills, so a like is seen to land and not only to change colour.
+                        IconButton({ state.toggleLike(track) }, Modifier.popOn(liked, pop = liked), enabled = !likes.isBusy(track)) {
                             Icon(
                                 if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                 if (liked) "Remove from likes" else "Like",

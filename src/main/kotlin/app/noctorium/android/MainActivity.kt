@@ -27,6 +27,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import app.noctorium.android.ui.noctoriumColors
 import app.noctorium.android.ui.NoctoriumPhone
+import app.noctorium.android.ui.LocalMotion
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import com.google.common.util.concurrent.ListenableFuture
@@ -150,6 +151,7 @@ class MainActivity : ComponentActivity() {
                         density.density,
                         density.fontScale * settings.preferences.textSize.scale,
                     ),
+                    LocalMotion provides settings.preferences.animations,
                 ) { NoctoriumPhone(state) }
             }
         }

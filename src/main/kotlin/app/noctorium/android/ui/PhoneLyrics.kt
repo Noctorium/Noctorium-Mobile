@@ -1,5 +1,7 @@
 package app.noctorium.android.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -286,18 +288,41 @@ private fun FollowingLyrics(result: app.noctorium.lyrics.LyricsResult, positionM
             ) {
                 itemsIndexed(result.lines) { index, line ->
                     val active = index == activeIndex
-                    Text(
-                        line.text.ifBlank { "♪" },
-                        color = when {
+                    /*
+                     * The line being sung grows and brightens into place, and the one before settles back.
+                     *
+                     * Drawn at the large size and scaled down when not sung, rather than switching font
+                     * size: a size change lays the line out again, which made each new line jump, and a
+                     * scale is only drawn -- it can be eased.
+                     */
+                    val colour by animateColorAsState(
+                        when {
                             active -> MaterialTheme.colorScheme.onSurface
                             result.synced -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .55f)
                             else -> MaterialTheme.colorScheme.onSurface
                         },
-                        fontSize = if (active) 24.sp else 19.sp,
-                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                        motionSpec(MotionTiming.STANDARD),
+                        label = "lyric-colour",
+                    )
+                    val scale by animateFloatAsState(
+                        if (active || !result.synced) 1f else .8f,
+                        motionSpec(MotionTiming.STANDARD),
+                        label = "lyric-scale",
+                    )
+                    Text(
+                        line.text.ifBlank { "♪" },
+                        color = colour,
+                        fontSize = 24.sp,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
-                        lineHeight = if (active) 30.sp else 25.sp,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp, horizontal = 4.dp),
+                        lineHeight = 30.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
                     )
                 }
                 result.attribution?.let { attribution ->
