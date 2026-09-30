@@ -16,11 +16,13 @@ import app.noctorium.playback.MusicBackend
 import app.noctorium.settings.CookieSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request as OkRequest
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.schabi.newpipe.extractor.NewPipe
+import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.StreamingService
 import org.schabi.newpipe.extractor.downloader.Downloader
@@ -39,6 +41,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** The logcat tag every extraction failure is written under. */
 private const val LOG_TAG = "NoctoriumBackend"
+
+/** Past any playlist a service will hold, bounded so a next page that never runs out cannot keep asking. */
+private const val MAX_LIST_PAGES = 400
 
 /**
  * The providers whose addresses carry a signature solved with the service's own player code.
@@ -154,7 +159,19 @@ class NewPipeBackend(
         withContext(Dispatchers.IO) {
             val service = serviceFor(provider) ?: return@withContext emptyList()
             val info = attempt("list $url") { PlaylistInfo.getInfo(service, url) }
-            info.relatedItems.take(limit).map { trackOf(it, provider) }
+            // The first page is all getInfo reads -- a hundred for YouTube, only the handful SoundCloud
+            // sends in full for a set -- so the rest is asked for until the list or the limit runs out.
+            // A page that fails ends the list there, keeping what already arrived.
+            val items = info.relatedItems.toMutableList()
+            var next = info.nextPage
+            var pages = 0
+            while (items.size < limit && Page.isValid(next) && pages++ < MAX_LIST_PAGES) {
+                ensureActive()
+                val more = runCatching { PlaylistInfo.getMoreItems(service, url, next) }.getOrNull() ?: break
+                items += more.items
+                next = more.nextPage
+            }
+            items.take(limit).map { trackOf(it, provider) }
         }
 
     /**
