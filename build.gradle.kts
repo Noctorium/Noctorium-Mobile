@@ -32,6 +32,26 @@ plugins {
     kotlin("jvm") version "2.1.21" apply false
 }
 
+/**
+ * The newest release tag this checkout has, such as `v0.5.9`, for a build nobody handed a version to.
+ *
+ * A local build used to call itself 0.4.0 whatever it was built from, so the debug copy on a phone asked on
+ * every launch to "update" to the release it was built from. The tag is the version the code was released
+ * as, which is what a build should say it is. Null where there is no git or no tag to read.
+ */
+val latestReleaseTag: String? = runCatching {
+    providers.exec {
+        commandLine("git", "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().takeIf { it.startsWith("v") }
+}.getOrNull()
+
+/** From -PappVersion when the release workflow passes one, and otherwise from the newest tag. */
+val appVersion: String = (findProperty("appVersion") as String?)?.trim()?.removePrefix("v")
+    ?.takeIf { it.isNotBlank() }
+    ?: latestReleaseTag?.removePrefix("v")
+    ?: "0.5.9"
+
 android {
     namespace = "app.noctorium.android"
     compileSdk = 35
@@ -80,12 +100,11 @@ android {
          * for ninety-nine minors and patches, which is more than this will ever need, and keeps the
          * ordering the same as the version people actually read.
          */
-        val parts = (findProperty("appVersion") as String? ?: "0.4.0")
-            .removePrefix("v").substringBefore('-').split('.').mapNotNull(String::toIntOrNull)
+        val parts = appVersion.substringBefore('-').split('.').mapNotNull(String::toIntOrNull)
         versionCode = ((parts.getOrNull(0) ?: 0) * 10_000) +
             ((parts.getOrNull(1) ?: 0) * 100) +
             (parts.getOrNull(2) ?: 0)
-        versionName = (findProperty("appVersion") as String? ?: "0.4.0").removePrefix("v")
+        versionName = appVersion
     }
 
     buildTypes {
