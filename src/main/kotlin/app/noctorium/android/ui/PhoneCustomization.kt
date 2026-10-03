@@ -17,11 +17,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -47,6 +50,11 @@ import app.noctorium.core.AppState
 import app.noctorium.lyrics.LyricsProviderId
 import app.noctorium.settings.AccentPreset
 import app.noctorium.settings.ArtworkShape
+import app.noctorium.settings.FontChoice
+import app.noctorium.settings.HomePart
+import app.noctorium.settings.LyricsAlignment
+import app.noctorium.settings.LyricsSize
+import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.ThemeColours
 import app.noctorium.settings.ThemePreset
 import app.noctorium.settings.contrastRatio
@@ -75,14 +83,78 @@ import app.noctorium.settings.TimeDisplay
  * One of the desktop's is left out because it describes a thing a phone has not got: hover controls need
  * a pointer to hover. The player bar's position used to be left out on the same reasoning and was not
  * the same case at all -- a phone screen has a top, and some people want the bar there.
+ *
+ * Then the ways of making it one's own: an accent of the listener's own colour, the typeface, what Home is
+ * made of, and which of the player's buttons are there at all.
  */
 internal fun LazyListScope.customizationCards(settings: SettingsState, state: AppState) {
     item { ProfileNameCard(settings, state) }
     item { ThemeCard(settings, state) }
     item { ColourCard(settings, state) }
     item { TextAndLayoutCard(settings, state) }
+    item { HomeLookCard(settings, state) }
     item { PlayerBarCard(settings, state) }
+    item { PlayerButtonsCard(settings, state) }
     item { NowPlayingLookCard(settings, state) }
+}
+
+/**
+ * What Home is made of. Each part can be put away and brought back; the service rows go together by
+ * service, since a listener who does not want SoundCloud's suggestions does not want any of them.
+ */
+@Composable
+internal fun HomeLookCard(settings: SettingsState, state: AppState) {
+    val hidden = settings.preferences.hiddenHomeParts
+    SettingsCardShell {
+        CardHeading(Icons.Default.Home, "Home")
+        Spacer(Modifier.height(6.dp))
+        HomePart.entries.forEach { part ->
+            Toggle(part.displayName, part.description, part !in hidden) { shown ->
+                state.setHomePartHidden(part, hidden = !shown)
+            }
+        }
+    }
+}
+
+/**
+ * The buttons on the phone's player, the bar and the full screen both, each of which can go.
+ *
+ * Play, pause, next and previous are not offered: a player without them is not one. Nor is the queue,
+ * which on a phone is a tab rather than a button. The sleep timer and Connect come back by themselves
+ * while they are in use, and the card says so, so a hidden one is never a timer nobody can find.
+ */
+@Composable
+internal fun PlayerButtonsCard(settings: SettingsState, state: AppState) {
+    val hidden = settings.preferences.phone.hiddenPlayerButtons
+    SettingsCardShell {
+        CardHeading(Icons.Default.Tune, "Player buttons")
+        Text(
+            "Play, pause, next and previous always stay. A hidden sleep timer or Connect button still " +
+                "appears while it is in use.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
+        )
+        PHONE_PLAYER_BUTTONS.forEach { button ->
+            Toggle(button.displayName, playerButtonWhere(button), button !in hidden) { shown ->
+                state.updatePhone {
+                    copy(hiddenPlayerButtons = if (shown) hiddenPlayerButtons - button else hiddenPlayerButtons + button)
+                }
+            }
+        }
+    }
+}
+
+/** Where on the phone's player each button sits, so switching it off is not a guess at what goes. */
+private fun playerButtonWhere(button: PlayerButton): String = when (button) {
+    PlayerButton.SHUFFLE -> "On the full screen, and on the Slim player bars."
+    PlayerButton.REPEAT -> "On the full screen, and on the Slim player bars."
+    PlayerButton.LIKE -> "The heart under the track on the full screen."
+    PlayerButton.LYRICS -> "The Aa at the top of the full screen."
+    PlayerButton.SLEEP_TIMER -> "The moon at the top of the full screen."
+    PlayerButton.DEVICES -> "Noctorium Connect, at the top of the full screen."
+    PlayerButton.VOLUME -> "Volume, mute and the boost, beside the heart on the full screen."
+    PlayerButton.QUEUE -> "The queue is a tab on the phone."
 }
 
 /** What Noctorium calls you, on the home screen's greeting. */
@@ -156,7 +228,7 @@ private fun ThemeCard(settings: SettingsState, state: AppState) {
 }
 
 @Composable
-private fun ColourCard(settings: SettingsState, state: AppState) {
+internal fun ColourCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     SettingsCardShell {
         CardHeading(Icons.Default.ColorLens, "Colour and surfaces")
@@ -164,7 +236,9 @@ private fun ColourCard(settings: SettingsState, state: AppState) {
 
         ChoiceRow("Accent") {
             AccentPreset.entries.forEach { accent ->
-                val swatch = accent.argb ?: preferences.themeColours().accent.takeIf { accent == AccentPreset.THEME }
+                val swatch = accent.argb
+                    ?: preferences.themeColours().accent.takeIf { accent == AccentPreset.THEME }
+                    ?: (AccentPreview.argb ?: preferences.customAccent).takeIf { accent == AccentPreset.CUSTOM }
                 FilterChip(
                     selected = preferences.accent == accent,
                     onClick = { state.setAccent(accent) },
@@ -180,6 +254,11 @@ private fun ColourCard(settings: SettingsState, state: AppState) {
                     },
                 )
             }
+        }
+        // The colour itself, only once "Your own" is the accent: offered to everybody, it would be a large
+        // square of controls in the way of the rest of the card for a choice most people never make.
+        if (preferences.accent == AccentPreset.CUSTOM) {
+            AccentPicker(preferences.customAccent, state::setCustomAccent)
         }
 
         ChoiceRow("Surfaces") {
@@ -211,7 +290,7 @@ private fun ColourCard(settings: SettingsState, state: AppState) {
 }
 
 @Composable
-private fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
+internal fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     SettingsCardShell {
         CardHeading(Icons.Default.TextFields, "Text and layout")
@@ -228,6 +307,24 @@ private fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
         }
         Text(
             "Everything at once, on top of the phone's own text size.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
+
+        // Each chip is set in its own typeface, so the choice is made by looking rather than by name.
+        ChoiceRow("Typeface") {
+            FontChoice.entries.forEach { font ->
+                FilterChip(
+                    selected = preferences.font == font,
+                    onClick = { state.setFont(font) },
+                    label = { Text(font.displayName, fontSize = 12.sp, fontFamily = font.family()) },
+                    leadingIcon = { Text("Aa", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = font.family()) },
+                )
+            }
+        }
+        Text(
+            preferences.font.description,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             modifier = Modifier.padding(bottom = 10.dp),
@@ -476,6 +573,56 @@ internal fun LyricsCard(settings: SettingsState, state: AppState) {
                 )
             }
         }
+    }
+}
+
+/**
+ * How the lyrics are set: their size, the edge they sit against, and whether the lines not being sung step
+ * back. Three lines drawn exactly as the lyrics will be sit above the choices, since "Large" and "Huge"
+ * mean little until they are seen at the size of a phone.
+ */
+@Composable
+internal fun LyricsLookCard(settings: SettingsState, state: AppState) {
+    val look = settings.preferences.lyrics
+
+    SettingsCardShell {
+        CardHeading(Icons.Default.FormatSize, "How lyrics look")
+        Spacer(Modifier.height(10.dp))
+        Surface(
+            color = MaterialTheme.colorScheme.background.copy(alpha = .6f),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+        ) {
+            Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                LyricLine("A line already sung", active = false, synced = true, look = look)
+                LyricLine("The line being sung", active = true, synced = true, look = look)
+                LyricLine("A line still to come", active = false, synced = true, look = look)
+            }
+        }
+
+        ChoiceRow("Size") {
+            LyricsSize.entries.forEach { size ->
+                FilterChip(
+                    selected = look.size == size,
+                    onClick = { state.updateLyricsLook { copy(size = size) } },
+                    label = { Text(size.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+        ChoiceRow("Lined up") {
+            LyricsAlignment.entries.forEach { alignment ->
+                FilterChip(
+                    selected = look.alignment == alignment,
+                    onClick = { state.updateLyricsLook { copy(alignment = alignment) } },
+                    label = { Text(alignment.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+        Toggle(
+            "Dim the other lines",
+            "So the eye finds the one being sung. Off sets every line at full strength, with that one in the accent.",
+            look.dimOtherLines,
+        ) { dim -> state.updateLyricsLook { copy(dimOtherLines = dim) } }
     }
 }
 

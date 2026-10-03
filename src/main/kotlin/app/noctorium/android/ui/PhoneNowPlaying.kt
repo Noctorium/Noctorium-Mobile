@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.RepeatMode
+import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.SeekBar
 import app.noctorium.settings.TimeDisplay
@@ -95,9 +96,14 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
     val likes by state.likes.collectAsState()
     val lyrics by state.lyrics.collectAsState()
     val settings by state.settings.collectAsState()
+    val connect by state.connect.collectAsState()
+    val sleepTimer by state.sleepTimer.collectAsState()
     val track = playback.track ?: return
 
-    var showLyrics by remember { mutableStateOf(false) }
+    val hidden = settings.preferences.phone.hiddenPlayerButtons
+    // A hidden lyrics button closes the lyrics too, or they would be open with no way of closing them.
+    var lyricsAsked by remember { mutableStateOf(false) }
+    val showLyrics = lyricsAsked && showsPlayerButton(hidden, PlayerButton.LYRICS)
     val haptics = rememberHaptics(state)
 
     // Lyrics are fetched only when asked for. Eight providers get queried, and doing that for a track
@@ -124,10 +130,16 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                     fontSize = 12.sp,
                 )
                 Spacer(Modifier.weight(1f))
-                ConnectButton(state, haptics)
-                SleepTimerButton(state, haptics)
-                IconButton({ showLyrics = !showLyrics }) {
-                    Text(if (showLyrics) "♪" else "Aa", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                if (showsPlayerButton(hidden, PlayerButton.DEVICES, inUse = connect.target != null)) {
+                    ConnectButton(state, haptics)
+                }
+                if (showsPlayerButton(hidden, PlayerButton.SLEEP_TIMER, inUse = sleepTimer != null)) {
+                    SleepTimerButton(state, haptics)
+                }
+                if (showsPlayerButton(hidden, PlayerButton.LYRICS)) {
+                    IconButton({ lyricsAsked = !showLyrics }) {
+                        Text(if (showLyrics) "♪" else "Aa", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 
@@ -206,35 +218,45 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 state::seekTo,
             )
 
+            // A hidden shuffle or repeat leaves its place empty rather than closing up, so play stays in the
+            // middle of the screen under the thumb that knows where it is.
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(state::toggleShuffle) {
-                    Icon(
-                        Icons.Default.Shuffle,
-                        "Shuffle",
-                        tint = if (queue.shuffleEnabled) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
+                if (showsPlayerButton(hidden, PlayerButton.SHUFFLE)) {
+                    IconButton(state::toggleShuffle) {
+                        Icon(
+                            Icons.Default.Shuffle,
+                            "Shuffle",
+                            tint = if (queue.shuffleEnabled) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.size(48.dp))
                 }
                 IconButton(state::previous) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(34.dp)) }
                 PlayPauseButton(playback, state, size = 44.dp)
                 IconButton(state::next) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(34.dp)) }
-                IconButton(state::cycleRepeat) {
-                    Icon(
-                        if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                        "Repeat",
-                        tint = if (queue.repeatMode == RepeatMode.OFF) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    )
+                if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
+                    IconButton(state::cycleRepeat) {
+                        Icon(
+                            if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                            "Repeat",
+                            tint = if (queue.repeatMode == RepeatMode.OFF) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            },
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.size(48.dp))
                 }
             }
 
@@ -246,7 +268,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                     Modifier.align(Alignment.Center),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (likes.supports(track)) {
+                    if (likes.supports(track) && showsPlayerButton(hidden, PlayerButton.LIKE)) {
                         val liked = likes.isLiked(track)
                         // The heart pops as it fills, so a like is seen to land and not only to change colour.
                         IconButton({ state.toggleLike(track) }, Modifier.popOn(liked, pop = liked), enabled = !likes.isBusy(track)) {
@@ -259,7 +281,9 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                     }
                     TrackMenuButton(track, state)
                 }
-                VolumeButton(playback, state, Modifier.align(Alignment.CenterEnd))
+                if (showsPlayerButton(hidden, PlayerButton.VOLUME)) {
+                    VolumeButton(playback, state, Modifier.align(Alignment.CenterEnd))
+                }
             }
         }
       }

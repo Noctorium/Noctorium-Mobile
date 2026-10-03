@@ -94,7 +94,9 @@ import app.noctorium.domain.editableOnService
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
 import app.noctorium.downloads.DownloadStage
+import app.noctorium.settings.HomePart
 import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.withoutHidden
 import kotlin.math.roundToInt
 
 
@@ -134,10 +136,25 @@ internal fun HomeScreen(state: AppState) {
     val ui by state.ui.collectAsState()
     val settings by state.settings.collectAsState()
     val preferences = settings.preferences
+    val hidden = preferences.hiddenHomeParts
+    // Whatever the listener put away is taken out here, before anything below decides what to show, so an
+    // empty Home is judged by what is actually on it.
+    val sections = ui.homeSections.withoutHidden(hidden)
+    val recent = if (HomePart.RECENT in hidden) emptyList() else ui.recentTracks
+    val servicesHidden = HomePart.YOUTUBE_MUSIC in hidden && HomePart.SOUNDCLOUD in hidden
+    val everythingHidden = servicesHidden && HomePart.PINNED in hidden && HomePart.RECENT in hidden
 
     ScreenScaffold {
-        ScreenTitle(greeting(), "What is on, and what you were listening to") {
-            IconButton({ state.refreshHome() }) { Icon(Icons.Default.Refresh, "Reload") }
+        // Without the greeting the page is still a page and still needs its reload, so it keeps a plain
+        // title rather than losing the row.
+        if (HomePart.GREETING in hidden) {
+            ScreenTitle("Home") {
+                IconButton({ state.refreshHome() }) { Icon(Icons.Default.Refresh, "Reload") }
+            }
+        } else {
+            ScreenTitle(greeting(), "What is on, and what you were listening to") {
+                IconButton({ state.refreshHome() }) { Icon(Icons.Default.Refresh, "Reload") }
+            }
         }
 
         LazyColumn(contentPadding = chromePadding(24.dp)) {
@@ -169,17 +186,22 @@ internal fun HomeScreen(state: AppState) {
 
             // The listener's own row first: what they decided to keep within reach beats what happened to
             // be played last, which beats anything the services suggest.
-            val pinned = ui.pinnedTracks.filter {
-                ui.providerFilter == ProviderFilter.ALL || it.provider.name == ui.providerFilter.name
+            val pinned = if (HomePart.PINNED in hidden) {
+                emptyList()
+            } else {
+                ui.pinnedTracks.filter {
+                    ui.providerFilter == ProviderFilter.ALL || it.provider.name == ui.providerFilter.name
+                }
             }
             if (pinned.isNotEmpty()) {
                 item { TrackCarousel("Pinned", "Kept here by you", pinned, state, preferences) }
             }
-            if (ui.recentTracks.isNotEmpty()) {
-                item { TrackCarousel("Jump back in", "Where you left off", ui.recentTracks, state, preferences) }
+            if (recent.isNotEmpty()) {
+                item { TrackCarousel("Jump back in", "Where you left off", recent, state, preferences) }
             }
 
-            if (ui.homeLoading && ui.homeSections.isEmpty()) {
+            // No spinner for rows that would be taken away the moment they arrived.
+            if (ui.homeLoading && ui.homeSections.isEmpty() && !servicesHidden) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
@@ -187,7 +209,7 @@ internal fun HomeScreen(state: AppState) {
                 }
             }
 
-            items(ui.homeSections.filter { it.matches(ui.providerFilter) }, key = HomeSection::id) { section ->
+            items(sections.filter { it.matches(ui.providerFilter) }, key = HomeSection::id) { section ->
                 // A row is one kind or the other. The services build them that way, and a strip mixing
                 // cards that play with cards that open would make every tap a guess.
                 if (section.playlists.isNotEmpty()) {
@@ -197,7 +219,15 @@ internal fun HomeScreen(state: AppState) {
                 }
             }
 
-            if (!ui.homeLoading && ui.homeSections.isEmpty() && ui.recentTracks.isEmpty()) {
+            if (everythingHidden) {
+                item {
+                    EmptyNote(
+                        "Home is all put away",
+                        "Every part of it is switched off. Bring back the ones you want under Settings, " +
+                            "Customization, Home.",
+                    )
+                }
+            } else if (!ui.homeLoading && sections.isEmpty() && recent.isEmpty()) {
                 item {
                     EmptyNote(
                         "Nothing here yet",

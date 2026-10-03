@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GraphicEq
@@ -77,13 +78,14 @@ import app.noctorium.settings.ThemePreset
  * behind each. Settings used to be every card one after another, which put the lyrics below the updates
  * and the diagnostics a long scroll from anywhere.
  */
-private enum class SettingsPage(val title: String) {
+internal enum class SettingsPage(val title: String) {
     ACCOUNT("Noctorium account"),
     YOUTUBE("YouTube Music"),
     SOUNDCLOUD("SoundCloud"),
     SPOTIFY("Spotify library"),
     CUSTOMIZATION("Customization"),
     PLAYBACK("Playback"),
+    SOUND("Sound"),
     PHONE("On this phone"),
     LYRICS("Lyrics"),
     SCROBBLING("Scrobbling"),
@@ -209,6 +211,14 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
             ) { open(SettingsPage.PLAYBACK) }
         }
         item {
+            SettingsTile(
+                Icons.Default.Equalizer,
+                "Sound",
+                equalizerSummary(preferences.equalizer, LocalEqualizerAvailable.current),
+                active = preferences.equalizer.enabled && LocalEqualizerAvailable.current,
+            ) { open(SettingsPage.SOUND) }
+        }
+        item {
             // The one thing here that can stop the music, so it is said on the tile when it is not settled.
             val unrestricted = rememberBackgroundUnrestricted()
             SettingsTile(
@@ -292,7 +302,7 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
 
 /** One page of Settings, with the way back at the top. */
 @Composable
-private fun SettingsPageScreen(page: SettingsPage, state: AppState, signIn: (ProviderType) -> Unit, back: () -> Unit) {
+internal fun SettingsPageScreen(page: SettingsPage, state: AppState, signIn: (ProviderType) -> Unit, back: () -> Unit) {
     val settings by state.settings.collectAsState()
     val likes by state.likes.collectAsState()
 
@@ -319,11 +329,16 @@ private fun SettingsPageScreen(page: SettingsPage, state: AppState, signIn: (Pro
             SettingsPage.SPOTIFY -> item { SpotifyCard(settings, state) }
             SettingsPage.CUSTOMIZATION -> customizationCards(settings, state)
             SettingsPage.PLAYBACK -> item { PlaybackOptionsCard(settings, state) }
+            SettingsPage.SOUND -> item { SoundCard(settings, state) }
             SettingsPage.PHONE -> {
                 item { KeepPlayingCard() }
                 item { PhoneOptionsCard(settings, state) }
+                item { TabsCard(settings, state) }
             }
-            SettingsPage.LYRICS -> item { LyricsCard(settings, state) }
+            SettingsPage.LYRICS -> {
+                item { LyricsCard(settings, state) }
+                item { LyricsLookCard(settings, state) }
+            }
             SettingsPage.SCROBBLING -> {
                 item { LastFmCard(settings, state) }
                 item { ListenBrainzCard(settings, state) }

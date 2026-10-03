@@ -46,6 +46,23 @@ val latestReleaseTag: String? = runCatching {
     }.standardOutput.asText.get().trim().takeIf { it.startsWith("v") }
 }.getOrNull()
 
+/**
+ * Screenshots of the phone's screens, rendered on the JVM, when asked for with -Pscreenshots.
+ *
+ * Robolectric draws the real Compose screens with Android's own graphics code, and Roborazzi saves each as a
+ * PNG, so a change to how something looks can be seen on a machine with no phone and no emulator. Opt-in,
+ * because the first run downloads Android itself for Robolectric -- a few hundred megabytes -- and every
+ * run takes a minute: the ordinary unit tests stay as quick as they were and need none of it. Without the
+ * property the screenshot sources, their libraries and Robolectric's settings are not even seen.
+ *
+ *     ./gradlew testDebugUnitTest -Pscreenshots --tests "app.noctorium.android.screenshots.*"
+ *
+ * The PNGs land in build/outputs/screenshots, or wherever -PscreenshotDir=<folder> says.
+ */
+val screenshots: Boolean = providers.gradleProperty("screenshots").isPresent
+val screenshotDir: String = providers.gradleProperty("screenshotDir").orNull?.takeIf { it.isNotBlank() }
+    ?: layout.buildDirectory.dir("outputs/screenshots").get().asFile.absolutePath
+
 /** From -PappVersion when the release workflow passes one, and otherwise from the newest tag. */
 val appVersion: String = (findProperty("appVersion") as String?)?.trim()?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
@@ -144,6 +161,13 @@ android {
         buildConfig = true
     }
 
+    if (screenshots) {
+        // Robolectric needs the app's merged resources to inflate anything, and the screenshot tests live
+        // in a folder of their own so the ordinary test run never compiles them; see `screenshots` above.
+        testOptions.unitTests.isIncludeAndroidResources = true
+        sourceSets.getByName("test").kotlin.srcDir("src/screenshots/kotlin")
+    }
+
     packaging {
         resources.excludes += setOf(
             "META-INF/DEPENDENCIES",
@@ -229,4 +253,24 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+
+    if (screenshots) {
+        // Android 15's graphics on the JVM, and the PNGs taken of them. Roborazzi is built against an older
+        // Kotlin than this project, which is the direction that works.
+        testImplementation("org.robolectric:robolectric:4.14.1")
+        testImplementation("io.github.takahirom.roborazzi:roborazzi:1.46.1")
+        testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.46.1")
+        testImplementation("androidx.compose.ui:ui-test-junit4")
+        testImplementation("androidx.test.ext:junit:1.2.1")
+    }
+}
+
+if (screenshots) {
+    tasks.withType<Test>().configureEach {
+        // Roborazzi only writes a picture when told it is recording; without this every capture is drawn
+        // and thrown away.
+        systemProperty("roborazzi.test.record", "true")
+        systemProperty("noctorium.screenshots.dir", screenshotDir)
+        maxHeapSize = "3g"
+    }
 }

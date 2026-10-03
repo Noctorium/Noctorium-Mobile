@@ -42,6 +42,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.runtime.collectAsState
+import app.noctorium.settings.LyricsAlignment
+import app.noctorium.settings.LyricsLook
 import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -221,6 +227,8 @@ private fun LyricsElsewhere(result: app.noctorium.lyrics.LyricsResult, state: Ap
 private fun FollowingLyrics(result: app.noctorium.lyrics.LyricsResult, positionMs: Long, state: AppState) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
+    val settings by state.settings.collectAsState()
+    val look = settings.preferences.lyrics
 
     // The last line whose moment has come. Plain lyrics carry no moments, so nothing is lit and the whole
     // thing simply reads as text, which is right.
@@ -255,7 +263,7 @@ private fun FollowingLyrics(result: app.noctorium.lyrics.LyricsResult, positionM
         LaunchedEffect(activeIndex, handHeld, result.provider) {
             if (activeIndex < 0 || handHeld) return@LaunchedEffect
             val lineHeight = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == activeIndex }?.size
-                ?: with(density) { 52.dp.roundToPx() }
+                ?: with(density) { (52.dp * look.size.scale).roundToPx() }
             /*
              * The offset is measured from the padding boundary, not the top of the screen.
              *
@@ -284,46 +292,10 @@ private fun FollowingLyrics(result: app.noctorium.lyrics.LyricsResult, positionM
                 state = listState,
                 modifier = Modifier.fillMaxSize().fadingEdges(top = 40.dp, bottom = 72.dp),
                 contentPadding = PaddingValues(top = endPadding, bottom = endPadding),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                horizontalAlignment = if (look.alignment == LyricsAlignment.START) Alignment.Start else Alignment.CenterHorizontally,
             ) {
                 itemsIndexed(result.lines) { index, line ->
-                    val active = index == activeIndex
-                    /*
-                     * The line being sung grows and brightens into place, and the one before settles back.
-                     *
-                     * Drawn at the large size and scaled down when not sung, rather than switching font
-                     * size: a size change lays the line out again, which made each new line jump, and a
-                     * scale is only drawn -- it can be eased.
-                     */
-                    val colour by animateColorAsState(
-                        when {
-                            active -> MaterialTheme.colorScheme.onSurface
-                            result.synced -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .55f)
-                            else -> MaterialTheme.colorScheme.onSurface
-                        },
-                        motionSpec(MotionTiming.STANDARD),
-                        label = "lyric-colour",
-                    )
-                    val scale by animateFloatAsState(
-                        if (active || !result.synced) 1f else .8f,
-                        motionSpec(MotionTiming.STANDARD),
-                        label = "lyric-scale",
-                    )
-                    Text(
-                        line.text.ifBlank { "♪" },
-                        color = colour,
-                        fontSize = 24.sp,
-                        fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 30.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                            .padding(vertical = 6.dp, horizontal = 4.dp),
-                    )
+                    LyricLine(line.text, active = index == activeIndex, synced = result.synced, look = look)
                 }
                 result.attribution?.let { attribution ->
                     item {
@@ -334,4 +306,57 @@ private fun FollowingLyrics(result: app.noctorium.lyrics.LyricsResult, positionM
             }
         }
     }
+}
+
+/**
+ * One line of lyrics, set the way the listener asked: its size, which edge it sits against, and whether
+ * the lines not being sung step back.
+ *
+ * The line being sung grows and brightens into place, and the one before settles back. Drawn at the large
+ * size and scaled down when not sung, rather than switching font size: a size change lays the line out
+ * again, which made each new line jump, and a scale is only drawn -- it can be eased.
+ *
+ * With dimming off every line is drawn whole and at full strength, so the words ahead can be read as
+ * easily as the one being sung; that one is still marked out, in the accent, so the place is not lost.
+ * Shared with the preview in Settings, so what is chosen there is exactly what the lyrics look like.
+ */
+@Composable
+internal fun LyricLine(text: String, active: Boolean, synced: Boolean, look: LyricsLook, modifier: Modifier = Modifier) {
+    val dim = look.dimOtherLines
+    val colour by animateColorAsState(
+        when {
+            active && !dim -> MaterialTheme.colorScheme.primary
+            active -> MaterialTheme.colorScheme.onSurface
+            synced && dim -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .55f)
+            else -> MaterialTheme.colorScheme.onSurface
+        },
+        motionSpec(MotionTiming.STANDARD),
+        label = "lyric-colour",
+    )
+    val scale by animateFloatAsState(
+        if (active || !synced || !dim) 1f else .8f,
+        motionSpec(MotionTiming.STANDARD),
+        label = "lyric-scale",
+    )
+    val start = look.alignment == LyricsAlignment.START
+    val rightToLeft = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Text(
+        text.ifBlank { "♪" },
+        color = colour,
+        fontSize = 24.sp * look.size.scale,
+        fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
+        // "As laid out" is centred on a phone, which is how the lyrics here have always been set.
+        textAlign = if (start) TextAlign.Start else TextAlign.Center,
+        lineHeight = 30.sp * look.size.scale,
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                // A line set against the edge shrinks toward that edge; shrinking toward the middle would
+                // pull every line not being sung away from the margin the others are lined up on.
+                if (start) transformOrigin = TransformOrigin(if (rightToLeft) 1f else 0f, .5f)
+            }
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+    )
 }

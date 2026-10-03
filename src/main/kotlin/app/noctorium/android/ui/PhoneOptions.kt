@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -120,6 +122,39 @@ internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
     }
 }
 
+/**
+ * Which tabs sit along the bottom.
+ *
+ * Only the four that can go are offered (see [HIDEABLE_TABS]); Home, Queue and Settings are named as
+ * staying, so nobody goes looking for a switch that is not there. A hidden tab's page has not gone
+ * anywhere, and whatever led to it before still does -- each switch says what that is.
+ */
+@Composable
+internal fun TabsCard(settings: SettingsState, state: AppState) {
+    val hidden = settings.preferences.phone.hiddenDestinations
+
+    SettingsCardShell {
+        CardHeading(Icons.Default.Tab, "Tabs along the bottom")
+        Text(
+            "Home, Queue and Settings always stay.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
+        )
+        HIDEABLE_TABS.forEach { destination ->
+            Toggle(
+                tabName(destination),
+                destination.stillReachedBy(),
+                destination !in hidden,
+            ) { shown ->
+                state.updatePhone {
+                    copy(hiddenDestinations = if (shown) hiddenDestinations - destination else hiddenDestinations + destination)
+                }
+            }
+        }
+    }
+}
+
 /** The offered jumps. Small enough to catch a missed word, large enough to clear an intro. */
 private val SEEK_STEPS = listOf(5, 10, 30)
 
@@ -133,9 +168,10 @@ private fun speedLabel(speed: Float): String = when {
     else -> "${speed}x"
 }
 
+/** A labelled row of chips. Shared with the other settings cards, so every choice in Settings is the same shape. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun OptionRow(label: String, chips: @Composable () -> Unit) {
+internal fun OptionRow(label: String, chips: @Composable () -> Unit) {
     Column(Modifier.padding(bottom = 10.dp)) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
@@ -143,8 +179,9 @@ private fun OptionRow(label: String, chips: @Composable () -> Unit) {
     }
 }
 
+/** A switch with what it does written beside it, shared the same way. */
 @Composable
-private fun Toggle(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun Toggle(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -153,6 +190,9 @@ private fun Toggle(title: String, detail: String, checked: Boolean, onChange: (B
             Text(title, fontSize = 13.sp)
             Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
         }
+        // A gap before the switch: without it a long line of detail ran right up to the switch's edge, and
+        // the last word read as if it were printed on the switch.
+        Spacer(Modifier.width(12.dp))
         Switch(checked, onChange)
     }
 }

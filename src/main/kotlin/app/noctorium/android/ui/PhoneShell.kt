@@ -94,6 +94,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import app.noctorium.settings.PlayerButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -306,6 +308,10 @@ fun NoctoriumPhone(state: AppState) {
                     PhoneNavigation(
                         ui.destination,
                         settings.preferences.phone.navigationLabels,
+                        // A hidden tab is only off the bar. Its page is still drawn when something leads
+                        // there -- a shared link opening Link, a playlist on Home opening Library -- and
+                        // simply has no tab lit while it is showing.
+                        visibleTabs(settings.preferences.phone.hiddenDestinations),
                         state::navigate,
                     )
                 }
@@ -375,11 +381,20 @@ private fun BoxScope.GlassChrome(
     var bottomCover by remember { mutableIntStateOf(0) }
     val inset = Glass.FLOAT_INSET_DP.dp
 
+    // While the keyboard is up the page stops where the panes begin, instead of running on beneath them.
+    // A text field that is given focus scrolls itself into the page's view, and a page that ran beneath the
+    // panes would count the strip they cover as in view: the field typed into would sit behind the tab bar.
+    // The panes ride on the keyboard, so what they cover then is measured with it.
+    val typing = WindowInsets.ime.getBottom(density) > 0
     Box(Modifier.fillMaxSize().glassSource(backdrop)) {
         GlassWash(playback.track?.artworkUrl)
-        CompositionLocalProvider(
-            LocalChromeInsets provides with(density) { ChromeInsets(topCover.toDp(), bottomCover.toDp()) },
-        ) { screens() }
+        Box(Modifier.fillMaxSize().padding(bottom = if (typing) with(density) { bottomCover.toDp() } else 0.dp)) {
+            CompositionLocalProvider(
+                LocalChromeInsets provides with(density) {
+                    ChromeInsets(topCover.toDp(), if (typing) 0.dp else bottomCover.toDp())
+                },
+            ) { screens() }
+        }
     }
 
     if (barAtTop) {
@@ -430,24 +445,37 @@ private fun BoxScope.GlassChrome(
             Spacer(Modifier.height(8.dp))
         }
         GlassPane(backdrop) {
-            GlassNavigation(destination, settings.preferences.phone.navigationLabels, state::navigate)
+            GlassNavigation(
+                destination,
+                settings.preferences.phone.navigationLabels,
+                visibleTabs(settings.preferences.phone.hiddenDestinations),
+                state::navigate,
+            )
         }
     }
 }
 
-/** The places, shared by the ordinary tab bar and the glass one so they cannot drift apart. */
-private val PHONE_TABS = listOf(
-    Triple(Destination.HOME, Icons.Default.Home, "Home"),
-    Triple(Destination.SEARCH, Icons.Default.Search, "Search"),
-    Triple(Destination.LINK, Icons.Default.Link, "Link"),
-    Triple(Destination.LIBRARY, Icons.Default.LibraryMusic, "Library"),
-    Triple(Destination.DOWNLOADS, Icons.Default.DownloadForOffline, "Downloads"),
-    Triple(Destination.QUEUE, Icons.AutoMirrored.Filled.QueueMusic, "Queue"),
-    Triple(Destination.SETTINGS, Icons.Default.Settings, "Settings"),
-)
+/**
+ * Each place's icon, shared by the ordinary tab bar and the glass one so they cannot drift apart. Which
+ * places are on the bar, and in what order, is [visibleTabs]; what each is called is [tabName].
+ */
+private fun Destination.tabIcon(): ImageVector = when (this) {
+    Destination.HOME, Destination.NOW_PLAYING -> Icons.Default.Home
+    Destination.SEARCH -> Icons.Default.Search
+    Destination.LINK -> Icons.Default.Link
+    Destination.LIBRARY -> Icons.Default.LibraryMusic
+    Destination.DOWNLOADS -> Icons.Default.DownloadForOffline
+    Destination.QUEUE -> Icons.AutoMirrored.Filled.QueueMusic
+    Destination.SETTINGS -> Icons.Default.Settings
+}
 
-/** More tabs than fit a name each at a readable size. See [GlassNavigation]. */
-private val CROWDED = PHONE_TABS.size > 5
+/**
+ * More tabs than fit a name each at a readable size. See [GlassNavigation].
+ *
+ * Counted from the tabs actually on the bar, so somebody who hides a few gets every name back under its
+ * icon; with all seven it is the same answer as always.
+ */
+private fun crowded(tabs: List<Destination>): Boolean = tabs.size > 5
 
 /**
  * The tabs as they sit inside a pane of glass.
@@ -458,12 +486,15 @@ private val CROWDED = PHONE_TABS.size > 5
  * by a lighter lozenge under it -- the way a lens looks when something inside the glass is pressed.
  */
 @Composable
-private fun GlassNavigation(current: Destination, labels: Boolean, go: (Destination) -> Unit) {
+private fun GlassNavigation(current: Destination, labels: Boolean, tabs: List<Destination>, go: (Destination) -> Unit) {
+    val crowded = crowded(tabs)
     Row(
-        Modifier.fillMaxWidth().height(if (labels && !CROWDED) 60.dp else 52.dp).padding(horizontal = 6.dp, vertical = 5.dp),
+        Modifier.fillMaxWidth().height(if (labels && !crowded) 60.dp else 52.dp).padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PHONE_TABS.forEach { (destination, icon, label) ->
+        tabs.forEach { destination ->
+            val icon = destination.tabIcon()
+            val label = tabName(destination)
             // Now playing is a sheet, so Home stays lit underneath it rather than nothing being lit.
             val selected = current == destination ||
                 (destination == Destination.HOME && current == Destination.NOW_PLAYING)
@@ -473,7 +504,7 @@ private fun GlassNavigation(current: Destination, labels: Boolean, go: (Destinat
             // icon, and the others give up theirs: every name that shows is whole.
             // The pill is as wide as its name and the rest share what is left, rather than the pill taking
             // a fixed share: at a large system font size a fixed share still cut "Downloads" short.
-            val widened = labels && CROWDED && selected
+            val widened = labels && crowded && selected
             val tab = Modifier
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(50))
@@ -492,7 +523,7 @@ private fun GlassNavigation(current: Destination, labels: Boolean, go: (Destinat
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(icon, label, tint = colour, modifier = Modifier.size(22.dp))
-                        if (labels && !CROWDED) Text(label, fontSize = 10.sp, color = colour, maxLines = 1)
+                        if (labels && !crowded) Text(label, fontSize = 10.sp, color = colour, maxLines = 1)
                     }
                 }
             }
@@ -501,9 +532,12 @@ private fun GlassNavigation(current: Destination, labels: Boolean, go: (Destinat
 }
 
 @Composable
-private fun PhoneNavigation(current: Destination, labels: Boolean, go: (Destination) -> Unit) {
+private fun PhoneNavigation(current: Destination, labels: Boolean, tabs: List<Destination>, go: (Destination) -> Unit) {
+    val crowded = crowded(tabs)
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
-        PHONE_TABS.forEach { (destination, icon, label) ->
+        tabs.forEach { destination ->
+            val icon = destination.tabIcon()
+            val label = tabName(destination)
             NavigationBarItem(
                 // Now playing is a sheet, so Home stays lit underneath it rather than nothing being lit.
                 selected = current == destination ||
@@ -516,7 +550,7 @@ private fun PhoneNavigation(current: Destination, labels: Boolean, go: (Destinat
                     null
                 },
                 // The same answer to seven tabs as the glass bar's: only the chosen one is named.
-                alwaysShowLabel = !CROWDED,
+                alwaysShowLabel = !crowded,
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
@@ -675,16 +709,25 @@ private fun SlimBar(track: Track, playback: PlaybackState, state: AppState, glas
     }
 }
 
-/** Shuffle, previous, play, next and repeat, at the size a slim strip can carry and a thumb can still hit. */
+/**
+ * Shuffle, previous, play, next and repeat, at the size a slim strip can carry and a thumb can still hit.
+ *
+ * Shuffle and repeat go when the listener has put them away, and the song's line takes the room they
+ * leave; the three in the middle always stay.
+ */
 @Composable
 private fun SlimControls(playback: PlaybackState, state: AppState) {
     val haptics = rememberHaptics(state)
     val queue by state.queue.state.collectAsState()
+    val settings by state.settings.collectAsState()
+    val hidden = settings.preferences.phone.hiddenPlayerButtons
     val lit = MaterialTheme.colorScheme.primary
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton({ haptics.tick(); state.toggleShuffle() }, Modifier.size(SLIM_BUTTON)) {
-            Icon(Icons.Default.Shuffle, "Shuffle", Modifier.size(19.dp), tint = if (queue.shuffleEnabled) lit else quiet)
+        if (showsPlayerButton(hidden, PlayerButton.SHUFFLE)) {
+            IconButton({ haptics.tick(); state.toggleShuffle() }, Modifier.size(SLIM_BUTTON)) {
+                Icon(Icons.Default.Shuffle, "Shuffle", Modifier.size(19.dp), tint = if (queue.shuffleEnabled) lit else quiet)
+            }
         }
         IconButton({ haptics.tick(); state.previous() }, Modifier.size(SLIM_BUTTON)) {
             Icon(Icons.Default.SkipPrevious, "Previous track", Modifier.size(22.dp))
@@ -693,17 +736,19 @@ private fun SlimControls(playback: PlaybackState, state: AppState) {
         IconButton({ haptics.tick(); state.next() }, Modifier.size(SLIM_BUTTON)) {
             Icon(Icons.Default.SkipNext, "Next track", Modifier.size(22.dp))
         }
-        IconButton({ haptics.tick(); state.cycleRepeat() }, Modifier.size(SLIM_BUTTON)) {
-            Icon(
-                if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                when (queue.repeatMode) {
-                    RepeatMode.OFF -> "Repeat off"
-                    RepeatMode.ALL -> "Repeat all"
-                    RepeatMode.ONE -> "Repeat one"
-                },
-                Modifier.size(19.dp),
-                tint = if (queue.repeatMode != RepeatMode.OFF) lit else quiet,
-            )
+        if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
+            IconButton({ haptics.tick(); state.cycleRepeat() }, Modifier.size(SLIM_BUTTON)) {
+                Icon(
+                    if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                    when (queue.repeatMode) {
+                        RepeatMode.OFF -> "Repeat off"
+                        RepeatMode.ALL -> "Repeat all"
+                        RepeatMode.ONE -> "Repeat one"
+                    },
+                    Modifier.size(19.dp),
+                    tint = if (queue.repeatMode != RepeatMode.OFF) lit else quiet,
+                )
+            }
         }
     }
 }

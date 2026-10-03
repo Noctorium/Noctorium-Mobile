@@ -31,6 +31,20 @@ JDK 21 and an Android SDK, named in `local.properties` (`sdk.dir=...`) or by `AN
 A debug build is signed with the debug key. It installs beside nothing and updates nothing: an APK signed
 with the release key will not replace it, so uninstall a debug build before installing a release.
 
+## Screenshots without a phone
+
+The screens can be drawn on the JVM and saved as PNGs, by Robolectric with Android's own graphics and
+Roborazzi, in the app's real theme and from made-up music, so nothing goes over the network:
+
+```bash
+./gradlew testDebugUnitTest -Pscreenshots --tests "app.noctorium.android.screenshots.*"
+./gradlew testDebugUnitTest -Pscreenshots -PscreenshotDir=/some/folder --tests "app.noctorium.android.screenshots.*"
+```
+
+They land in `build/outputs/screenshots` unless `-PscreenshotDir` says otherwise. They are opt-in: the first
+run downloads Android itself for Robolectric, and without `-Pscreenshots` neither the tests in
+`src/screenshots/` nor their libraries are part of the build, so `testDebugUnitTest` stays quick.
+
 ## Releases
 
 Signed APKs are built and published by [Noctorium-Installer](https://github.com/Noctorium/Noctorium-Installer),

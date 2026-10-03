@@ -4,13 +4,17 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.media.audiofx.AudioEffect
 import android.media.audiofx.LoudnessEnhancer
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -20,6 +24,7 @@ import app.noctorium.playback.MusicBackend
 import app.noctorium.playback.PlaybackEngine
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.PlaybackStatus
+import app.noctorium.settings.EqualizerSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -69,6 +74,33 @@ internal fun recoveryFor(errorCode: Int): Recovery? = when (errorCode) {
     PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
     -> Recovery.AFTER_NETWORK
     else -> null
+}
+
+/**
+ * Whether the platform lists an equaliser among the effects an app may attach to its own audio.
+ *
+ * Asked of the list rather than by building one, because building one needs a session and costs a native
+ * object, and the answer is wanted in Settings before anything has played. A phone that lists one and then
+ * refuses to build it is caught when it is built; one that cannot produce a list at all is given the
+ * benefit of the doubt, for the same reason.
+ */
+private fun platformOffersEqualizer(): Boolean = runCatching {
+    AudioEffect.queryEffects()?.any { it.type == AudioEffect.EFFECT_TYPE_EQUALIZER } ?: true
+}.getOrDefault(true)
+
+/**
+ * Gives the player an audio session of its own if it has none yet.
+ *
+ * The effects -- the boost and the equaliser -- attach to a session, and with none they have nothing to
+ * attach to until a track starts. Media3 generates one as the player is built on Android 5 and later; this
+ * only acts on a player that somehow arrives without one.
+ */
+@OptIn(UnstableApi::class)
+private fun ensureAudioSession(player: ExoPlayer, context: Context) {
+    if (player.audioSessionId == C.AUDIO_SESSION_ID_UNSET) {
+        runCatching { player.audioSessionId = Util.generateAudioSessionIdV21(context) }
+            .onFailure { android.util.Log.w(PLAYER_LOG_TAG, "Could not give the player an audio session", it) }
+    }
 }
 
 /**
@@ -188,12 +220,19 @@ class Media3PlaybackEngine(
             // never had this because mpv is handed --volume on the command line of every track.
             volume = mutableState.value.volume
 
-            // The volume boost hangs off the audio session, and there is no session until the audio
-            // sink opens -- nor is it the same session afterwards if the sink is torn down and rebuilt.
-            // Re-applying whenever it changes keeps the boost attached to the thing actually playing.
+            // A session of its own from the start, so the equaliser has something to attach to before
+            // the first track rather than only once one is playing. Media3 already generates one when it
+            // is built on any Android this runs on; this is the guard against a version that does not.
+            ensureAudioSession(this, context)
+
+            // The volume boost and the equaliser hang off the audio session, and it is not the same
+            // session afterwards if the sink is torn down and rebuilt. Re-applying whenever it changes
+            // keeps both attached to the thing actually playing.
             addAnalyticsListener(object : AnalyticsListener {
-                override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) =
+                override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
                     applyBoost(audioSessionId)
+                    applyEqualizer(audioSessionId)
+                }
             })
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) = publish()
@@ -428,6 +467,95 @@ class Media3PlaybackEngine(
          * question somebody has here is whether this is loud enough, not by how many decibels.
          */
         const val BOOST_GAIN_MILLIBELS = 900
+
+        /**
+         * The ordinary priority, not a raised one. Priority only matters when two apps reach for the same
+         * session's equaliser, and an app built for that -- a system-wide equaliser somebody installed --
+         * should be able to win over this one rather than have its settings quietly undone.
+         */
+        const val EQUALIZER_PRIORITY = 0
+    }
+
+    /**
+     * The listener's equaliser, built from Android's own and attached to this player's audio session.
+     *
+     * The phone's equaliser has bands of its own rather than the ten Noctorium shows, so each of its bands
+     * is set to what the ten-band curve is at that band's centre (see [deviceBandLevels]). Like the boost
+     * it is best-effort: a phone that refuses to build one is remembered as having none, which Settings
+     * then says plainly instead of offering sliders that change nothing.
+     *
+     * Media3 wants its player touched on the main thread, and the session id is read from it, so the
+     * effect is built and changed there too.
+     */
+    override suspend fun setEqualizer(settings: EqualizerSettings) = withContext(Dispatchers.Main) {
+        equalizerWanted = settings
+        applyEqualizer()
+    }
+
+    /**
+     * Whether this phone lets an app shape its sound.
+     *
+     * Starts from what the platform lists among its effects, so Settings can say so before anything has
+     * played, and turns false for good if building one fails when it is actually wanted -- a listed effect
+     * is a promise some phones do not keep.
+     */
+    val equalizerAvailable: StateFlow<Boolean> get() = mutableEqualizerAvailable
+
+    private val mutableEqualizerAvailable = MutableStateFlow(platformOffersEqualizer())
+
+    /** What the listener asked for, as opposed to what the audio session currently has on it. */
+    private var equalizerWanted = EqualizerSettings()
+
+    /** Released with the player, for the same reason as [loudness]: it holds a native object. */
+    private var equalizer: android.media.audiofx.Equalizer? = null
+
+    /** The session [equalizer] was built for, so a replacement session is noticed rather than shaped by nothing. */
+    private var equalizerSession = C.AUDIO_SESSION_ID_UNSET
+
+    /**
+     * Put the wanted curve on whatever session the player has right now.
+     *
+     * Nothing is built until a curve that actually changes the sound is asked for: an equaliser switched
+     * off, or switched on and left flat, should cost the phone nothing. One already built is switched off
+     * rather than released, so turning it back on a moment later does not build it all over again.
+     */
+    private fun applyEqualizer(session: Int = player.audioSessionId) {
+        val wanted = equalizerWanted
+        if (!wanted.shapesSound) {
+            runCatching { equalizer?.enabled = false }
+            return
+        }
+        if (!mutableEqualizerAvailable.value || session == C.AUDIO_SESSION_ID_UNSET) return
+
+        if (equalizer == null || equalizerSession != session) {
+            runCatching { equalizer?.release() }
+            equalizer = null
+            equalizerSession = C.AUDIO_SESSION_ID_UNSET
+            val built = runCatching { android.media.audiofx.Equalizer(EQUALIZER_PRIORITY, session) }
+            built.onFailure { error ->
+                // Not worth retrying with every change: a phone that will not build one now will not
+                // build one for the next slider either. Settings says so from here on.
+                android.util.Log.w(PLAYER_LOG_TAG, "This phone would not give Noctorium an equaliser", error)
+                mutableEqualizerAvailable.value = false
+                return
+            }
+            equalizer = built.getOrNull()
+            equalizerSession = session
+        }
+
+        val effect = equalizer ?: return
+        runCatching {
+            val range = effect.bandLevelRange
+            val centres = (0 until effect.numberOfBands).map { band -> effect.getCenterFreq(band.toShort()) }
+            deviceBandLevels(wanted, centres, range[0].toInt(), range[1].toInt()).forEachIndexed { band, level ->
+                effect.setBandLevel(band.toShort(), level)
+            }
+            effect.enabled = true
+        }.onFailure { error ->
+            // A band the phone refused is not a reason to give up on the equaliser: the next change, or
+            // the next session, sets the whole curve again from the start.
+            android.util.Log.w(PLAYER_LOG_TAG, "Could not set the equaliser's bands", error)
+        }
     }
 
     override suspend fun setMuted(muted: Boolean) = withContext(Dispatchers.Main) {
@@ -501,6 +629,9 @@ class Media3PlaybackEngine(
         runCatching { loudness?.release() }
         loudness = null
         loudnessSession = C.AUDIO_SESSION_ID_UNSET
+        runCatching { equalizer?.release() }
+        equalizer = null
+        equalizerSession = C.AUDIO_SESSION_ID_UNSET
         player.release()
         scope.cancel()
     }
