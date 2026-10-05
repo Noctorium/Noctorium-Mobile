@@ -617,6 +617,18 @@ private fun LibraryList(
                     )
                 }
                 else -> {
+                    // A service that could not be read, above the ones that could: otherwise a Spotify that
+                    // refused sits silently behind a list of SoundCloud playlists, as though it had none.
+                    library.errorMessage?.let { message ->
+                        item {
+                            Text(
+                                message,
+                                color = MaterialTheme.colorScheme.error,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
                     item { SectionHeading("From your accounts") }
                     items(library.playlists, key = { it.playlistKey }) { playlist ->
                         PlaylistRow(

@@ -623,6 +623,8 @@ private fun SpotifyCard(settings: app.noctorium.settings.SettingsState, state: A
         Text(
             when {
                 spotify.connected && spotify.accountName.isNotBlank() -> "Reading ${spotify.accountName}'s library."
+                // Not "your playlists are in the library" while the line below says Spotify will not hand them over.
+                spotify.connected && spotify.message != null -> "Connected."
                 spotify.connected -> "Connected. Your playlists are in the library."
                 else -> "Your playlists and liked songs, read into Noctorium. Playback never comes from Spotify, " +
                     "and nothing is ever written to it."
