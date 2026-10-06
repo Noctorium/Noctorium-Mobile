@@ -16,16 +16,27 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
+import app.noctorium.playback.MAX_SPEED
+import app.noctorium.playback.MIN_SPEED
+import app.noctorium.settings.DataSaver
 import app.noctorium.settings.SettingsState
+import kotlin.math.roundToInt
 
 /**
  * The settings that only exist because this is a phone.
@@ -61,6 +72,24 @@ internal fun PhoneOptionsCard(settings: SettingsState, state: AppState) {
             phone.downloadOnWifiOnly,
         ) { state.updatePhone { copy(downloadOnWifiOnly = it) } }
 
+        OptionRow("Data saver") {
+            DataSaver.entries.forEach { saver ->
+                FilterChip(
+                    selected = phone.dataSaver == saver,
+                    onClick = { state.setDataSaver(saver) },
+                    label = { Text(saver.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+        // Which services it reaches, said plainly: the rest offer one quality, or play somewhere else.
+        Text(
+            "${phone.dataSaver.description} YouTube and SoundCloud offer more than one quality, so those are " +
+                "the songs it changes, downloads included.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
         Toggle(
             "Haptics",
             "A short tick when a control does something.",
@@ -69,11 +98,20 @@ internal fun PhoneOptionsCard(settings: SettingsState, state: AppState) {
     }
 }
 
-/** How the music itself plays, and the gestures that move through it. */
+/**
+ * How the music itself plays, and the gestures that move through it.
+ *
+ * The speed is Noctorium's own setting now rather than the phone's, which is what lets the player be told
+ * of it the way it is told of the equaliser. It is a slider, since anything from half to double can be set
+ * and a row of chips can only offer some of it; nothing is saved until the finger lifts.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
-    val phone = settings.preferences.phone
+    val preferences = settings.preferences
+    val phone = preferences.phone
+    var heldSpeed by remember { mutableStateOf<Float?>(null) }
+    val speed = heldSpeed ?: preferences.playbackSpeed
 
     SettingsCardShell {
         CardHeading(Icons.Default.GraphicEq, "Playback")
@@ -95,16 +133,38 @@ internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
             }
         }
 
-        OptionRow("Speed") {
-            SPEEDS.forEach { speed ->
-                FilterChip(
-                    selected = phone.playbackSpeed == speed,
-                    onClick = { state.updatePhone { copy(playbackSpeed = speed) } },
-                    label = { Text(speedLabel(speed), fontSize = 11.sp) },
-                )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Speed", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(
+                speedLabel(speed),
+                color = if (speed != 1f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Slider(
+            value = speed,
+            // To the twentieth, which is what core keeps, so the thumb and the label show what will be saved.
+            // Snapped here rather than with steps: thirty steps drew thirty dots along the track.
+            onValueChange = { heldSpeed = (it * 20).roundToInt() / 20f },
+            onValueChangeFinished = {
+                heldSpeed?.let(state::setPlaybackSpeed)
+                heldSpeed = null
+            },
+            valueRange = MIN_SPEED..MAX_SPEED,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Faster or slower, keeping the pitch. A song playing on Spotify keeps Spotify's own speed.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (preferences.playbackSpeed != 1f) {
+                TextButton({ state.setPlaybackSpeed(1f) }) { Text("Normal") }
             }
         }
-
+        Spacer(Modifier.height(6.dp))
 
         Toggle(
             "Skip silence",
@@ -116,8 +176,30 @@ internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
             "Skip the parts of a YouTube video that are not the music",
             "Intros, outros, sponsor reads and talking, as marked by SponsorBlock's contributors. YouTube " +
                 "Music tracks are never touched.",
-            settings.preferences.skipNonMusic,
-            state::setSkipNonMusic,
+            preferences.skipNonMusic,
+            onChange = state::setSkipNonMusic,
+        )
+
+        Toggle(
+            "Keep playing when the queue ends",
+            "Songs like the last one follow it: Bandcamp and VK suggest their own, and YouTube Music's radio " +
+                "answers for everything else.",
+            preferences.autoplay,
+        ) { state.setAutoplay(it) }
+
+        OptionRow("A sleep timer fades out over") {
+            sleepFadeChoices(preferences.sleepFadeSeconds).forEach { seconds ->
+                FilterChip(
+                    selected = preferences.sleepFadeSeconds == seconds,
+                    onClick = { state.setSleepFade(seconds) },
+                    label = { Text(if (seconds == 0) "Off" else "$seconds s", fontSize = 11.sp) },
+                )
+            }
+        }
+        Text(
+            "The volume comes back once the music has stopped, so the next song is not silent.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
         )
     }
 }
@@ -158,15 +240,6 @@ internal fun TabsCard(settings: SettingsState, state: AppState) {
 /** The offered jumps. Small enough to catch a missed word, large enough to clear an intro. */
 private val SEEK_STEPS = listOf(5, 10, 30)
 
-/** Rates worth a chip. Below half speed and above double, music stops being listenable. */
-private val SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
-
-/** 1.0 reads as "Normal" because that is what it is, and 1.5x should not print as 1.5000001x. */
-private fun speedLabel(speed: Float): String = when {
-    speed == 1f -> "Normal"
-    speed % 1f == 0f -> "${speed.toInt()}x"
-    else -> "${speed}x"
-}
 
 /** A labelled row of chips. Shared with the other settings cards, so every choice in Settings is the same shape. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -179,11 +252,14 @@ internal fun OptionRow(label: String, chips: @Composable () -> Unit) {
     }
 }
 
-/** A switch with what it does written beside it, shared the same way. */
+/**
+ * A switch with what it does written beside it, shared the same way. Not [enabled], it is drawn faded and
+ * cannot be moved, and the detail is where to say why.
+ */
 @Composable
-internal fun Toggle(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun Toggle(title: String, detail: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).alpha(if (enabled) 1f else DISABLED_ALPHA),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -193,6 +269,9 @@ internal fun Toggle(title: String, detail: String, checked: Boolean, onChange: (
         // A gap before the switch: without it a long line of detail ran right up to the switch's edge, and
         // the last word read as if it were printed on the switch.
         Spacer(Modifier.width(12.dp))
-        Switch(checked, onChange)
+        Switch(checked, onChange, enabled = enabled)
     }
 }
+
+/** How faded a control that cannot be used right now is drawn, as Material draws its own. */
+internal const val DISABLED_ALPHA = .38f

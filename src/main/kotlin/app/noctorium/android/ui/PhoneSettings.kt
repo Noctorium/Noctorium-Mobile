@@ -2,6 +2,7 @@ package app.noctorium.android.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -26,12 +27,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -46,8 +50,13 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.SystemUpdateAlt
+import androidx.compose.material.icons.filled.Tablet
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -56,6 +65,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -68,18 +78,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
 import app.noctorium.domain.ProviderType
+import app.noctorium.settings.DEFAULT_HYBRID_SEARCH
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.ThemePreset
@@ -95,10 +109,12 @@ internal enum class SettingsPage(val title: String) {
     ACCOUNT("Noctorium account"),
     YOUTUBE("YouTube Music"),
     SOUNDCLOUD("SoundCloud"),
-    SPOTIFY("Spotify library"),
+    SPOTIFY("Spotify"),
     BANDCAMP("Bandcamp"),
+    VK("VK Music"),
     CUSTOMIZATION("Customization"),
     PLAYBACK("Playback"),
+    SEARCH("Search"),
     SOUND("Sound"),
     PHONE("On this phone"),
     LYRICS("Lyrics"),
@@ -185,18 +201,12 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
             ) { open(SettingsPage.SOUNDCLOUD) }
         }
         item {
-            val spotify = settings.spotify
             SettingsTile(
                 Icons.Default.LibraryMusic,
-                "Spotify library",
-                when {
-                    spotify.connecting -> "Waiting for Spotify…"
-                    spotify.connected && spotify.accountName.isNotBlank() -> "Reading ${spotify.accountName}'s library"
-                    spotify.connected -> "Your Spotify library is connected"
-                    else -> "Read your playlists and liked songs"
-                },
-                tint = Color(0xFF1DB954),
-                active = spotify.connected,
+                "Spotify",
+                spotifySummary(settings.spotify),
+                tint = ProviderType.SPOTIFY.badgeColour(),
+                active = settings.spotify.connected,
             ) { open(SettingsPage.SPOTIFY) }
         }
         item {
@@ -208,6 +218,15 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
                 tint = ProviderType.BANDCAMP.badgeColour(),
                 active = name.isNotBlank(),
             ) { open(SettingsPage.BANDCAMP) }
+        }
+        item {
+            SettingsTile(
+                Icons.Default.Audiotrack,
+                "VK Music",
+                vkSummary(settings.vk),
+                tint = ProviderType.VK.badgeColour(),
+                active = settings.vk.connected,
+            ) { open(SettingsPage.VK) }
         }
 
         item { SectionLabel("Look and feel") }
@@ -227,12 +246,13 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
             SettingsTile(
                 Icons.Default.GraphicEq,
                 "Playback",
-                listOfNotNull(
-                    if (preferences.phone.playbackSpeed == 1f) "Normal speed" else "${preferences.phone.playbackSpeed}× speed",
-                    "skips silence".takeIf { preferences.phone.skipSilence },
-                    "skips non-music".takeIf { preferences.skipNonMusic },
-                ).joinToString(" · ").replaceFirstChar { it.uppercase() },
+                playbackSummary(preferences).replaceFirstChar { it.uppercase() },
             ) { open(SettingsPage.PLAYBACK) }
+        }
+        item {
+            SettingsTile(Icons.Default.Search, "Search", hybridSummary(preferences.hybridSearch)) {
+                open(SettingsPage.SEARCH)
+            }
         }
         item {
             SettingsTile(
@@ -350,13 +370,15 @@ internal fun SettingsPageScreen(page: SettingsPage, state: AppState, signIn: (Pr
             SettingsPage.ACCOUNT -> item { NoctoriumAccountCard(state) }
             SettingsPage.YOUTUBE -> item { ServiceCard(ProviderType.YOUTUBE_MUSIC, settings, likes, state, signIn) }
             SettingsPage.SOUNDCLOUD -> item { ServiceCard(ProviderType.SOUNDCLOUD, settings, likes, state, signIn) }
-            SettingsPage.SPOTIFY -> item { SpotifyCard(settings, state) }
+            SettingsPage.SPOTIFY -> item { SpotifyCards(settings, state) }
             SettingsPage.BANDCAMP -> {
                 item { BandcampCard(settings, state) }
                 item { BandcampGenresCard(settings, state) }
             }
+            SettingsPage.VK -> item { VkCard(settings, state, signIn) }
             SettingsPage.CUSTOMIZATION -> customizationCards(settings, state)
             SettingsPage.PLAYBACK -> item { PlaybackOptionsCard(settings, state) }
+            SettingsPage.SEARCH -> item { HybridSearchCard(settings, state) }
             SettingsPage.SOUND -> item { SoundCard(settings, state) }
             SettingsPage.PHONE -> {
                 item { KeepPlayingCard() }
@@ -635,42 +657,75 @@ private fun SoundCloudProfileField(saved: String, state: AppState) {
 }
 
 /**
- * Spotify, read as a library through Noctorium's own Spotify app: one button, and a browser.
+ * Spotify, through Noctorium's own Spotify app: two sign-ins, one for any account and one for Premium.
+ *
+ * Any account brings its playlists, liked songs and search here, with hearts that save to Liked Songs and
+ * two rows on Home, and its songs play matched to the same recordings on YouTube Music. The Premium sign-in
+ * also lets Noctorium tell the account's own Spotify app what to play -- which is the only way Spotify's
+ * audio is ever heard here, since nothing but Spotify decodes it.
  *
  * A Spotify app of the listener's own is still offered, folded away, for somebody who would rather sign in
  * through that. The desktop and the phone use the same redirect address, so one registration serves both.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SpotifyCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
+internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state: AppState) {
     val spotify = settings.spotify
+    val green = ProviderType.SPOTIFY.badgeColour()
     var clientId by remember(settings.preferences.spotifyClientId) {
         mutableStateOf(settings.preferences.spotifyClientId)
     }
     var ownAppOpen by remember { mutableStateOf(settings.preferences.spotifyClientId.isNotBlank()) }
+    // Not while a Client ID is typed and not yet in use: that sign-in would go through the app being left.
+    val canConnect = !spotify.connecting && clientId == settings.preferences.spotifyClientId
+    val who = spotify.accountName.takeIf(String::isNotBlank)?.let { " as $it" }.orEmpty()
 
     SettingsCardShell {
-        CardHeading(Icons.Default.LibraryMusic, "Spotify library", tint = Color(0xFF1DB954))
+        CardHeading(Icons.Default.LibraryMusic, "Spotify", tint = green)
         Spacer(Modifier.height(6.dp))
         Text(
             when {
-                spotify.connected && spotify.accountName.isNotBlank() -> "Reading ${spotify.accountName}'s library."
-                // Not "your playlists are in the library" while the line below says Spotify will not hand them over.
-                spotify.connected && spotify.message != null -> "Connected."
-                spotify.connected -> "Connected. Your playlists are in the library."
-                else -> "Your playlists and liked songs, read into Noctorium. Playback never comes from Spotify, " +
-                    "and nothing is ever written to it."
+                spotify.connected && spotify.canPlay -> "Signed in with Premium$who."
+                // Not "your playlists are here" while the line below says Spotify will not hand them over.
+                spotify.connected && spotify.message != null -> "Signed in$who."
+                spotify.connected -> "Signed in$who. Your playlists, liked songs and search are here."
+                else -> "Any Spotify account brings its playlists, liked songs and search here, with hearts " +
+                    "that save to Liked Songs and two rows on Home. Its songs play matched to the same " +
+                    "recordings on YouTube Music."
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
         )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (spotify.canPlay) {
+                "Spotify songs can play in your own Spotify app, which has to be open somewhere: this phone, a " +
+                    "computer or a speaker. Noctorium never decodes Spotify's audio; it only tells Spotify what to play."
+            } else {
+                "With Premium, Spotify songs can play in your own Spotify app instead: on this phone, a computer " +
+                    "or a speaker, wherever the Spotify app is open. Noctorium never decodes Spotify's audio; it " +
+                    "only tells Spotify what to play."
+            },
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+        )
         Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                state::connectSpotify,
-                enabled = !spotify.connecting && clientId == settings.preferences.spotifyClientId,
-            ) { Text(if (spotify.connected) "Reconnect" else "Connect Spotify") }
-            if (spotify.connected) {
-                OutlinedButton(state::disconnectSpotify) { Text("Disconnect") }
+        // Wrapped rather than squeezed: three buttons do not fit a row at a large font size.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            when {
+                !spotify.connected -> {
+                    Button({ state.connectSpotify() }, enabled = canConnect) { Text("Connect Spotify") }
+                    OutlinedButton(state::connectSpotifyPremium, enabled = canConnect) { Text("Connect Spotify Premium") }
+                }
+                spotify.canPlay -> {
+                    OutlinedButton(state::connectSpotifyPremium, enabled = canConnect) { Text("Reconnect") }
+                    OutlinedButton(state::disconnectSpotify) { Text("Disconnect") }
+                }
+                else -> {
+                    Button(state::connectSpotifyPremium, enabled = canConnect) { Text("Connect Spotify Premium") }
+                    OutlinedButton({ state.connectSpotify() }, enabled = canConnect) { Text("Reconnect") }
+                    OutlinedButton(state::disconnectSpotify) { Text("Disconnect") }
+                }
             }
         }
         spotify.message?.let {
@@ -679,6 +734,8 @@ private fun SpotifyCard(settings: app.noctorium.settings.SettingsState, state: A
         }
     }
 
+    SpotifyPlaybackCard(spotify, state)
+
     SettingsCardShell {
         Row(
             Modifier.fillMaxWidth().clickable { ownAppOpen = !ownAppOpen },
@@ -686,8 +743,10 @@ private fun SpotifyCard(settings: app.noctorium.settings.SettingsState, state: A
         ) {
             Column(Modifier.weight(1f)) {
                 Text("Use your own Spotify app", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                // Said folded as well as open: it is the reason a Spotify app answers nothing at all.
                 Text(
-                    if (spotify.ownApp) "In use" else "Optional",
+                    (if (spotify.ownApp) "In use." else "Optional.") +
+                        " In development mode, the Spotify app's owner needs Premium.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                 )
@@ -698,7 +757,8 @@ private fun SpotifyCard(settings: app.noctorium.settings.SettingsState, state: A
             Spacer(Modifier.height(8.dp))
             Text(
                 "Create an app in Spotify's dashboard, add this address to its Redirect URIs, then paste its " +
-                    "Client ID below and connect again.",
+                    "Client ID below and connect again. A new app starts in development mode, so its owner -- you -- " +
+                    "needs Premium, or Spotify answers nothing.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
             )
@@ -737,6 +797,252 @@ private fun SpotifyCard(settings: app.noctorium.settings.SettingsState, state: A
                 }
             }
         }
+    }
+}
+
+/**
+ * Where Spotify songs play: in the account's own Spotify app, or matched on YouTube Music.
+ *
+ * The switch needs the Premium sign-in and says so when it is not there, rather than vanishing. With it,
+ * the devices are where Spotify is open right now, as Spotify said when last asked; Spotify sends the song
+ * to the one chosen, or to whichever it has active when that one is not open.
+ */
+@Composable
+private fun SpotifyPlaybackCard(spotify: app.noctorium.settings.SpotifyConnectionState, state: AppState) {
+    SettingsCardShell {
+        CardHeading(Icons.Default.Speaker, "Playing on Spotify", tint = ProviderType.SPOTIFY.badgeColour())
+        Spacer(Modifier.height(6.dp))
+        Toggle(
+            "Play Spotify songs on Spotify",
+            if (spotify.canPlay) {
+                "In your Spotify app, which has to be open on this phone, a computer or a speaker. Off, they " +
+                    "play matched on YouTube Music."
+            } else {
+                "Needs the Premium sign-in above. Until then, Spotify songs play matched on YouTube Music."
+            },
+            spotify.playsOnSpotify,
+            enabled = spotify.canPlay && !spotify.connecting,
+        ) { state.setSpotifyPlayback(it) }
+        if (spotify.canPlay) SpotifyDevices(spotify, state)
+    }
+}
+
+/** Where Spotify is open, to choose which one plays, as Spotify said when last asked. */
+@Composable
+private fun SpotifyDevices(spotify: app.noctorium.settings.SpotifyConnectionState, state: AppState) {
+    Spacer(Modifier.height(6.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Play on", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        TextButton(state::refreshSpotifyDevices) {
+            Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Refresh")
+        }
+    }
+    SpotifyDeviceRow(
+        Icons.Default.Devices,
+        "Any active device",
+        "Wherever Spotify is playing, or played last",
+        selected = spotify.device.isBlank(),
+        enabled = true,
+    ) { state.chooseSpotifyDevice("") }
+    spotify.devices.forEach { device ->
+        SpotifyDeviceRow(
+            spotifyDeviceIcon(device.type),
+            device.name,
+            spotifyDeviceDetail(device),
+            selected = spotify.device == device.id,
+            enabled = !device.isRestricted,
+        ) { state.chooseSpotifyDevice(device.id) }
+    }
+    val note = when {
+        spotify.devices.isEmpty() -> "Open Spotify on a phone, a computer or a speaker, then Refresh."
+        spotify.device.isNotBlank() && spotify.devices.none { it.id == spotify.device } ->
+            "The device chosen before is not open now, so Spotify plays wherever it is active."
+        else -> null
+    }
+    note?.let {
+        Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+/** One place Spotify can play, as a choice among the rest: what it is, what it is called, and whether it is picked. */
+@Composable
+private fun SpotifyDeviceRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    name: String,
+    detail: String,
+    selected: Boolean,
+    enabled: Boolean,
+    choose: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = choose)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(name, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        // The row is what is tapped; the button only shows which one is chosen.
+        RadioButton(selected = selected, onClick = null, enabled = enabled)
+    }
+}
+
+/** A picture for Spotify's word for a device: Computer, Smartphone, Speaker, TV and the rest. */
+private fun spotifyDeviceIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type.lowercase()) {
+    "computer" -> Icons.Default.Computer
+    "smartphone" -> Icons.Default.PhoneAndroid
+    "tablet" -> Icons.Default.Tablet
+    "tv", "castvideo", "stb" -> Icons.Default.Tv
+    "automobile" -> Icons.Default.DirectionsCar
+    "speaker", "avr", "castaudio", "audiodongle" -> Icons.Default.Speaker
+    else -> Icons.Default.Devices
+}
+
+/**
+ * VK Music, through the session of a vk.ru sign-in.
+ *
+ * VK has no way in for other apps, so this goes in the way VK's own web player does, which VK's terms forbid;
+ * the card says so, with what follows from it, before anybody signs in. Signing in is VK's own page inside
+ * Noctorium. Pasting the two cookies from a browser is the way round a page that will not finish.
+ */
+@Composable
+internal fun VkCard(settings: app.noctorium.settings.SettingsState, state: AppState, signIn: (ProviderType) -> Unit) {
+    val vk = settings.vk
+    val focus = LocalFocusManager.current
+    var pasteOpen by remember { mutableStateOf(false) }
+    var pasted by remember { mutableStateOf("") }
+
+    fun usePasted() {
+        if (pasted.isBlank() || vk.checking) return
+        focus.clearFocus()
+        state.completeVkSignIn(pasted)
+        // Gone from the screen and from here as soon as it is handed over: it is a session, not a note.
+        pasted = ""
+    }
+
+    SettingsCardShell {
+        CardHeading(Icons.Default.Audiotrack, "VK Music", tint = ProviderType.VK.badgeColour())
+        Spacer(Modifier.height(6.dp))
+        if (vk.connected) {
+            Text("${vkSummary(vk)}.", fontSize = 12.sp)
+            Text(
+                "Your music and playlists are in the library, and a heart adds a song to My music. VK songs play " +
+                    "here and are not downloaded.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(state::disconnectVk, enabled = !vk.checking) { Text("Sign out") }
+        } else {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = .5f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "VK offers no music to other apps, so Noctorium uses your vk.ru session the way VK's own web " +
+                        "player does. That is against VK's terms: VK may ask you to confirm it is you, or freeze " +
+                        "accounts it thinks are automated. Many songs do not play outside Russia, and VK songs " +
+                        "cannot be downloaded.",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Button({ signIn(ProviderType.VK) }, enabled = !vk.checking) { Text("Sign in on vk.ru") }
+            Spacer(Modifier.height(6.dp))
+            Row(
+                Modifier.fillMaxWidth().clickable { pasteOpen = !pasteOpen }.padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Paste the cookies instead", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Icon(if (pasteOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (pasteOpen) "Fold away" else "Show")
+            }
+            if (pasteOpen) {
+                Text(
+                    "From a browser signed in on vk.ru: the p cookie, which is on login.vk.ru, and remixsid, which " +
+                        "is on vk.ru. As p=…; remixsid=…, or however the browser copies them.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    pasted,
+                    { pasted = it.take(4_000) },
+                    label = { Text("p and remixsid") },
+                    // Hidden as a password is: whoever holds these is signed in to VK as you.
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { usePasted() }),
+                    // Two lines from two hosts are as good as one; core reads either.
+                    maxLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Button({ usePasted() }, enabled = pasted.isNotBlank() && !vk.checking) { Text("Use these") }
+            }
+        }
+        if (vk.checking) {
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Checking with VK…", fontSize = 12.sp)
+            }
+        }
+        vk.message?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+        }
+    }
+}
+
+/**
+ * Which services the Hybrid chip on Search asks, all at once.
+ *
+ * Each still answers only where it can, and the card says where that is. At least one always stays, so the
+ * last one's chip cannot be switched off -- core would refuse it anyway, and a chip that does nothing when
+ * tapped reads as a broken one.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun HybridSearchCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
+    val included = settings.preferences.hybridSearch
+    SettingsCardShell {
+        CardHeading(Icons.Default.Search, "Hybrid search")
+        Text(
+            "The services the Hybrid chip on Search asks at once. Spotify answers only while its songs play on " +
+                "Spotify, and VK only while you are signed in to it.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            DEFAULT_HYBRID_SEARCH.forEach { provider ->
+                FilterChip(
+                    selected = provider in included,
+                    enabled = canSwitchHybrid(provider, included),
+                    onClick = { state.setHybridSearchService(provider, included = provider !in included) },
+                    label = { Text(provider.displayName, fontSize = 11.sp) },
+                )
+            }
+        }
+        Text(
+            "At least one always stays.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 

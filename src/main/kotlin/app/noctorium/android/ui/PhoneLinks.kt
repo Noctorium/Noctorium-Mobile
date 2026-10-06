@@ -260,7 +260,7 @@ private fun PhoneLinkTrackCard(track: Track, playing: Boolean, state: AppState) 
                 FilledTonalButton({ state.addToQueue(track) }) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue")
                 }
-                // Not for a Bandcamp song, which is there to be heard and bought on its page rather than kept.
+                // Not for a Bandcamp or VK song, which is there to be heard rather than kept.
                 if (state.canKeep(track)) PhoneDownloadButton(track, state)
             }
         }
@@ -281,7 +281,7 @@ private fun PhonePlaylistActions(tracks: List<Track>, state: AppState) {
         FilledTonalButton({ tracks.forEach(state::addToQueue) }) {
             Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue all", maxLines = 1)
         }
-        // A Bandcamp album has nothing in it that may be kept, so it is offered nothing to keep.
+        // A Bandcamp album has nothing in it that may be kept, nor a VK playlist, so neither is offered it.
         if (tracks.any(state::canKeep)) {
             FilledTonalButton({ state.downloadAll(tracks) }) {
                 Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download all", maxLines = 1)
@@ -340,7 +340,7 @@ internal fun DownloadsScreen(state: AppState) {
     val playback by state.playback.collectAsState()
     val clipboard = LocalClipboardManager.current
     var text by remember { mutableStateOf("") }
-    // A Bandcamp link is turned down here, where taking it would download nothing and say nothing.
+    // A Bandcamp link is turned down here, with the reason, rather than taken and nothing coming of it.
     val pasted = findMusicLink(text)
     val downloadable = downloadsFrom(pasted)
 
@@ -382,12 +382,7 @@ internal fun DownloadsScreen(state: AppState) {
                         Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download")
                     }
                 }
-                if (pasted != null && !downloadable) {
-                    PhoneNote(
-                        "Bandcamp streams are for listening, so its songs are not downloaded. Buy one on its " +
-                            "Bandcamp page and the file is yours.",
-                    )
-                }
+                pasted?.let { keepRefusal(it.provider) }?.let { PhoneNote(it) }
                 if (link.action == LinkAction.DOWNLOAD) {
                     when (link.status) {
                         LinkStatus.OPENING -> PhoneNote("Looking it up…")

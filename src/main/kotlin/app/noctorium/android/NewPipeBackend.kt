@@ -32,7 +32,6 @@ import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.search.SearchInfo
 import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
-import org.schabi.newpipe.extractor.stream.AudioStream
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.io.IOException
 import java.nio.file.Files
@@ -111,6 +110,16 @@ class NewPipeBackend(
      * and is handed in once it exists, which is after this does.
      */
     @Volatile var privateSoundCloudStream: (suspend (String) -> String?)? = null
+
+    /**
+     * Whether to take the smallest audio rather than the best: the data saver, asked at every lookup because
+     * both the setting and the connection change under it. Handed in once the application's state exists,
+     * the way [privateSoundCloudStream] is; until then, the best.
+     */
+    @Volatile var savingData: () -> Boolean = { false }
+
+    /** Which of the two the addresses in [addresses] were chosen for, so a change of mind clears them. */
+    @Volatile private var addressesSaveData = false
 
     /** Bandcamp and VK, which core reads for itself rather than through NewPipe. See [ServiceStreams]. */
     @Volatile private var serviceStreams: ServiceStreams? = null
@@ -231,14 +240,22 @@ class NewPipeBackend(
      *
      * Answered from memory when it was found in the last half hour -- by the play before, by the
      * enrichment a moment ago, or by the queue looking ahead -- and read from the page otherwise. The best
-     * audio-only stream is chosen by bitrate. Video streams are never considered: this is a music player,
-     * and fetching a video's pixels to throw them away would spend a phone's data for nothing.
+     * audio-only stream is chosen by bitrate, or the smallest while the data saver wants it; see
+     * [chooseAudioStream]. Video streams are never considered: this is a music player, and fetching a
+     * video's pixels to throw them away would spend a phone's data for nothing.
      */
     override suspend fun resolveAudio(sourceUrl: String): String {
         require(sourceUrl.startsWith("https://") || sourceUrl.startsWith("http://")) {
             "Only HTTP media sources are accepted"
         }
-        return addresses.resolve(sourceUrl) { freshAddress(sourceUrl) }
+        // Addresses remembered for the other quality are not the ones wanted now. A phone that has just left
+        // Wi-Fi with the saver on mobile data wants the small ones from the next song, not in half an hour.
+        val small = savingData()
+        if (small != addressesSaveData) {
+            addressesSaveData = small
+            addresses.clear()
+        }
+        return addresses.resolve(sourceUrl) { freshAddress(sourceUrl, small) }
     }
 
     override fun forgetAudio(sourceUrl: String) = addresses.forget(sourceUrl)
@@ -260,14 +277,14 @@ class NewPipeBackend(
      * inconclusive check plays anyway, because a rate limit or a moment without signal says nothing
      * about the address and refusing to play would be inventing a failure.
      */
-    private suspend fun freshAddress(sourceUrl: String): String {
+    private suspend fun freshAddress(sourceUrl: String, small: Boolean): String {
         // Core's own services first: NewPipe cannot read their pages, and core already has the address.
         serviceStreams?.streamFor(sourceUrl)?.let { return it.address }
         if (providerOf(sourceUrl) == ProviderType.SOUNDCLOUD && secretOf(sourceUrl) != null) {
             return privateSoundCloudStream?.invoke(sourceUrl)
                 ?: throw BackendException("SoundCloud would not give Noctorium the audio of this private track.")
         }
-        val address = readPage(sourceUrl)
+        val address = readPage(sourceUrl, small)
         if (checkAudioAddress(address) != AddressVerdict.REJECTED) return address
 
         android.util.Log.i(
@@ -281,7 +298,7 @@ class NewPipeBackend(
                 .onFailure { android.util.Log.w(LOG_TAG, "Could not clear the player caches: ${it.message}") }
         }
 
-        val second = readPage(sourceUrl)
+        val second = readPage(sourceUrl, small)
         if (checkAudioAddress(second) != AddressVerdict.REJECTED) return second
 
         // Twice refused with a freshly fetched player is not a stale signature any more. Saying so is
@@ -303,7 +320,7 @@ class NewPipeBackend(
      * A lookup that fails the instant the phone changes networks is asked once more before it is
      * reported; see `retryingTransientFailures` for why only a quick failure is worth that.
      */
-    private suspend fun readPage(sourceUrl: String): String = withContext(Dispatchers.IO) {
+    private suspend fun readPage(sourceUrl: String, small: Boolean): String = withContext(Dispatchers.IO) {
         val provider = providerOf(sourceUrl)
         val service = serviceFor(provider)
             ?: throw BackendException("Noctorium cannot play this address on Android yet.")
@@ -320,9 +337,7 @@ class NewPipeBackend(
             durationMs = runCatching { extractor.length }.getOrNull()?.takeIf { it > 0 }?.times(1_000),
             artworkUrl = runCatching { extractor.thumbnails.lastOrNull()?.url }.getOrNull(),
         )
-        val stream = attempt("read the streams of $sourceUrl") { extractor.audioStreams }
-            .filter { !it.content.isNullOrBlank() }
-            .maxByOrNull(AudioStream::getAverageBitrate)
+        val stream = chooseAudioStream(attempt("read the streams of $sourceUrl") { extractor.audioStreams }, smallest = small)
             ?: throw BackendException(
                 "No audio stream came back for this track. It may be unavailable in your region.",
             )

@@ -27,17 +27,27 @@ import app.noctorium.android.ui.LyricsLookCard
 import app.noctorium.android.ui.NoctoriumPhone
 import app.noctorium.android.ui.NoctoriumTheme
 import app.noctorium.android.ui.NowPlayingScreen
+import app.noctorium.android.ui.PhoneOptionsCard
 import app.noctorium.android.ui.PlayerButtonsCard
 import app.noctorium.android.ui.SearchScreen
 import app.noctorium.android.ui.SettingsPage
 import app.noctorium.android.ui.SettingsPageScreen
 import app.noctorium.android.ui.SettingsScreen
 import app.noctorium.android.ui.SoundCard
+import app.noctorium.android.ui.SpotifyCards
 import app.noctorium.android.ui.TabsCard
 import app.noctorium.android.ui.TextAndLayoutCard
 import app.noctorium.android.ui.TrackRow
+import app.noctorium.android.ui.VkCard
 import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
+import app.noctorium.core.SearchMode
+import app.noctorium.domain.ProviderType
+import app.noctorium.settings.DataSaver
+import app.noctorium.settings.SpotifyConnectionState
+import app.noctorium.settings.SpotifyPlayback
+import app.noctorium.settings.VkConnectionState
+import app.noctorium.spotify.SpotifyDevice
 import app.noctorium.core.Destination
 import app.noctorium.domain.Track
 import app.noctorium.settings.AccentPreset
@@ -323,6 +333,190 @@ class PhoneScreenshots {
             compose.onNodeWithText("Open on Bandcamp").assertDoesNotExist()
         },
     ) { _, state -> Column { TrackRow(Still.nowPlaying, state) {} } }
+
+    // --- Spotify, VK, and the new ways of listening ---
+
+    /** Every service's tile: Bandcamp with a name, VK signed in, Spotify not yet, and the Search tile. */
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun settingsHomeServices() = shoot(
+        "settings-home-services",
+        NoctoriumPreferences(bandcampUsername = "nightowl", vkAccountName = "Night Owl"),
+        prepare = { it.waitUntil { settings.value.vk.connected } },
+    ) { _, state -> SettingsScreen(state) {} }
+
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun spotifySignedOut() = shoot("spotify-signed-out") { _, state ->
+        SettingsPageScreen(SettingsPage.SPOTIFY, state, signIn = {}, back = {})
+    }
+
+    /** Signed in with Premium, songs on Spotify, and the places Spotify is open. */
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun spotifyPremium() = shoot("spotify-premium") { settings, state ->
+        Card {
+            SpotifyCards(
+                settings.copy(
+                    spotify = SpotifyConnectionState(
+                        connected = true,
+                        accountName = "Night Owl",
+                        canPlay = true,
+                        playsOnSpotify = true,
+                        devices = listOf(
+                            SpotifyDevice("d-1", "Pocket phone", "Smartphone", isActive = false),
+                            SpotifyDevice("d-2", "Kitchen speaker", "Speaker", isActive = true, volumePercent = 40),
+                            SpotifyDevice("d-3", "Study computer", "Computer", isActive = false),
+                            SpotifyDevice("d-4", "Car stereo", "Automobile", isActive = false, isRestricted = true),
+                        ),
+                        device = "d-2",
+                    ),
+                ),
+                state,
+            )
+        }
+    }
+
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun vkSignedOut() = shoot("vk-signed-out") { _, state ->
+        SettingsPageScreen(SettingsPage.VK, state, signIn = {}, back = {})
+    }
+
+    /** The way round a sign-in page that will not finish, opened. */
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun vkPasteCookies() = shoot(
+        "vk-paste-cookies",
+        then = {
+            compose.onNodeWithText("Paste the cookies instead").performClick()
+            compose.mainClock.advanceTimeBy(500)
+            compose.onNodeWithText("Use these").assertExists()
+        },
+    ) { _, state -> SettingsPageScreen(SettingsPage.VK, state, signIn = {}, back = {}) }
+
+    @Test
+    fun vkSignedIn() = shoot("vk-signed-in") { settings, state ->
+        Card {
+            VkCard(
+                settings.copy(
+                    vk = VkConnectionState(
+                        connected = true,
+                        accountName = "Night Owl",
+                        message = "Signed in to VK as Night Owl. VK may hold some songs back outside Russia.",
+                    ),
+                ),
+                state,
+                signIn = {},
+            )
+        }
+    }
+
+    /** Albums and an artist from a Spotify search: the artist round, and saying so once. */
+    @Test
+    fun searchSpotify() = shoot(
+        "search-spotify",
+        prepare = {
+            it.setSearchMode(SearchMode.SPOTIFY)
+            it.searchAndWait("lantern")
+        },
+    ) { _, state -> SearchScreen(state) }
+
+    @Test
+    fun nowPlayingOnSpotify() = shoot("now-playing-on-spotify", onSpotify(), playing = Still.spotifyPlaying, prepare = ::untilOnSpotify) { _, state ->
+        NowPlayingScreen(state) {}
+    }
+
+    @Test
+    fun homeOnSpotify() = shoot("home-on-spotify", onSpotify(), playing = Still.spotifyPlaying, prepare = ::untilOnSpotify) { _, state ->
+        NoctoriumPhone(state)
+    }
+
+    @Test
+    fun slimBarOnSpotify() = shoot(
+        "slim-bar-on-spotify",
+        onSpotify().copy(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.SLIM)),
+        playing = Still.spotifyPlaying,
+        prepare = ::untilOnSpotify,
+    ) { _, state -> NoctoriumPhone(state) }
+
+    /** The equaliser, switched off and saying why, while Spotify plays the song. */
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun soundOnSpotify() = shoot(
+        "sound-on-spotify",
+        onSpotify().copy(equalizer = EqualizerSettings(enabled = true, preset = EqualizerPreset.ROCK)),
+        playing = Still.spotifyPlaying,
+        prepare = ::untilOnSpotify,
+    ) { settings, state -> Card { SoundCard(settings, state) } }
+
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun playbackSettings() = shoot(
+        "playback-settings",
+        NoctoriumPreferences(playbackSpeed = 1.25f, sleepFadeSeconds = 30),
+    ) { _, state -> SettingsPageScreen(SettingsPage.PLAYBACK, state, signIn = {}, back = {}) }
+
+    @Test
+    fun searchSettings() = shoot(
+        "search-settings",
+        NoctoriumPreferences(hybridSearch = setOf(ProviderType.YOUTUBE_MUSIC, ProviderType.SOUNDCLOUD, ProviderType.BANDCAMP)),
+    ) { _, state -> SettingsPageScreen(SettingsPage.SEARCH, state, signIn = {}, back = {}) }
+
+    /** Hybrid down to its last service, whose chip cannot be switched off. */
+    @Test
+    fun searchSettingsLastOne() = shoot(
+        "search-settings-last-one",
+        NoctoriumPreferences(hybridSearch = setOf(ProviderType.BANDCAMP)),
+    ) { _, state -> SettingsPageScreen(SettingsPage.SEARCH, state, signIn = {}, back = {}) }
+
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun dataSaver() = shoot(
+        "data-saver",
+        NoctoriumPreferences(phone = PhonePreferences(dataSaver = DataSaver.ON_MOBILE_DATA)),
+    ) { settings, state -> Card { PhoneOptionsCard(settings, state) } }
+
+    /** A speed other than normal, shown under the start of the seek bar. */
+    @Test
+    fun nowPlayingSpeed() = shoot("now-playing-speed", NoctoriumPreferences(playbackSpeed = 1.25f), playing = Still.nowPlaying) { _, state ->
+        NowPlayingScreen(state) {}
+    }
+
+    @Test
+    fun nowPlayingSpeedMenu() = shoot(
+        "now-playing-speed-menu",
+        NoctoriumPreferences(playbackSpeed = 1.25f),
+        playing = Still.nowPlaying,
+        then = {
+            compose.onNodeWithText("1.25×").performClick()
+            compose.mainClock.advanceTimeBy(1_000)
+            compose.waitForIdle()
+            compose.onNodeWithText("Normal").assertExists()
+            compose.onNodeWithText("0.5×").assertExists()
+        },
+    ) { _, state -> NowPlayingScreen(state) {} }
+
+    /** A VK song's menu: its page in place of a download, and VK's own name for where it opens. */
+    @Test
+    fun vkTrackMenu() = shoot(
+        "vk-track-menu",
+        prepare = { it.openAndWait(Still.vkMyMusic) },
+        then = {
+            openFirstTrackMenu()
+            // The playlist's own, on the page, and the song's, in the menu.
+            compose.onAllNodesWithText("Open on VK").assertCountEquals(2)
+            compose.onNodeWithText("Download for offline").assertDoesNotExist()
+            compose.onNodeWithText("Save a copy…").assertDoesNotExist()
+            compose.onNodeWithText("Add to playlist…").assertDoesNotExist()
+        },
+    ) { _, state -> LibraryScreen(state) }
+
+    /** Spotify songs set to play on Spotify, which a Premium sign-in allows. */
+    private fun onSpotify() = NoctoriumPreferences(spotifyCanPlay = true, spotifyPlayback = SpotifyPlayback.ON_SPOTIFY)
+
+    /** Core says where Spotify songs play a moment after it starts; the picture waits for it. */
+    private fun untilOnSpotify(state: AppState) = state.waitUntil { settings.value.spotify.playsOnSpotify }
 
     /** Taps the first row's ⋮ and lets the menu finish opening. */
     private fun openFirstTrackMenu() {

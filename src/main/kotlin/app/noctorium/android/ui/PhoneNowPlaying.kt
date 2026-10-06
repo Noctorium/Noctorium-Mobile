@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -42,8 +43,11 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Speaker
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -80,6 +84,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import coil.compose.AsyncImage
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -202,6 +207,8 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            val onSpotify = playsOnSpotify(track, settings.spotify)
+            if (onSpotify) OnSpotifyLine(spotifyDeviceName(settings.spotify), Modifier.padding(top = 4.dp))
             PhoneFollowArtistChip(track, state, Modifier.padding(top = 4.dp))
             playback.errorMessage?.let {
                 Spacer(Modifier.height(6.dp))
@@ -262,8 +269,13 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
 
             // The like and the menu are about this track, so they stay under the middle of it. Volume is
             // not about the track at all, and sitting in that group it read as a third thing of the same
-            // kind; out at the edge, under the end of the seek bar, it is plainly its own.
+            // kind; out at the edge, under the end of the seek bar, it is plainly its own. The speed is not
+            // about the track either, and takes the other edge.
             Box(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                // Not for a song Spotify is playing, which plays at Spotify's own speed whatever is set here.
+                if (!onSpotify) {
+                    SpeedButton(settings.preferences.playbackSpeed, state, Modifier.align(Alignment.CenterStart))
+                }
                 Row(
                     Modifier.align(Alignment.Center),
                     verticalAlignment = Alignment.CenterVertically,
@@ -287,6 +299,57 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
             }
         }
       }
+    }
+}
+
+/**
+ * Where a song playing in the account's own Spotify app is playing: on Spotify, and on which of its devices
+ * when Spotify has said. Without it, the screen would look like this phone's player while the sound came
+ * out of a speaker in another room.
+ */
+@Composable
+internal fun OnSpotifyLine(device: String?, modifier: Modifier = Modifier) {
+    val green = app.noctorium.domain.ProviderType.SPOTIFY.badgeColour()
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.Speaker, null, Modifier.size(15.dp), tint = green)
+        Spacer(Modifier.width(5.dp))
+        Text(
+            listOfNotNull("On Spotify", device).joinToString(" · "),
+            color = green,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The speed, from the full screen: a dial at normal speed, and the speed itself otherwise, so a song is never
+ * quietly playing fast. The menu offers the usual steps; Settings has the slider for anything between.
+ */
+@Composable
+private fun SpeedButton(speed: Float, state: AppState, modifier: Modifier = Modifier) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        IconButton({ open = true }) {
+            if (speed == 1f) {
+                Icon(Icons.Default.Speed, "Speed: normal", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text(speedLabel(speed), color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            SPEED_STEPS.forEach { step ->
+                DropdownMenuItem(
+                    text = { Text(speedLabel(step)) },
+                    trailingIcon = {
+                        if (abs(step - speed) < 0.001f) Icon(Icons.Default.Check, "Chosen", tint = MaterialTheme.colorScheme.primary)
+                    },
+                    onClick = { state.setPlaybackSpeed(step); open = false },
+                )
+            }
+        }
     }
 }
 

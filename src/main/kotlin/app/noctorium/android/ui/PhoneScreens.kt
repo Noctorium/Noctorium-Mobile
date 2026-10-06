@@ -87,7 +87,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.noctorium.bandcamp.BandcampMusicProvider
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.domain.HomeSection
@@ -394,8 +393,8 @@ private fun playlistServices(state: AppState): List<ProviderType> {
  * also moves to the library -- that screen lives there, and opening something the listener cannot see
  * would be the same as doing nothing.
  *
- * An artist is a card too, from a Bandcamp search: opened, it is everything they have put out. It is drawn
- * round and says "Artist", so it is not mistaken for one record of theirs.
+ * An artist is a card too, from a Bandcamp or a Spotify search: opened, it is everything they have put out.
+ * It is drawn round and says "Artist", so it is not mistaken for one record of theirs.
  */
 @Composable
 private fun PlaylistCarousel(
@@ -417,7 +416,7 @@ private fun PlaylistCarousel(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(shown, key = Playlist::playlistKey) { playlist ->
-                val artist = BandcampMusicProvider.isArtist(playlist)
+                val artist = isArtistPlaylist(playlist)
                 Column(
                     Modifier
                         .width(width)
@@ -436,9 +435,7 @@ private fun PlaylistCarousel(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        // Where an artist is from, when Bandcamp says: that is what its owner line holds.
-                        if (artist) listOfNotNull("Artist", playlist.ownerName).joinToString(" · ")
-                        else playlist.ownerName ?: playlist.provider.displayName,
+                        cardCaption(playlist),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         maxLines = 1,
@@ -511,24 +508,26 @@ internal fun SearchScreen(state: AppState) {
         Spacer(Modifier.height(8.dp))
 
         val results = ui.searchResults.tracks
-        // Albums and artists, from the services that answer with them -- Bandcamp's releases and the people
-        // behind them. They open as playlists, the way an album on Home does.
+        // Albums and artists, from the services that answer with them -- Bandcamp's and Spotify's releases
+        // and the people behind them. They open as playlists, the way an album on Home does.
         val releases = ui.searchResults.playlists
+        val signInFirst = searchSignInHint(ui.searchMode, settings.spotify.connected, settings.vk.connected)
         when {
             ui.searchQuery.isBlank() -> EmptyNote(
                 "Find something",
-                "Every service here answers a search without an account, so this works straight away.",
+                signInFirst ?: "Most services answer a search without an account, so this works straight away.",
             )
             results.isEmpty() && releases.isEmpty() && !ui.searchLoading -> EmptyNote(
                 "Nothing found",
-                "Nothing matched \"${ui.searchQuery}\".",
+                // Why, when a service said: a search VK refused is not one where nothing matched.
+                ui.errorMessage ?: signInFirst ?: "Nothing matched \"${ui.searchQuery}\".",
             )
             else -> LazyColumn(contentPadding = chromePadding(24.dp)) {
                 if (releases.isNotEmpty()) {
                     item(key = "search:releases") {
                         PlaylistCarousel(
                             "Albums and artists",
-                            releases.map { it.provider.displayName }.distinct().joinToString(" and "),
+                            servicesNamed(releases.map { it.provider }),
                             releases,
                             state,
                             settings.preferences,
@@ -649,7 +648,7 @@ private fun LibraryList(
                     EmptyNote(
                         "No playlists yet",
                         library.errorMessage
-                            ?: "Connect YouTube Music, SoundCloud or Spotify, or give your Bandcamp name, " +
+                            ?: "Connect YouTube Music, SoundCloud, Spotify or VK, or give your Bandcamp name, " +
                                 "under Settings to see yours here.",
                     )
                 }
@@ -674,7 +673,7 @@ private fun LibraryList(
                                 playlist.provider.displayName,
                                 "Private".takeIf { playlist.isPublic == false },
                                 playlist.trackCount?.let(::pluralTracks),
-                                playlist.ownerName,
+                                ownerWorthNaming(playlist),
                             ).joinToString(" · "),
                             artworkUrl = playlist.artworkUrl,
                         ) { state.openPlaylist(playlist) }
@@ -732,14 +731,15 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
             Column(Modifier.weight(1f)) {
                 Text(playlist.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    listOfNotNull(playlist.provider.displayName, playlist.ownerName).joinToString(" · "),
+                    listOfNotNull(playlist.provider.displayName, ownerWorthNaming(playlist)).joinToString(" · "),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                 )
             }
             if (playlist.tracks.isNotEmpty()) {
                 // The whole playlist kept in one tap, and greyed out once there is nothing left to keep. Not
-                // there at all for a Bandcamp album, none of which may be kept: it leads to its page instead.
+                // there at all for a Bandcamp album or a VK playlist, none of which may be kept: those lead to
+                // their page instead.
                 val missing = downloadsWanted(playlist.tracks, state::canKeep) {
                     downloads.isDownloaded(state.downloadableTrack(it))
                 }
@@ -757,7 +757,9 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
 
         // The account's own playlists can be made public or private, renamed and deleted from here.
         if (playlist.editableOnService()) ServicePlaylistControls(playlist, notice, state)
-        bandcampPage(playlist.provider, playlist.sourceUrl)?.let { page -> BandcampPageAction(page, state) }
+        servicePage(playlist.provider, playlist.sourceUrl)?.let { page ->
+            ServicePageAction(openOnLabel(playlist.provider), page, state)
+        }
         notice?.let {
             Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
         }
@@ -901,7 +903,8 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
     val onDisk = state.downloadableTrack(track)
     val job = downloads.jobFor(onDisk)
     val kept = downloads.isDownloaded(onDisk)
-    // A Bandcamp song is heard here and bought on its page, so its menu leads there instead of to a download.
+    // A Bandcamp or VK song is heard here and kept nowhere, so its menu leads to its page instead of to a
+    // download.
     val keepable = state.canKeep(track)
     val pinned = ui.pinnedTracks.any { it.queueKey == track.queueKey }
 
@@ -966,16 +969,16 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
                     onClick = { state.exportTrack(track); open = false },
                 )
             }
-            bandcampPage(track.provider, track.pageUrl)?.let {
+            servicePage(track.provider, track.pageUrl)?.let {
                 DropdownMenuItem(
-                    text = { Text("Open on Bandcamp") },
+                    text = { Text(openOnLabel(track.provider)) },
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
                     onClick = { state.openExternalUrl(it); open = false },
                 )
             }
-            // Wherever the track's own service keeps playlists. Not Spotify, which is read here and never
-            // written to, not a local file, which belongs to no account at all, and not Bandcamp, whose
-            // lists are what a fan bought.
+            // Wherever the track's own service keeps playlists. Not Spotify or VK, whose playlists are read
+            // here and not written to, not a local file, which belongs to no account at all, and not Bandcamp,
+            // whose lists are what a fan bought.
             //
             // This said YouTube only, left behind when the dialog underneath it learned about SoundCloud:
             // the dialog could add a SoundCloud track to a SoundCloud playlist perfectly well and no menu

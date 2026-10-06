@@ -97,20 +97,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
             /*
-             * Rate and silence-skipping, applied when they change and once at startup.
+             * Silence-skipping, applied when it changes and once at startup.
              *
-             * ExoPlayer keeps both across tracks, so this does not need to run per song; it does need to
-             * run on the first composition, or a rate chosen last week would sit in the settings file
-             * doing nothing until it was touched again.
+             * ExoPlayer keeps it across tracks, so this does not need to run per song; it does need to run on
+             * the first composition, or a choice made last week would sit in the settings file doing nothing
+             * until it was touched again. The speed is not here any more: it is Noctorium's own setting now,
+             * and core tells the player of it the way it tells it of the equaliser.
              */
-            LaunchedEffect(
-                settings.preferences.phone.playbackSpeed,
-                settings.preferences.phone.skipSilence,
-            ) {
-                (application as NoctoriumApplication).player.applyAudioOptions(
-                    settings.preferences.phone.playbackSpeed,
-                    settings.preferences.phone.skipSilence,
-                )
+            LaunchedEffect(settings.preferences.phone.skipSilence) {
+                (application as NoctoriumApplication).player.setSkipSilence(settings.preferences.phone.skipSilence)
             }
             // The status bar's icons have to be told which way round the theme is, or a light theme gets
             // white icons on a white bar.

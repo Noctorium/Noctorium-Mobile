@@ -39,11 +39,40 @@ import kotlin.coroutines.resume
 /** Where the sign-in says what it is doing, so a page that quietly refuses can be told from one that broke. */
 private const val SIGN_IN_LOG = "NoctoriumSignIn"
 
+/**
+ * An address as the log is told it: where, and not what was carried there. A sign-in's addresses carry
+ * codes and tokens after the `?` on their way through, and a log is no place for those.
+ */
+private fun forTheLog(url: String?): String? = url?.substringBefore('?')?.substringBefore('#')
+
+/**
+ * The VK session out of what the hosts hold: `p` from the host that signs people in, and `remixsid` from the
+ * first of the site's hosts that has one. Null without both, because VK treats one alone as signed out.
+ */
+internal fun vkSessionFrom(loginCookies: String?, siteCookies: List<String?>): String? {
+    val p = cookieValue(loginCookies, "p") ?: return null
+    val remixsid = siteCookies.firstNotNullOfOrNull { cookieValue(it, "remixsid") } ?: return null
+    return "p=$p; remixsid=$remixsid"
+}
+
+/** One cookie's value out of the `name=value; name=value` line a WebView reports for a host. */
+internal fun cookieValue(header: String?, name: String): String? = header.orEmpty().split(';').firstNotNullOfOrNull { pair ->
+    val key = pair.substringBefore('=', "").trim()
+    val value = pair.substringAfter('=', "").trim()
+    value.takeIf { key == name && it.isNotEmpty() }
+}
+
+/** The names in such a line, for removing them one by one. */
+internal fun cookieNames(header: String?): List<String> =
+    header.orEmpty().split(';').mapNotNull { it.substringBefore('=', "").trim().takeIf(String::isNotEmpty) }.distinct()
+
 object WebViewSignIn {
 
     /** Where each service's sign-in starts. */
     fun startUrlFor(provider: ProviderType): String = when (provider) {
         ProviderType.SOUNDCLOUD -> "https://soundcloud.com/signin"
+        // VK's own page, which leads on to VK ID and to whatever confirmation VK asks for.
+        ProviderType.VK -> "https://vk.ru/login"
         // Google's sign-in directly, rather than the music site's own button.
         //
         // Starting at music.youtube.com was the obvious thing and it does not work: the page loads,
@@ -148,6 +177,48 @@ object WebViewSignIn {
     }
 
     /**
+     * The VK session, once VK has made one, as `p=…; remixsid=…`; null until both cookies are there.
+     *
+     * They live on different hosts, which is easy to miss: `p` on the host that signs people in, and
+     * `remixsid` on the site -- the mobile site's own host too, for a phone VK serves that to. Neither is
+     * ever written to the log.
+     */
+    fun vkSession(): String? {
+        val manager = CookieManager.getInstance()
+        return vkSessionFrom(
+            loginCookies = manager.getCookie("https://login.vk.ru"),
+            siteCookies = listOf(manager.getCookie("https://vk.ru"), manager.getCookie("https://m.vk.ru")),
+        )
+    }
+
+    /**
+     * Forgets VK's cookies, and nobody else's.
+     *
+     * Not [clearCookies], which empties the whole store: SoundCloud's writes are made from a WebView holding
+     * SoundCloud's session, and signing in to VK has no business ending that. A WebView has no way of
+     * removing one host's cookies, so each one is set again already expired -- as the host's own and as the
+     * whole domain's, since the store will not say which it was.
+     */
+    fun clearVkCookies() {
+        val manager = CookieManager.getInstance()
+        VK_COOKIE_HOSTS.forEach { host ->
+            val url = "https://$host"
+            val domain = host.split('.').takeLast(2).joinToString(".")
+            cookieNames(manager.getCookie(url)).forEach { name ->
+                manager.setCookie(url, "$name=; Max-Age=0; Path=/")
+                manager.setCookie(url, "$name=; Max-Age=0; Path=/; Domain=$domain")
+            }
+        }
+        manager.flush()
+    }
+
+    /** Every host a VK sign-in passes through and might leave a cookie on. */
+    private val VK_COOKIE_HOSTS = listOf(
+        "vk.ru", "login.vk.ru", "id.vk.ru", "m.vk.ru",
+        "vk.com", "login.vk.com", "id.vk.com", "m.vk.com",
+    )
+
+    /**
      * The SoundCloud token, which its API needs in a header rather than as a cookie.
      *
      * Looked for across every host a session lives on, not just soundcloud.com. On a phone it is set on
@@ -214,7 +285,7 @@ object WebViewSignIn {
         Log.i(SIGN_IN_LOG, "signing in as: ${webView.settings.userAgentString}")
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
-                Log.i(SIGN_IN_LOG, "page: $url")
+                Log.i(SIGN_IN_LOG, "page: ${forTheLog(url)}")
                 CookieManager.getInstance().flush()
                 onPageFinished(url)
             }
@@ -226,7 +297,7 @@ object WebViewSignIn {
             ) {
                 // Only the page's own failure is worth a line; a missing tracking pixel is not.
                 if (request?.isForMainFrame == true) {
-                    Log.w(SIGN_IN_LOG, "failed: ${request.url} -- ${error?.description}")
+                    Log.w(SIGN_IN_LOG, "failed: ${forTheLog(request.url?.toString())} -- ${error?.description}")
                 }
             }
         }
@@ -259,7 +330,7 @@ object WebViewSignIn {
                 CookieManager.getInstance().setAcceptThirdPartyCookies(popup, true)
                 popup.webViewClient = object : WebViewClient() {
                     override fun onPageFinished(window: WebView?, url: String?) {
-                        Log.i(SIGN_IN_LOG, "popup page: $url")
+                        Log.i(SIGN_IN_LOG, "popup page: ${forTheLog(url)}")
                         CookieManager.getInstance().flush()
                     }
                 }

@@ -141,6 +141,66 @@ internal object Still {
         tracks = bandcampAlbumTracks.take(3),
         playlists = listOf(bandcampAlbum, bandcampArtist, bandcampSingle),
     )
+
+    /** A Spotify song, known by an id that is not Spotify's and at an address that goes nowhere. */
+    private fun spotifySong(id: String, title: String, artist: String, seconds: Long) = Track(
+        provider = ProviderType.SPOTIFY,
+        id = id,
+        title = title,
+        artists = listOf(Artist("sp-$artist", artist, ProviderType.SPOTIFY)),
+        durationMs = seconds * 1_000,
+        artworkUrl = null,
+        sourceUrl = "https://example.invalid/spotify/$id",
+    )
+
+    val spotifyPlaying = spotifySong("sp-np", "Lanterns Over the Harbour", "The Quiet Hours", 247)
+
+    /** What a Spotify search finds: two albums and an artist, the way Spotify's search answers, and songs. */
+    val spotifyFound = SearchResults(
+        tracks = listOf(
+            spotifyPlaying,
+            spotifySong("sp-2", "Lantern Light", "Juniper Kaye", 214),
+            spotifySong("sp-3", "Paper Lanterns", "Marrow & Fern", 189),
+        ),
+        playlists = listOf(
+            Playlist(id = "album:made-up-1", title = "Lanterns", provider = ProviderType.SPOTIFY, ownerName = "The Quiet Hours"),
+            Playlist(id = "artist:made-up-2", title = "The Quiet Hours", provider = ProviderType.SPOTIFY, ownerName = "Artist"),
+            Playlist(id = "album:made-up-3", title = "Lantern Season", provider = ProviderType.SPOTIFY, ownerName = "Juniper Kaye"),
+        ),
+    )
+
+    /**
+     * VK's "My music" and a song in it. The address has VK's shape, because that is what makes it a VK song
+     * to the rest of Noctorium; the ids are made up, and nothing here ever asks VK for anything.
+     */
+    val vkMyMusic = Playlist(
+        id = "my-music",
+        title = "My music",
+        provider = ProviderType.VK,
+        ownerName = "VK",
+        sourceUrl = "https://vk.ru/audios1000001",
+    )
+
+    val vkTracks = listOf(
+        Track(
+            provider = ProviderType.VK,
+            id = "-2001_9001",
+            title = "Northern Ferry",
+            artists = listOf(Artist("Saltmarsh", "Saltmarsh", ProviderType.VK)),
+            durationMs = 236_000,
+            artworkUrl = null,
+            sourceUrl = "https://vk.ru/audio-2001_9001#vk-access=made-up",
+        ),
+        Track(
+            provider = ProviderType.VK,
+            id = "-2001_9002",
+            title = "Fog Machine (Live)",
+            artists = listOf(Artist("Odile Brandt", "Odile Brandt", ProviderType.VK)),
+            durationMs = 301_000,
+            artworkUrl = null,
+            sourceUrl = "https://vk.ru/audio-2001_9002#vk-access=made-up",
+        ),
+    )
 }
 
 /**
@@ -176,13 +236,16 @@ internal fun stillState(
         injectedProviders = listOf(
             StillProvider(ProviderType.YOUTUBE_MUSIC, shelves),
             StillProvider(ProviderType.SOUNDCLOUD, shelves),
-            // Bandcamp has no rows of its own here, so Home is as it was; it answers searches and opens its album.
+            // Bandcamp, Spotify and VK have no rows of their own here, so Home is as it was; they answer
+            // searches and open their lists.
             StillProvider(
                 ProviderType.BANDCAMP,
                 shelves,
                 found = Still.bandcampFound,
                 listed = mapOf(Still.bandcampAlbum.id to Still.bandcampAlbumTracks),
             ),
+            StillProvider(ProviderType.SPOTIFY, shelves, found = Still.spotifyFound),
+            StillProvider(ProviderType.VK, shelves, listed = mapOf(Still.vkMyMusic.id to Still.vkTracks)),
         ),
         settingsRepository = settings,
         pinnedRepository = PinnedTracksRepository(base.resolve("pinned.json")).also { it.save(pinned) },
@@ -248,6 +311,12 @@ internal fun AppState.searchAndWait(query: String) {
         if (!ui.searchLoading && (ui.searchResults.tracks.isNotEmpty() || ui.searchResults.playlists.isNotEmpty())) break
         Thread.sleep(20)
     }
+}
+
+/** Waits, briefly, for something the state works out in the background, such as Spotify's settings. */
+internal fun AppState.waitUntil(settled: AppState.() -> Boolean) {
+    val deadline = System.currentTimeMillis() + 10_000
+    while (System.currentTimeMillis() < deadline && !settled()) Thread.sleep(20)
 }
 
 /** Opens [playlist] the way a card does, and waits for its songs. */

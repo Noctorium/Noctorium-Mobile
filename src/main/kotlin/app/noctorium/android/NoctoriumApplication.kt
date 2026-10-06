@@ -1,6 +1,7 @@
 package app.noctorium.android
 
 import android.app.Application
+import app.noctorium.android.ui.speedToCarryOver
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import app.noctorium.connect.DeviceKind
@@ -118,8 +119,19 @@ class NoctoriumApplication : Application(), ImageLoaderFactory {
             networkPresence = WifiPresence(this),
             updateInstaller = AndroidUpdateInstaller(this),
         )
-        // Private SoundCloud tracks are found through the state's SoundCloud session, which exists only now.
-        (backend as? NewPipeBackend)?.privateSoundCloudStream = state::soundCloudPrivateStream
+        (backend as? NewPipeBackend)?.let { pipe ->
+            // Private SoundCloud tracks are found through the state's SoundCloud session, which exists only now.
+            pipe.privateSoundCloudStream = state::soundCloudPrivateStream
+            // The data saver, read when a song is looked up rather than once: both the setting and the
+            // connection change while Noctorium is running, and the settings are the state's from here on.
+            pipe.savingData = { savesData(state.settings.value.preferences.phone.dataSaver) { isOnMeteredConnection() } }
+        }
+        // The phone kept a speed of its own before speed was one of Noctorium's settings. Carried over once,
+        // so a speed somebody chose is not quietly lost, and set back to normal where it was kept before.
+        speedToCarryOver(state.settings.value.preferences)?.let { speed ->
+            state.setPlaybackSpeed(speed)
+            state.updatePhone { copy(playbackSpeed = 1f) }
+        }
     }
 
     override fun onTerminate() {

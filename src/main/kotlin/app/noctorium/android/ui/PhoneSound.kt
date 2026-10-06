@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +31,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -37,6 +39,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
@@ -70,12 +73,18 @@ private const val PREAMP_RANGE_DB = Equalizer.MAX_GAIN_DB
  * Nothing is saved while a finger is still on a slider. The band or the preamp being dragged is held here
  * and drawn from here, and written once when the finger lifts -- otherwise every frame of a drag would be
  * a write to the settings file and a new curve handed to the phone's equaliser.
+ *
+ * While a song plays in the account's own Spotify app, the equaliser has nothing to shape -- the sound is
+ * Spotify's, wherever Spotify is -- so it is drawn switched off and says why, until this phone plays again.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SoundCard(settings: SettingsState, state: AppState) {
     val equalizer = settings.preferences.equalizer
     val available = LocalEqualizerAvailable.current
+    val playback by state.playback.collectAsState()
+    val onSpotify = playsOnSpotify(playback.track, settings.spotify)
+    val usable = !onSpotify
     var heldBand by remember { mutableStateOf<Pair<Int, Float>?>(null) }
     var heldPreamp by remember { mutableStateOf<Float?>(null) }
     val gains = heldBand?.let { (index, gain) -> equalizer.gains.toMutableList().also { it[index] = gain } } ?: equalizer.gains
@@ -98,6 +107,15 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
                 fontSize = 12.sp,
             )
         } else {
+            if (onSpotify) {
+                Text(
+                    "This song is playing in your Spotify app, which Noctorium's equaliser cannot reach. It is back " +
+                        "with the next song this phone plays.",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                )
+            }
             // Not called "Equaliser" again: the card's heading says that already, right above it.
             Toggle(
                 "Shape the sound",
@@ -107,6 +125,7 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
                     "Off. Choosing a preset or moving a band switches it on."
                 },
                 equalizer.enabled,
+                enabled = usable,
             ) { on -> state.updateEqualizer { copy(enabled = on) } }
 
             OptionRow("Presets") {
@@ -115,18 +134,20 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
                         selected = equalizer.preset == preset,
                         onClick = { state.setEqualizerPreset(preset) },
                         label = { Text(preset.displayName, fontSize = 11.sp) },
+                        enabled = usable,
                     )
                 }
             }
 
-            EqualizerCurve(gains, lit = equalizer.enabled)
+            EqualizerCurve(gains, lit = equalizer.enabled && usable)
             Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
                 Equalizer.BANDS_HZ.forEachIndexed { index, hz ->
                     BandSlider(
                         label = Equalizer.label(hz),
                         spoken = spokenFrequency(hz),
                         gain = gains[index],
-                        lit = equalizer.enabled,
+                        lit = equalizer.enabled && usable,
+                        enabled = usable,
                         onChange = { heldBand = index to it },
                         onDone = {
                             heldBand?.let { (band, gain) -> state.setEqualizerBand(band, gain) }
@@ -160,6 +181,7 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
                     heldPreamp = null
                 },
                 valueRange = -PREAMP_RANGE_DB..PREAMP_RANGE_DB,
+                enabled = usable,
             )
             Text(
                 "A curve that lifts is already turned down by half its highest band, so it does not clip. This " +
@@ -171,7 +193,7 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
 
             OutlinedButton(
                 onClick = { state.updateEqualizer { copy(preset = EqualizerPreset.FLAT, preampDb = 0f) } },
-                enabled = equalizer.preset != EqualizerPreset.FLAT || equalizer.preampDb != 0f,
+                enabled = usable && (equalizer.preset != EqualizerPreset.FLAT || equalizer.preampDb != 0f),
             ) { Text("Reset to flat") }
         }
     }
@@ -219,7 +241,7 @@ private fun EqualizerCurve(gains: List<Float>, lit: Boolean) {
  *
  * Material's slider only lies down, and ten of those stacked would be a page of their own. Upright, ten fit
  * across a phone the way every equaliser lays them out. It answers a drag rather than a touch, so a thumb
- * resting on it while scrolling past does not move the band.
+ * resting on it while scrolling past does not move the band. Not [enabled], it answers nothing at all.
  */
 @Composable
 private fun BandSlider(
@@ -230,6 +252,7 @@ private fun BandSlider(
     onChange: (Float) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val change by rememberUpdatedState(onChange)
     val done by rememberUpdatedState(onDone)
@@ -242,12 +265,16 @@ private fun BandSlider(
             contentDescription = spoken
             stateDescription = "${decibelsLabel(gain)} decibels"
             progressBarRangeInfo = ProgressBarRangeInfo(gain, -Equalizer.MAX_GAIN_DB..Equalizer.MAX_GAIN_DB)
-            setProgress { target ->
-                change(roundToHalf(target.coerceIn(-Equalizer.MAX_GAIN_DB, Equalizer.MAX_GAIN_DB)))
-                done()
-                true
+            if (enabled) {
+                setProgress { target ->
+                    change(roundToHalf(target.coerceIn(-Equalizer.MAX_GAIN_DB, Equalizer.MAX_GAIN_DB)))
+                    done()
+                    true
+                }
+            } else {
+                disabled()
             }
-        },
+        }.alpha(if (enabled) 1f else DISABLED_ALPHA),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(decibelsLabel(gain), fontSize = 9.sp, color = if (gain != 0f) accent else quiet, maxLines = 1, softWrap = false)
@@ -255,7 +282,9 @@ private fun BandSlider(
             Modifier
                 .fillMaxWidth()
                 .height(BAND_HEIGHT)
-                .pointerInput(Unit) {
+                // Keyed on whether it answers, so switching back on brings the gestures back.
+                .pointerInput(enabled) {
+                    if (!enabled) return@pointerInput
                     val inset = THUMB_RADIUS.toPx()
                     fun gainAt(y: Float): Float {
                         val usable = (size.height - 2 * inset).coerceAtLeast(1f)
@@ -272,7 +301,8 @@ private fun BandSlider(
                         },
                     )
                 }
-                .pointerInput(Unit) {
+                .pointerInput(enabled) {
+                    if (!enabled) return@pointerInput
                     detectTapGestures(onDoubleTap = {
                         change(0f)
                         done()

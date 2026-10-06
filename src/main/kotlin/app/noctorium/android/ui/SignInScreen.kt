@@ -28,7 +28,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,25 +53,30 @@ import kotlinx.coroutines.launch
 /**
  * The service's own sign-in page, inside Noctorium.
  *
- * The password is typed into Google's or SoundCloud's real page, never into anything of ours, and the
+ * The password is typed into Google's, SoundCloud's or VK's real page, never into anything of ours, and the
  * session it produces is kept in this app's cookie store. That is the same bargain the desktop makes with
  * embedded Chromium; Android simply already has the browser.
  *
- * Finishing is a decision the listener makes, not one guessed from the URL. Both services bounce through
- * several addresses on the way in and land somewhere different depending on the account, so the honest
- * arrangement is a Done button — pressed when they can see they are signed in — which then checks whether
- * a usable session really was left behind rather than assuming it.
+ * Finishing is a decision the listener makes, not one guessed from the URL. YouTube and SoundCloud bounce
+ * through several addresses on the way in and land somewhere different depending on the account, so the
+ * honest arrangement is a Done button — pressed when they can see they are signed in — which then checks
+ * whether a usable session really was left behind rather than assuming it.
+ *
+ * VK is the exception, because its session cannot be mistaken: the two cookies it is made of are there
+ * once VK has signed somebody in, and not before. So VK's is handed over the moment both appear, VK is asked
+ * whether it is good, and the page closes itself once it is. Done is still there to ask again.
  */
 @Composable
 internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> Unit) {
-    // Everything below is SoundCloud's or else YouTube's -- the page, the cookies taken, the session kept --
-    // so a service without a page of its own is turned away before anything loads. Nothing leads here with
-    // one; this keeps it that way.
+    // Everything below is the page, the cookies and the session of one of the services it knows by name;
+    // anything else would fall through to YouTube's. It is turned away before anything loads. Nothing leads
+    // here with one; this keeps it that way.
     if (!hasSignInPage(provider)) {
         LaunchedEffect(provider) { close() }
         return
     }
     val scope = rememberCoroutineScope()
+    val settings by state.settings.collectAsState()
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
@@ -77,6 +84,31 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
     var popup by remember { mutableStateOf<WebView?>(null) }
     // The address the page last settled on, which is how SoundCloud is asked who just signed in.
     var lastUrl by remember { mutableStateOf<String?>(null) }
+
+    val isVk = provider == ProviderType.VK
+    val vk = settings.vk
+    // The VK session last handed to Noctorium, so the same one is not handed over again with every page
+    // the sign-in passes through. Held here and nowhere else: never shown, never logged.
+    var handedOver by remember { mutableStateOf<String?>(null) }
+
+    /** Hands VK's session over once both of its cookies are there; false while they are not. */
+    fun handOverVk(again: Boolean): Boolean {
+        val session = WebViewSignIn.vkSession() ?: return false
+        if (!again && session == handedOver) return true
+        handedOver = session
+        state.completeVkSignIn(session)
+        return true
+    }
+
+    if (isVk) {
+        // Signed in once VK has said the session is good, and not before.
+        LaunchedEffect(vk.connected) { if (vk.connected) close() }
+        // The WebView's copy of the session goes when this does, however it ends: Noctorium keeps its own,
+        // and two holders of one session is how a copy dies. Only VK's cookies, never the whole store.
+        DisposableEffect(Unit) { onDispose { WebViewSignIn.clearVkCookies() } }
+    }
+    // VK's refusal, once VK has been asked and has answered; Noctorium's own words otherwise.
+    val shownProblem = problem ?: vk.message.takeIf { isVk && handedOver != null && !vk.checking && !vk.connected }
 
     // Back closes the popup first, the way a browser does: it is a window in front of the page, and the
     // page is still where the listener was.
@@ -90,8 +122,9 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
 
     // Always from a clean store. Reusing whatever was there opens a page already signed in as the previous
     // account, asks the listener for nothing, and harvests the same stale cookies again — the loop this
-    // project has already had once, from the desktop browser.
-    LaunchedEffect(provider) { WebViewSignIn.clearCookies() }
+    // project has already had once, from the desktop browser. VK's own cookies only, for VK: SoundCloud's
+    // writes are made from this store, and a VK sign-in should not sign anybody out of SoundCloud.
+    LaunchedEffect(provider) { if (isVk) WebViewSignIn.clearVkCookies() else WebViewSignIn.clearCookies() }
 
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Column(
@@ -106,21 +139,34 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                 IconButton(close) { Icon(Icons.Default.Close, "Cancel") }
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "Sign in to ${provider.displayName}",
+                        // The site, not the service: what is signed in to is VK itself.
+                        if (isVk) "Sign in to VK" else "Sign in to ${provider.displayName}",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 15.sp,
                     )
                     Text(
-                        "Press Done when you are signed in.",
+                        when {
+                            isVk && vk.checking -> "Checking with VK…"
+                            isVk -> "Noctorium carries on by itself once you are in."
+                            else -> "Press Done when you are signed in."
+                        },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                     )
                 }
+                val busy = saving || (isVk && vk.checking)
                 Button(
-                    enabled = !saving,
+                    enabled = !busy,
                     onClick = {
-                        saving = true
                         problem = null
+                        if (isVk) {
+                            if (!handOverVk(again = true)) {
+                                problem = "VK has not given this page a session yet. Finish signing in, and Noctorium " +
+                                    "carries on by itself."
+                            }
+                            return@Button
+                        }
+                        saving = true
                         scope.launch {
                             val saved = WebViewSignIn.saveSession(provider)
                             if (saved == null) {
@@ -151,7 +197,7 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                         }
                     },
                 ) {
-                    if (saving) {
+                    if (busy) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                     } else {
                         Text("Done")
@@ -159,7 +205,7 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                 }
             }
 
-            problem?.let {
+            shownProblem?.let {
                 Text(
                     it,
                     color = MaterialTheme.colorScheme.error,
@@ -179,6 +225,8 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                                 onPageFinished = { url ->
                                     loading = false
                                     lastUrl = url
+                                    // VK has made its session by the time a page after the sign-in finishes.
+                                    if (isVk) handOverVk(again = false)
                                 },
                                 onPopup = { popup = it },
                             )

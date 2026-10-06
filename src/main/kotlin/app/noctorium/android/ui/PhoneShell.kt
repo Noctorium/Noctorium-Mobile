@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Shuffle
 import app.noctorium.settings.PhonePlayerBarStyle
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.draw.blur
@@ -248,8 +249,8 @@ fun NoctoriumPhone(state: AppState) {
                 Destination.LINK -> LinkScreen(state)
                 Destination.LIBRARY -> LibraryScreen(state)
                 Destination.DOWNLOADS -> DownloadsScreen(state)
-                // Only to a service with a sign-in page of its own: the page treats anything that is not
-                // SoundCloud as YouTube, and Bandcamp, which needs only a name, would be signed in to Google.
+                // Only to a service with a sign-in page of its own: the page knows YouTube, SoundCloud and VK by
+                // name, and anything else -- Bandcamp, which needs only a name -- would fall through to Google's.
                 Destination.SETTINGS -> SettingsScreen(state, backEnabled = !overlaid && !nowPlayingOpen) { provider ->
                     if (hasSignInPage(provider)) signingInTo = provider
                 }
@@ -590,6 +591,9 @@ private fun PlayerBar(
 ) {
     val track = playback.track ?: return
     val haptics = rememberHaptics(state)
+    val settings by state.settings.collectAsState()
+    // A song the account's own Spotify app is playing says so, or the bar would read as this phone playing it.
+    val onSpotify = playsOnSpotify(track, settings.spotify)
     // Controls carries a seek bar of its own, and a line under a seek bar is the same thing twice.
     val line = layout != PhonePlayerBarStyle.CONTROLS
     Surface(
@@ -618,11 +622,11 @@ private fun PlayerBar(
             ) {
                 if (!glass && line) PlaybackLine(playback, style)
                 when (layout) {
-                    PhonePlayerBarStyle.CLASSIC -> ClassicBar(track, playback, state, glass)
-                    PhonePlayerBarStyle.SLIM -> SlimBar(track, playback, state, glass)
-                    PhonePlayerBarStyle.SLIM_LEFT -> SlimBar(track, playback, state, glass, controlsFirst = true)
-                    PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass)
-                    PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass)
+                    PhonePlayerBarStyle.CLASSIC -> ClassicBar(track, playback, state, glass, onSpotify)
+                    PhonePlayerBarStyle.SLIM -> SlimBar(track, playback, state, glass, onSpotify = onSpotify)
+                    PhonePlayerBarStyle.SLIM_LEFT -> SlimBar(track, playback, state, glass, controlsFirst = true, onSpotify = onSpotify)
+                    PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass, onSpotify)
+                    PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass, onSpotify)
                 }
                 // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
                 // rounded ends would be cut off at an angle, which reads as a mistake.
@@ -638,7 +642,7 @@ private fun PlayerBar(
 
 /** The cover, the track, play and next. The bar as it has always been. */
 @Composable
-private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean) {
+private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, onSpotify: Boolean) {
     val haptics = rememberHaptics(state)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 8.dp),
@@ -646,7 +650,7 @@ private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, g
     ) {
         Artwork(track.artworkUrl, 44.dp, corner = if (glass) 22.dp else 8.dp)
         Spacer(Modifier.width(11.dp))
-        TrackLines(track, playback, Modifier.weight(1f))
+        TrackLines(track, playback, onSpotify, Modifier.weight(1f))
         PlayPauseButton(playback, state)
         IconButton({ haptics.tick(); state.next() }) {
             Icon(Icons.Default.SkipNext, "Next track")
@@ -663,7 +667,14 @@ private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, g
  * a left thumb reaches, and the song after them.
  */
 @Composable
-private fun SlimBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, controlsFirst: Boolean = false) {
+private fun SlimBar(
+    track: Track,
+    playback: PlaybackState,
+    state: AppState,
+    glass: Boolean,
+    controlsFirst: Boolean = false,
+    onSpotify: Boolean = false,
+) {
     val edge = if (glass) 10.dp else 12.dp
     Row(
         Modifier.fillMaxWidth().padding(
@@ -694,7 +705,7 @@ private fun SlimBar(track: Track, playback: PlaybackState, state: AppState, glas
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    playback.errorMessage ?: shown.artistLine.ifBlank { "Unknown artist" },
+                    barDetail(shown, playback, onSpotify),
                     color = if (playback.errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     lineHeight = 13.sp,
@@ -767,14 +778,14 @@ private val SLIM_BUTTON = 38.dp
  * and tapping it seeks rather than opening the full screen.
  */
 @Composable
-private fun ControlsBar(track: Track, playback: PlaybackState, state: AppState, style: ProgressBarStyle, glass: Boolean) {
+private fun ControlsBar(track: Track, playback: PlaybackState, state: AppState, style: ProgressBarStyle, glass: Boolean, onSpotify: Boolean) {
     val haptics = rememberHaptics(state)
     val settings by state.settings.collectAsState()
     Column(Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Artwork(track.artworkUrl, 44.dp, corner = if (glass) 22.dp else 8.dp)
             Spacer(Modifier.width(11.dp))
-            TrackLines(track, playback, Modifier.weight(1f))
+            TrackLines(track, playback, onSpotify, Modifier.weight(1f))
             IconButton({ haptics.tick(); state.previous() }) {
                 Icon(Icons.Default.SkipPrevious, "Previous track")
             }
@@ -798,7 +809,7 @@ private fun ControlsBar(track: Track, playback: PlaybackState, state: AppState, 
 
 /** A larger cover and a larger title, over the artwork itself blurred behind them. */
 @Composable
-private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean) {
+private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, onSpotify: Boolean) {
     val haptics = rememberHaptics(state)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 10.dp),
@@ -810,7 +821,7 @@ private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState,
             Column {
                 Text(shown.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    playback.errorMessage ?: shown.artistLine.ifBlank { "Unknown artist" },
+                    barDetail(shown, playback, onSpotify),
                     color = if (playback.errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     maxLines = 1,
@@ -859,7 +870,7 @@ private fun BoxScope.SpotlightBackdrop(artworkUrl: String?, glass: Boolean) {
  * A new track's name rises into place as the last one lifts away, so a skip is seen as well as heard.
  */
 @Composable
-private fun TrackLines(track: Track, playback: PlaybackState, modifier: Modifier) {
+private fun TrackLines(track: Track, playback: PlaybackState, onSpotify: Boolean, modifier: Modifier) {
     MotionContent(track, modifier, kind = MotionKind.TRACK, contentKey = { it.queueKey }) { shown ->
         Column {
             Text(
@@ -870,7 +881,7 @@ private fun TrackLines(track: Track, playback: PlaybackState, modifier: Modifier
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                playback.errorMessage ?: shown.artistLine.ifBlank { "Unknown artist" },
+                barDetail(shown, playback, onSpotify),
                 color = if (playback.errorMessage != null) {
                     MaterialTheme.colorScheme.error
                 } else {
@@ -881,6 +892,22 @@ private fun TrackLines(track: Track, playback: PlaybackState, modifier: Modifier
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/**
+ * The bar's second line: what went wrong, or the artist -- after "On Spotify", in Spotify's green, while the
+ * song is playing in the account's own Spotify app rather than on this phone.
+ */
+private fun barDetail(track: Track, playback: PlaybackState, onSpotify: Boolean): AnnotatedString {
+    playback.errorMessage?.let { return AnnotatedString(it) }
+    val artist = track.artistLine.ifBlank { "Unknown artist" }
+    if (!onSpotify) return AnnotatedString(artist)
+    return buildAnnotatedString {
+        withStyle(SpanStyle(color = ProviderType.SPOTIFY.badgeColour(), fontWeight = FontWeight.SemiBold)) {
+            append("On Spotify")
+        }
+        append(" · $artist")
     }
 }
 

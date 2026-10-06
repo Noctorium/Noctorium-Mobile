@@ -12,6 +12,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
@@ -20,6 +21,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import app.noctorium.domain.Track
 import app.noctorium.net.networkFailureMessage
+import app.noctorium.playback.MAX_SPEED
+import app.noctorium.playback.MIN_SPEED
 import app.noctorium.playback.MusicBackend
 import app.noctorium.playback.PlaybackEngine
 import app.noctorium.playback.PlaybackState
@@ -42,10 +45,6 @@ import java.nio.file.Path
 
 /** The logcat tag playback failures are written under. */
 private const val PLAYER_LOG_TAG = "NoctoriumPlayer"
-
-/** The range the rate is clamped to, past which speech stops being speech. */
-private const val MIN_SPEED = 0.5f
-private const val MAX_SPEED = 2f
 
 /** How many times one track is brought back after its stream fails, before the listener is told. */
 internal const val MAX_RECOVERIES = 2
@@ -353,6 +352,9 @@ class Media3PlaybackEngine(
         val started = withContext(Dispatchers.Main) {
             runCatching {
                 player.setMediaItem(mediaItemFor(track, source), startAtMs.coerceAtLeast(0))
+                // The speed asked for, again for each track, as the equaliser is: ExoPlayer keeps it, and
+                // saying it again costs nothing and leaves nothing to chance.
+                player.playbackParameters = PlaybackParameters(speedWanted)
                 player.prepare()
                 player.play()
             }
@@ -569,16 +571,29 @@ class Media3PlaybackEngine(
     }
 
     /**
-     * Rate and silence-skipping, as the listener set them.
+     * How fast to play, from half to double, the pitch left where it is.
      *
-     * Pushed in from outside rather than read here, because the engine is handed no settings and there
-     * is no reason for it to grow a dependency on them. Called again whenever either changes.
+     * Told by core, from Noctorium's own setting, the way the equaliser is -- and kept here and said again as
+     * each track starts, so it carries from one song to the next whatever happens to the player in between.
      */
-    fun applyAudioOptions(speed: Float, skipSilence: Boolean) {
-        scope.launch {
-            player.setPlaybackSpeed(speed.coerceIn(MIN_SPEED, MAX_SPEED))
-            player.skipSilenceEnabled = skipSilence
-        }
+    override suspend fun setSpeed(speed: Float) = withContext(Dispatchers.Main) {
+        speedWanted = speed.coerceIn(MIN_SPEED, MAX_SPEED)
+        // A speed alone keeps the pitch at one: faster, not higher.
+        player.playbackParameters = PlaybackParameters(speedWanted)
+    }
+
+    /** What the listener asked for, as opposed to whatever the player happens to hold. */
+    private var speedWanted = 1f
+
+    /**
+     * Silence-skipping, as the listener set it: a phone's own setting, which nothing in core knows of.
+     *
+     * Pushed in from outside rather than read here, because the engine is handed no settings and there is no
+     * reason for it to grow a dependency on them. Called again whenever it changes. ExoPlayer keeps it across
+     * tracks.
+     */
+    fun setSkipSilence(enabled: Boolean) {
+        scope.launch { player.skipSilenceEnabled = enabled }
     }
 
 

@@ -149,17 +149,18 @@ internal fun ServicePlaylistControls(playlist: Playlist, notice: String?, state:
 }
 
 /**
- * The way from a Bandcamp album, artist or wishlist to its own page, where it is bought.
+ * The way from a Bandcamp album, artist or wishlist, or a VK playlist, to its own page: where a Bandcamp
+ * record is bought, and where VK keeps its music.
  *
- * In the place the service controls take for an account's own playlists, which a Bandcamp one never has.
- * What Bandcamp streams is for listening, so there is no download for it here; the page is the other half.
+ * In the place the service controls take for an account's own playlists, which neither has here. Their
+ * songs are played and not kept, so there is no download for them; the page is the other half.
  */
 @Composable
-internal fun BandcampPageAction(page: String, state: AppState) {
+internal fun ServicePageAction(label: String, page: String, state: AppState) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         AssistChip(
             onClick = { state.openExternalUrl(page) },
-            label = { Text("Open on Bandcamp") },
+            label = { Text(label) },
             leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(16.dp)) },
         )
     }
