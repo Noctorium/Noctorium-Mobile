@@ -16,10 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Equalizer
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -130,7 +127,7 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
 
             OptionRow("Presets") {
                 EqualizerPreset.entries.forEach { preset ->
-                    FilterChip(
+                    SkinnedFilterChip(
                         selected = equalizer.preset == preset,
                         onClick = { state.setEqualizerPreset(preset) },
                         label = { Text(preset.displayName, fontSize = 11.sp) },
@@ -173,7 +170,7 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            Slider(
+            SkinnedSlider(
                 value = preamp,
                 onValueChange = { heldPreamp = roundToHalf(it) },
                 onValueChangeFinished = {
@@ -191,7 +188,7 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
                 modifier = Modifier.padding(bottom = 10.dp),
             )
 
-            OutlinedButton(
+            SkinnedOutlinedButton(
                 onClick = { state.updateEqualizer { copy(preset = EqualizerPreset.FLAT, preampDb = 0f) } },
                 enabled = usable && (equalizer.preset != EqualizerPreset.FLAT || equalizer.preampDb != 0f),
             ) { Text("Reset to flat") }

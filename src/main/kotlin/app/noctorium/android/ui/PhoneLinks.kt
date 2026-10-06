@@ -28,19 +28,15 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
+import app.noctorium.core.Destination
 import app.noctorium.core.LinkAction
 import app.noctorium.core.LinkState
 import app.noctorium.core.LinkStatus
@@ -95,7 +92,7 @@ internal fun LinkScreen(state: AppState) {
     }
 
     ScreenScaffold {
-        ScreenTitle("Link", "Play a song or a playlist from its link")
+        ScreenTitle("Link", "Play a song or a playlist from its link", close = { state.navigate(Destination.HOME) })
         LazyColumn(contentPadding = chromePadding(24.dp)) {
             item {
                 PhoneLinkField(
@@ -116,7 +113,7 @@ internal fun LinkScreen(state: AppState) {
                 )
             }
             item {
-                Button(
+                SkinnedButton(
                     { clipboard.getText()?.text?.takeIf(String::isNotBlank)?.let(::submit) },
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).height(52.dp),
                 ) {
@@ -253,11 +250,11 @@ private fun PhoneLinkTrackCard(track: Track, playing: Boolean, state: AppState) 
             Spacer(Modifier.height(12.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!playing) {
-                    Button({ state.play(track) }) {
+                    SkinnedButton({ state.play(track) }) {
                         Icon(Icons.Default.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Play")
                     }
                 }
-                FilledTonalButton({ state.addToQueue(track) }) {
+                SkinnedTonalButton({ state.addToQueue(track) }) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue")
                 }
                 // Not for a Bandcamp or VK song, which is there to be heard rather than kept.
@@ -275,15 +272,15 @@ private fun PhonePlaylistActions(tracks: List<Track>, state: AppState) {
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Button({ tracks.firstOrNull()?.let { state.play(it, PlaybackOrigin.PLAYLIST, tracks) } }) {
+        SkinnedButton({ tracks.firstOrNull()?.let { state.play(it, PlaybackOrigin.PLAYLIST, tracks) } }) {
             Icon(Icons.Default.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Play all", maxLines = 1)
         }
-        FilledTonalButton({ tracks.forEach(state::addToQueue) }) {
+        SkinnedTonalButton({ tracks.forEach(state::addToQueue) }) {
             Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue all", maxLines = 1)
         }
         // A Bandcamp album has nothing in it that may be kept, nor a VK playlist, so neither is offered it.
         if (tracks.any(state::canKeep)) {
-            FilledTonalButton({ state.downloadAll(tracks) }) {
+            SkinnedTonalButton({ state.downloadAll(tracks) }) {
                 Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download all", maxLines = 1)
             }
         }
@@ -303,7 +300,7 @@ private fun PhoneDownloadButton(track: Track, state: AppState) {
     val onDisk = state.downloadableTrack(track)
     val job = downloads.jobFor(onDisk)
     val kept = downloads.isDownloaded(onDisk)
-    OutlinedButton(
+    SkinnedOutlinedButton(
         onClick = {
             when {
                 job?.stage == DownloadStage.FAILED -> { state.cancelDownload(onDisk.queueKey); state.downloadTrack(track) }
@@ -350,12 +347,12 @@ internal fun DownloadsScreen(state: AppState) {
     }
 
     ScreenScaffold {
-        ScreenTitle("Downloads", summary) {
+        ScreenTitle("Downloads", summary, close = { state.navigate(Destination.HOME) }) {
             if (downloads.entries.isNotEmpty()) {
                 FilledTonalIconButton({ state.playDownloads() }) { Icon(Icons.Default.PlayArrow, "Play all downloads") }
             }
         }
-        LazyColumn(contentPadding = chromePadding(24.dp)) {
+        LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
             item {
                 PhoneLinkField(
                     text = text,
@@ -368,13 +365,13 @@ internal fun DownloadsScreen(state: AppState) {
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    FilledTonalButton(
+                    SkinnedTonalButton(
                         { clipboard.getText()?.text?.takeIf(String::isNotBlank)?.let { text = it } },
                         Modifier.weight(1f),
                     ) {
                         Icon(Icons.Default.ContentPaste, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Paste")
                     }
-                    Button(
+                    SkinnedButton(
                         { state.openLink(text, LinkAction.DOWNLOAD) },
                         Modifier.weight(1f),
                         enabled = downloadable,
@@ -432,7 +429,7 @@ internal fun DownloadsScreen(state: AppState) {
                     ) { state.playDownloads(track) }
                 }
                 item {
-                    TextButton(state::deleteAllDownloads, Modifier.padding(horizontal = 8.dp)) {
+                    SkinnedTextButton(state::deleteAllDownloads, Modifier.padding(horizontal = 8.dp)) {
                         Text("Remove all downloads", color = MaterialTheme.colorScheme.error)
                     }
                 }

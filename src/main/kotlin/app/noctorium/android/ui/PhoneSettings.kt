@@ -57,18 +57,13 @@ import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material.icons.filled.Tablet
 import androidx.compose.material.icons.filled.Tv
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -92,11 +87,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
+import app.noctorium.core.Destination
 import app.noctorium.domain.ProviderType
 import app.noctorium.settings.DEFAULT_HYBRID_SEARCH
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.ThemePreset
+import app.noctorium.settings.ThemeSkin
 
 /**
  * The pages under Settings, in the order the list shows them.
@@ -166,7 +163,7 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
         modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
         contentPadding = chromePadding(28.dp),
     ) {
-        item { ScreenTitle("Settings", "Accounts, services and how Noctorium behaves") }
+        item { ScreenTitle("Settings", "Accounts, services and how Noctorium behaves", close = { state.navigate(Destination.HOME) }) }
         settingsMessage(settings, state)
 
         item { SectionLabel("Your account") }
@@ -355,6 +352,13 @@ internal fun SettingsPageScreen(page: SettingsPage, state: AppState, signIn: (Pr
         contentPadding = chromePadding(28.dp),
     ) {
         item {
+            if (LocalSkin.current != ThemeSkin.STANDARD) {
+                // A page of Settings is a window of its own under the Windows skins, closed by its cross.
+                SkinTitleBar(page.title, Modifier.padding(bottom = 6.dp)) {
+                    CaptionButton(Caption.CLOSE, "Back to Settings", back)
+                }
+                return@item
+            }
             Row(
                 Modifier.fillMaxWidth().padding(start = 6.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -408,7 +412,7 @@ private fun LazyListScope.settingsMessage(settings: app.noctorium.settings.Setti
         SettingsCardShell {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(message, Modifier.weight(1f), fontSize = 12.sp)
-                TextButton(state::clearSettingsMessage) { Text("OK") }
+                SkinnedTextButton(state::clearSettingsMessage) { Text("OK") }
             }
         }
     }
@@ -416,6 +420,10 @@ private fun LazyListScope.settingsMessage(settings: app.noctorium.settings.Setti
 
 @Composable
 private fun SectionLabel(text: String) {
+    if (LocalSkin.current != ThemeSkin.STANDARD) {
+        SkinSectionLabel(text)
+        return
+    }
     Text(
         text,
         color = MaterialTheme.colorScheme.primary,
@@ -435,6 +443,10 @@ private fun SettingsTile(
     active: Boolean = false,
     open: () -> Unit,
 ) {
+    if (LocalSkin.current != ThemeSkin.STANDARD) {
+        SkinTile(icon, title, subtitle, tint, active, open)
+        return
+    }
     Surface(
         onClick = open,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f),
@@ -497,7 +509,7 @@ private fun NoctoriumAccountCard(state: AppState) {
                 fontSize = 12.sp,
             )
             Spacer(Modifier.height(8.dp))
-            OutlinedButton(state::signOutOfNoctorium) { Text("Sign out") }
+            SkinnedOutlinedButton(state::signOutOfNoctorium) { Text("Sign out") }
         } else {
             NoctoriumAccountForm(state, busy = account.busy)
         }
@@ -508,9 +520,16 @@ private fun NoctoriumAccountCard(state: AppState) {
     }
 }
 
-/** The card every settings section sits in. Shared with the customization cards next door. */
+/**
+ * The card every settings section sits in. Shared with the customization cards next door. Under the Windows
+ * skins it is a group box, with the card's heading set into its edge.
+ */
 @Composable
 internal fun SettingsCardShell(content: @Composable ColumnScope.() -> Unit) {
+    if (LocalSkin.current != ThemeSkin.STANDARD) {
+        GroupBox(content)
+        return
+    }
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f),
         shape = RoundedCornerShape(14.dp),
@@ -524,6 +543,10 @@ internal typealias ColumnScope = androidx.compose.foundation.layout.ColumnScope
 
 @Composable
 internal fun CardHeading(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, tint: Color? = null) {
+    if (LocalInGroupBox.current) {
+        GroupBoxHeading(icon, title, tint)
+        return
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, Modifier.size(20.dp), tint = tint ?: MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(9.dp))
@@ -560,11 +583,11 @@ private fun NoctoriumAccountForm(state: AppState, busy: Boolean) {
     )
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(
+        SkinnedButton(
             { state.logInToNoctorium(email, password) },
             enabled = !busy && email.isNotBlank() && password.isNotBlank(),
         ) { Text("Sign in") }
-        OutlinedButton(
+        SkinnedOutlinedButton(
             { state.signUpToNoctorium(email, password, email.substringBefore('@')) },
             enabled = !busy && email.isNotBlank() && password.isNotBlank(),
         ) { Text("Create account") }
@@ -613,11 +636,11 @@ private fun ServiceCard(
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button({ signIn(provider) }) {
+            SkinnedButton({ signIn(provider) }) {
                 Text(if (source.isConfigured) "Sign in again" else "Sign in")
             }
             if (source.isConfigured) {
-                OutlinedButton({ state.disconnectAccount(provider) }) { Text("Disconnect") }
+                SkinnedOutlinedButton({ state.disconnectAccount(provider) }) { Text("Disconnect") }
             }
         }
         if (!isSoundCloud) PhoneYouTubeExtras(settings, likes, state)
@@ -643,7 +666,7 @@ private fun SoundCloudProfileField(saved: String, state: AppState) {
         supportingText = { Text("SoundCloud finds your own playlists by profile name.") },
         trailingIcon = {
             if (name != saved) {
-                TextButton({ state.setSoundCloudUsername(name) }) { Text("Save") }
+                SkinnedTextButton({ state.setSoundCloudUsername(name) }) { Text("Save") }
             }
         },
         modifier = Modifier.fillMaxWidth(),
@@ -652,7 +675,7 @@ private fun SoundCloudProfileField(saved: String, state: AppState) {
     // above is an unanswerable question until something answers it. The session can: SoundCloud's own
     // API names the account it belongs to. The desktop has had this button all along.
     if (saved.isBlank()) {
-        TextButton({ state.detectSoundCloudProfile() }) { Text("Find it from my account") }
+        SkinnedTextButton({ state.detectSoundCloudProfile() }) { Text("Find it from my account") }
     }
 }
 
@@ -714,17 +737,17 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             when {
                 !spotify.connected -> {
-                    Button({ state.connectSpotify() }, enabled = canConnect) { Text("Connect Spotify") }
-                    OutlinedButton(state::connectSpotifyPremium, enabled = canConnect) { Text("Connect Spotify Premium") }
+                    SkinnedButton({ state.connectSpotify() }, enabled = canConnect) { Text("Connect Spotify") }
+                    SkinnedOutlinedButton(state::connectSpotifyPremium, enabled = canConnect) { Text("Connect Spotify Premium") }
                 }
                 spotify.canPlay -> {
-                    OutlinedButton(state::connectSpotifyPremium, enabled = canConnect) { Text("Reconnect") }
-                    OutlinedButton(state::disconnectSpotify) { Text("Disconnect") }
+                    SkinnedOutlinedButton(state::connectSpotifyPremium, enabled = canConnect) { Text("Reconnect") }
+                    SkinnedOutlinedButton(state::disconnectSpotify) { Text("Disconnect") }
                 }
                 else -> {
-                    Button(state::connectSpotifyPremium, enabled = canConnect) { Text("Connect Spotify Premium") }
-                    OutlinedButton({ state.connectSpotify() }, enabled = canConnect) { Text("Reconnect") }
-                    OutlinedButton(state::disconnectSpotify) { Text("Disconnect") }
+                    SkinnedButton(state::connectSpotifyPremium, enabled = canConnect) { Text("Connect Spotify Premium") }
+                    SkinnedOutlinedButton({ state.connectSpotify() }, enabled = canConnect) { Text("Reconnect") }
+                    SkinnedOutlinedButton(state::disconnectSpotify) { Text("Disconnect") }
                 }
             }
         }
@@ -773,7 +796,7 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
                     Icon(Icons.Default.ContentCopy, "Copy the redirect address", Modifier.size(15.dp))
                 }
             }
-            OutlinedButton(state::openSpotifyDashboard) {
+            SkinnedOutlinedButton(state::openSpotifyDashboard) {
                 Icon(Icons.Default.OpenInNew, null, Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Spotify dashboard")
@@ -788,12 +811,12 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
             )
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
+                SkinnedButton(
                     { state.setSpotifyClientId(clientId) },
                     enabled = clientId.isNotBlank() && clientId != settings.preferences.spotifyClientId,
                 ) { Icon(Icons.Default.Save, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Use this app") }
                 if (spotify.ownApp) {
-                    OutlinedButton({ clientId = ""; state.setSpotifyClientId("") }) { Text("Use Noctorium's") }
+                    SkinnedOutlinedButton({ clientId = ""; state.setSpotifyClientId("") }) { Text("Use Noctorium's") }
                 }
             }
         }
@@ -833,7 +856,7 @@ private fun SpotifyDevices(spotify: app.noctorium.settings.SpotifyConnectionStat
     Spacer(Modifier.height(6.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("Play on", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        TextButton(state::refreshSpotifyDevices) {
+        SkinnedTextButton(state::refreshSpotifyDevices) {
             Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
             Text("Refresh")
@@ -891,7 +914,7 @@ private fun SpotifyDeviceRow(
             Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         // The row is what is tapped; the button only shows which one is chosen.
-        RadioButton(selected = selected, onClick = null, enabled = enabled)
+        SkinnedRadioButton(selected = selected, onClick = null, enabled = enabled)
     }
 }
 
@@ -941,7 +964,7 @@ internal fun VkCard(settings: app.noctorium.settings.SettingsState, state: AppSt
                 modifier = Modifier.padding(top = 4.dp),
             )
             Spacer(Modifier.height(10.dp))
-            OutlinedButton(state::disconnectVk, enabled = !vk.checking) { Text("Sign out") }
+            SkinnedOutlinedButton(state::disconnectVk, enabled = !vk.checking) { Text("Sign out") }
         } else {
             Surface(
                 color = MaterialTheme.colorScheme.errorContainer.copy(alpha = .5f),
@@ -959,7 +982,7 @@ internal fun VkCard(settings: app.noctorium.settings.SettingsState, state: AppSt
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Button({ signIn(ProviderType.VK) }, enabled = !vk.checking) { Text("Sign in on vk.ru") }
+            SkinnedButton({ signIn(ProviderType.VK) }, enabled = !vk.checking) { Text("Sign in on vk.ru") }
             Spacer(Modifier.height(6.dp))
             Row(
                 Modifier.fillMaxWidth().clickable { pasteOpen = !pasteOpen }.padding(vertical = 6.dp),
@@ -989,7 +1012,7 @@ internal fun VkCard(settings: app.noctorium.settings.SettingsState, state: AppSt
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
-                Button({ usePasted() }, enabled = pasted.isNotBlank() && !vk.checking) { Text("Use these") }
+                SkinnedButton({ usePasted() }, enabled = pasted.isNotBlank() && !vk.checking) { Text("Use these") }
             }
         }
         if (vk.checking) {
@@ -1029,7 +1052,7 @@ internal fun HybridSearchCard(settings: app.noctorium.settings.SettingsState, st
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             DEFAULT_HYBRID_SEARCH.forEach { provider ->
-                FilterChip(
+                SkinnedFilterChip(
                     selected = provider in included,
                     enabled = canSwitchHybrid(provider, included),
                     onClick = { state.setHybridSearchService(provider, included = provider !in included) },
@@ -1095,9 +1118,9 @@ private fun BandcampCard(settings: app.noctorium.settings.SettingsState, state: 
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button({ save() }, enabled = canSave) { Text("Save") }
+            SkinnedButton({ save() }, enabled = canSave) { Text("Save") }
             if (saved.isNotBlank()) {
-                OutlinedButton(
+                SkinnedOutlinedButton(
                     { focus.clearFocus(); state.setBandcampUsername("") },
                     enabled = !bandcamp.checking,
                 ) { Text("Remove") }
@@ -1149,7 +1172,7 @@ private fun BandcampGenresCard(settings: app.noctorium.settings.SettingsState, s
         Spacer(Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             BandcampGenre.entries.forEach { genre ->
-                FilterChip(
+                SkinnedFilterChip(
                     selected = genre in chosen,
                     onClick = { state.setBandcampGenres(toggledGenre(chosen, genre)) },
                     label = { Text(genre.displayName, fontSize = 11.sp) },
@@ -1182,7 +1205,7 @@ private fun SavingCard(settings: app.noctorium.settings.SettingsState, state: Ap
             },
             trailingIcon = {
                 if (folder != settings.preferences.exportFolder) {
-                    TextButton({ state.setExportFolder(folder) }) { Text("Save") }
+                    SkinnedTextButton({ state.setExportFolder(folder) }) { Text("Save") }
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -1196,7 +1219,7 @@ private fun DiagnosticsCard(settings: app.noctorium.settings.SettingsState, stat
         Row(verticalAlignment = Alignment.CenterVertically) {
             CardHeading(Icons.Default.History, "Diagnostics")
             Spacer(Modifier.weight(1f))
-            TextButton(state::runDiagnostics, enabled = !settings.diagnosticsRunning) {
+            SkinnedTextButton(state::runDiagnostics, enabled = !settings.diagnosticsRunning) {
                 Text(if (settings.diagnosticsRunning) "Checking…" else "Check")
             }
         }

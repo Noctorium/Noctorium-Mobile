@@ -8,12 +8,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -72,9 +68,9 @@ internal fun KeepPlayingCard() {
         )
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!unrestricted) Button({ BackgroundPlayback.ask(context) }) { Text("Allow") }
+            if (!unrestricted) SkinnedButton({ BackgroundPlayback.ask(context) }) { Text("Allow") }
             if (strict || !unrestricted) {
-                OutlinedButton({ BackgroundPlayback.openBatteryPage(context) }) {
+                SkinnedOutlinedButton({ BackgroundPlayback.openBatteryPage(context) }) {
                     Text(if (strict) "Battery saver" else "Battery settings")
                 }
             }
@@ -105,9 +101,9 @@ internal fun KeepPlayingPrompt(state: AppState, playing: Boolean) {
         showing = false
         state.updatePhone { copy(askedAboutBackground = true) }
     }
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = done,
-        title = { Text("Keep the music playing when your phone locks?") },
+        title = "Keep the music playing when your phone locks?",
         text = {
             Column {
                 Text(
@@ -126,11 +122,11 @@ internal fun KeepPlayingPrompt(state: AppState, playing: Boolean) {
             }
         },
         confirmButton = {
-            TextButton({
+            SkinnedTextButton({
                 done()
                 BackgroundPlayback.ask(context)
             }) { Text("Allow") }
         },
-        dismissButton = { TextButton(done) { Text("Not now") } },
+        dismissButton = { SkinnedTextButton(done) { Text("Not now") } },
     )
 }

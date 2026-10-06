@@ -32,12 +32,15 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.SeekBar
+import app.noctorium.settings.ThemeSkin
 
 /*
  * The pictures the looks in Customization are chosen by, rather than a row of their names.
@@ -79,6 +82,18 @@ internal fun PickerTile(
     modifier: Modifier = Modifier,
     picture: @Composable () -> Unit,
 ) {
+    if (LocalSkin.current != ThemeSkin.STANDARD) {
+        // A button that latches under the Windows skins, held down for the one chosen, as 98's toolbars held
+        // down the view in use.
+        PushButton(choose, modifier.semantics { this.selected = selected }, latched = selected) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.fillMaxWidth().padding(2.dp)) { picture() }
+                Spacer(Modifier.height(5.dp))
+                Text(label, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        return
+    }
     val shape = RoundedCornerShape(12.dp)
     val accent = MaterialTheme.colorScheme.primary
     Column(
@@ -116,13 +131,15 @@ private fun SeekBarPreview(style: ProgressBarStyle, seed: String) {
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = SeekBar.TRACK_ALPHA)
     val filled = MaterialTheme.colorScheme.primary
     val inactive = MaterialTheme.colorScheme.secondaryContainer
+    val skin = LocalSkin.current
     val pale = MaterialTheme.colorScheme.background.luminance() > .5f
     var width by remember { mutableIntStateOf(0) }
     val shapes = rememberSeekBarShapes(style, seed, PREVIEW_LENGTH_MS, width)
     Box(Modifier.fillMaxWidth().height(36.dp).onSizeChanged { width = it.width }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxWidth().height(style.drawnHeight())) {
             if (style == ProgressBarStyle.MATERIAL) {
-                drawMaterialSlider(PREVIEW_FRACTION, filled, inactive)
+                // The Windows skins have Material's slider as a trackbar, so that is what they preview.
+                if (skin == ThemeSkin.STANDARD) drawMaterialSlider(PREVIEW_FRACTION, filled, inactive) else drawTrackbar(skin == ThemeSkin.WINDOWS_XP, PREVIEW_FRACTION, showHead = true)
             } else {
                 drawSeekBar(style, PREVIEW_FRACTION, true, track, filled, phase = .2f, amplitude = 1f, shapes = shapes, pale = pale)
             }

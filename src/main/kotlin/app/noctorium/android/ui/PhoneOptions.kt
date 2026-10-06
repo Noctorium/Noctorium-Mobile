@@ -1,6 +1,7 @@
 package app.noctorium.android.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -12,17 +13,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Tab
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +38,7 @@ import app.noctorium.playback.MIN_SPEED
 import app.noctorium.settings.AutoplaySource
 import app.noctorium.settings.DataSaver
 import app.noctorium.settings.SettingsState
+import app.noctorium.settings.ThemeSkin
 import kotlin.math.roundToInt
 
 /**
@@ -79,7 +77,7 @@ internal fun PhoneOptionsCard(settings: SettingsState, state: AppState) {
 
         OptionRow("Data saver") {
             DataSaver.entries.forEach { saver ->
-                FilterChip(
+                SkinnedFilterChip(
                     selected = phone.dataSaver == saver,
                     onClick = { state.setDataSaver(saver) },
                     label = { Text(saver.displayName, fontSize = 11.sp) },
@@ -130,7 +128,7 @@ internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
 
         OptionRow("Double tap the cover jumps") {
             SEEK_STEPS.forEach { seconds ->
-                FilterChip(
+                SkinnedFilterChip(
                     selected = phone.seekStepSeconds == seconds,
                     onClick = { state.updatePhone { copy(seekStepSeconds = seconds) } },
                     label = { Text("${seconds}s", fontSize = 11.sp) },
@@ -147,7 +145,7 @@ internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        Slider(
+        SkinnedSlider(
             value = speed,
             // To the twentieth, which is what core keeps, so the thumb and the label show what will be saved.
             // Snapped here rather than with steps: thirty steps drew thirty dots along the track.
@@ -166,7 +164,7 @@ internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
                 modifier = Modifier.weight(1f),
             )
             if (preferences.playbackSpeed != 1f) {
-                TextButton({ state.setPlaybackSpeed(1f) }) { Text("Normal") }
+                SkinnedTextButton({ state.setPlaybackSpeed(1f) }) { Text("Normal") }
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -224,7 +222,7 @@ internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
 
         OptionRow("A sleep timer fades out over") {
             sleepFadeChoices(preferences.sleepFadeSeconds).forEach { seconds ->
-                FilterChip(
+                SkinnedFilterChip(
                     selected = preferences.sleepFadeSeconds == seconds,
                     onClick = { state.setSleepFade(seconds) },
                     label = { Text(if (seconds == 0) "Off" else "$seconds s", fontSize = 11.sp) },
@@ -292,7 +290,7 @@ private fun AutoplaySourceRow(source: AutoplaySource, selected: Boolean, enabled
         }
         Spacer(Modifier.width(12.dp))
         // The row is what is tapped; the button only shows which one is chosen.
-        RadioButton(selected = selected, onClick = null, enabled = enabled)
+        SkinnedRadioButton(selected = selected, onClick = null, enabled = enabled)
     }
 }
 
@@ -314,6 +312,24 @@ internal fun OptionRow(label: String, chips: @Composable () -> Unit) {
  */
 @Composable
 internal fun Toggle(title: String, detail: String, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    if (LocalSkin.current != ThemeSkin.STANDARD) {
+        // Windows' way round: the box first and what it does after it, and the words as good as the box to tap.
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange)
+                .padding(vertical = 6.dp)
+                .alpha(if (enabled) 1f else DISABLED_ALPHA),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(Modifier.padding(top = 3.dp, end = 10.dp)) { Checkbox(checked, enabled) }
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 13.sp)
+                Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+            }
+        }
+        return
+    }
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp).alpha(if (enabled) 1f else DISABLED_ALPHA),
         verticalAlignment = Alignment.CenterVertically,
@@ -325,7 +341,7 @@ internal fun Toggle(title: String, detail: String, checked: Boolean, enabled: Bo
         // A gap before the switch: without it a long line of detail ran right up to the switch's edge, and
         // the last word read as if it were printed on the switch.
         Spacer(Modifier.width(12.dp))
-        Switch(checked, onChange, enabled = enabled)
+        SkinnedSwitch(checked, onChange, enabled = enabled)
     }
 }
 

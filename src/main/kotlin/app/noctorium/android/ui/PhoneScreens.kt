@@ -50,8 +50,6 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
 import app.noctorium.library.TrackEdit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -62,7 +60,6 @@ import app.noctorium.core.SearchMode
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -98,13 +95,28 @@ import app.noctorium.domain.Track
 import app.noctorium.downloads.DownloadStage
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.ThemeSkin
 import app.noctorium.settings.withoutHidden
 import kotlin.math.roundToInt
 
 
-/** A page title, sitting under the status bar. Every screen starts with one. */
+/**
+ * A page title, sitting under the status bar. Every screen starts with one.
+ *
+ * Under the Windows skins it is the window's title bar, with the subtitle and the page's buttons on a
+ * toolbar beneath it, and [close] -- when there is somewhere to close to -- as the title bar's close button.
+ */
 @Composable
-internal fun ScreenTitle(title: String, subtitle: String? = null, action: @Composable (() -> Unit)? = null) {
+internal fun ScreenTitle(
+    title: String,
+    subtitle: String? = null,
+    close: (() -> Unit)? = null,
+    action: @Composable (() -> Unit)? = null,
+) {
+    if (LocalSkin.current != ThemeSkin.STANDARD) {
+        SkinScreenTitle(title, subtitle, close, action)
+        return
+    }
     Row(
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -168,7 +180,7 @@ internal fun HomeScreen(state: AppState) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     ProviderFilter.entries.forEach { filter ->
-                        FilterChip(
+                        SkinnedFilterChip(
                             selected = ui.providerFilter == filter,
                             onClick = { state.setFilter(filter) },
                             label = { Text(filter.label(), fontSize = 12.sp) },
@@ -329,9 +341,9 @@ private fun NewPlaylistDialog(
 ) {
     var name by remember { mutableStateOf("") }
     var service by remember { mutableStateOf(services.firstOrNull()) }
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("New playlist") },
+        title = "New playlist",
         text = {
             Column {
                 OutlinedTextField(
@@ -344,7 +356,7 @@ private fun NewPlaylistDialog(
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         services.forEach { option ->
-                            FilterChip(
+                            SkinnedFilterChip(
                                 selected = option == service,
                                 onClick = { service = option },
                                 label = { Text(option.displayName) },
@@ -362,12 +374,12 @@ private fun NewPlaylistDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            SkinnedTextButton(
                 enabled = name.isNotBlank() && service != null,
                 onClick = { service?.let { create(name.trim(), it) } },
             ) { Text("Create") }
         },
-        dismissButton = { TextButton(dismiss) { Text("Cancel") } },
+        dismissButton = { SkinnedTextButton(dismiss) { Text("Cancel") } },
     )
 }
 
@@ -467,7 +479,7 @@ internal fun SearchScreen(state: AppState) {
     val settings by state.settings.collectAsState()
 
     ScreenScaffold {
-        ScreenTitle("Search")
+        ScreenTitle("Search", close = { state.navigate(Destination.HOME) })
         OutlinedTextField(
             ui.searchQuery,
             state::search,
@@ -497,7 +509,7 @@ internal fun SearchScreen(state: AppState) {
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             SearchMode.entries.forEach { mode ->
-                FilterChip(
+                SkinnedFilterChip(
                     selected = ui.searchMode == mode,
                     onClick = { state.setSearchMode(mode) },
                     label = { Text(mode.displayName, fontSize = 11.sp) },
@@ -521,7 +533,7 @@ internal fun SearchScreen(state: AppState) {
                 // Why, when a service said: a search VK refused is not one where nothing matched.
                 ui.errorMessage ?: signInFirst ?: "Nothing matched \"${ui.searchQuery}\".",
             )
-            else -> LazyColumn(contentPadding = chromePadding(24.dp)) {
+            else -> LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
                 if (releases.isNotEmpty()) {
                     item(key = "search:releases") {
                         PlaylistCarousel(
@@ -601,7 +613,7 @@ private fun LibraryList(
     }
 
     ScreenScaffold {
-        ScreenTitle("Library", "Your playlists, and what is kept on this phone") {
+        ScreenTitle("Library", "Your playlists, and what is kept on this phone", close = { state.navigate(Destination.HOME) }) {
             // Only where there is an account to make one on. A button that can only explain why it does
             // not work is worse than no button.
             if (services.isNotEmpty()) {
@@ -610,7 +622,7 @@ private fun LibraryList(
             IconButton({ state.refreshLibrary(force = true) }) { Icon(Icons.Default.Refresh, "Reload") }
         }
 
-        LazyColumn(contentPadding = chromePadding(24.dp)) {
+        LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
             if (downloads.entries.isNotEmpty() || downloads.active.isNotEmpty()) {
                 item { DownloadsCard(downloads, state) }
             }
@@ -722,19 +734,8 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
     val downloads by state.downloadState.collectAsState()
 
     ScreenScaffold {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(state::closePlaylist) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to the library") }
-            Column(Modifier.weight(1f)) {
-                Text(playlist.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    listOfNotNull(playlist.provider.displayName, ownerWorthNaming(playlist)).joinToString(" · "),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                )
-            }
+        val subtitle = listOfNotNull(playlist.provider.displayName, ownerWorthNaming(playlist)).joinToString(" · ")
+        val actions: @Composable () -> Unit = {
             if (playlist.tracks.isNotEmpty()) {
                 // The whole playlist kept in one tap, and greyed out once there is nothing left to keep. Not
                 // there at all for a Bandcamp album or a VK playlist, none of which may be kept: those lead to
@@ -751,6 +752,26 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
                     }
                 }
                 IconButton({ state.playPlaylist(playlist) }) { Icon(Icons.Default.PlayArrow, "Play this playlist") }
+            }
+        }
+        // A window's title bar under the Windows skins, closed by its cross; the row it always was otherwise.
+        if (LocalSkin.current != ThemeSkin.STANDARD) {
+            SkinScreenTitle(playlist.title, subtitle, state::closePlaylist) { Row { actions() } }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(state::closePlaylist) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to the library") }
+                Column(Modifier.weight(1f)) {
+                    Text(playlist.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        subtitle,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                    )
+                }
+                actions()
             }
         }
 
@@ -775,7 +796,7 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
 
             playlist.tracks.isEmpty() -> EmptyNote("Nothing in here", "This playlist came back empty.")
 
-            else -> LazyColumn(contentPadding = chromePadding(24.dp)) {
+            else -> LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
                 // The account's own YouTube playlists can be put in order from here, as on YouTube Music.
                 val reorderable = (playlist.provider == ProviderType.YOUTUBE_MUSIC || playlist.provider == ProviderType.YOUTUBE_VIDEO) &&
                     (playlist.id.startsWith("PL") || playlist.id.startsWith("VL"))
@@ -1008,9 +1029,9 @@ private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Un
     // something either service will accept, so offering it would only produce a failure at the end.
     val writable = playlistsToAddTo(track, library.playlists)
 
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("Add to playlist") },
+        title = "Add to playlist",
         text = {
             if (writable.isEmpty()) {
                 Text(
@@ -1039,8 +1060,8 @@ private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Un
                 }
             }
         },
-        confirmButton = { TextButton({ naming = true }) { Text("New playlist…") } },
-        dismissButton = { TextButton(dismiss) { Text("Cancel") } },
+        confirmButton = { SkinnedTextButton({ naming = true }) { Text("New playlist…") } },
+        dismissButton = { SkinnedTextButton(dismiss) { Text("Cancel") } },
     )
 }
 
@@ -1055,9 +1076,9 @@ private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Un
 internal fun EditTrackDialog(track: Track, existing: TrackEdit?, state: AppState, dismiss: () -> Unit) {
     var title by remember { mutableStateOf(track.title) }
     var artist by remember { mutableStateOf(track.artistLine) }
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("Edit details") },
+        title = "Edit details",
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -1071,7 +1092,7 @@ internal fun EditTrackDialog(track: Track, existing: TrackEdit?, state: AppState
             }
         },
         confirmButton = {
-            TextButton({
+            SkinnedTextButton({
                 state.editTrack(
                     track,
                     title.takeIf { it.trim() != track.title.trim() || existing?.title != null },
@@ -1083,9 +1104,9 @@ internal fun EditTrackDialog(track: Track, existing: TrackEdit?, state: AppState
         dismissButton = {
             Row {
                 if (existing != null) {
-                    TextButton({ state.clearTrackEdit(track); dismiss() }) { Text("Use the service's") }
+                    SkinnedTextButton({ state.clearTrackEdit(track); dismiss() }) { Text("Use the service's") }
                 }
-                TextButton(dismiss) { Text("Cancel") }
+                SkinnedTextButton(dismiss) { Text("Cancel") }
             }
         },
     )

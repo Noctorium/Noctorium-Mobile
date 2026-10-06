@@ -74,14 +74,14 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (available != null && file != null && available.sha256 != null) {
-                Button({ state.installUpdate() }, enabled = !updates.busy) {
+                SkinnedButton({ state.installUpdate() }, enabled = !updates.busy) {
                     Text(if (updates.downloading != null) "Downloading…" else "Update", fontSize = 13.sp)
                 }
             }
             if (available != null) {
-                TextButton({ state.openReleasePage() }) { Text("What's new", fontSize = 13.sp) }
+                SkinnedTextButton({ state.openReleasePage() }) { Text("What's new", fontSize = 13.sp) }
             }
-            TextButton({ state.checkForUpdates() }, enabled = !updates.busy) {
+            SkinnedTextButton({ state.checkForUpdates() }, enabled = !updates.busy) {
                 Text(if (updates.checking) "Checking…" else "Check now", fontSize = 13.sp)
             }
         }
@@ -99,7 +99,7 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
                     fontSize = 11.sp,
                 )
             }
-            Switch(settings.preferences.updates.checkOnLaunch, state::setUpdateCheckOnLaunch)
+            SkinnedSwitch(settings.preferences.updates.checkOnLaunch, state::setUpdateCheckOnLaunch)
         }
 
         if (available != null) {
@@ -135,13 +135,13 @@ internal fun UpdatePrompt(state: AppState) {
     // Whether Noctorium can do it, or can only point at the page: a release with no file for this phone,
     // or none that published a checksum, is one it will not fetch and run unseen.
     val itself = updates.canInstall && offer.file != null && offer.sha256 != null
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = state::dismissUpdate,
         // Opaque even under glass. A pane of glass in the middle of the page is the effect; a modal you
         // can read the track list through is a modal competing with what it is covering.
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 1f),
         icon = { Icon(Icons.Default.SystemUpdateAlt, null) },
-        title = { Text("Noctorium ${offer.version} is out") },
+        title = "Noctorium ${offer.version} is out",
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
@@ -167,8 +167,8 @@ internal fun UpdatePrompt(state: AppState) {
             }
         },
         confirmButton = {
-            Button(state::acceptUpdate) { Text(if (itself) "Update" else "Open the release page") }
+            SkinnedButton(state::acceptUpdate) { Text(if (itself) "Update" else "Open the release page") }
         },
-        dismissButton = { TextButton(state::dismissUpdate) { Text("Not now") } },
+        dismissButton = { SkinnedTextButton(state::dismissUpdate) { Text("Not now") } },
     )
 }

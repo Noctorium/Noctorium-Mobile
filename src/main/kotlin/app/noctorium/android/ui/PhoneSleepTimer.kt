@@ -79,9 +79,10 @@ private fun SleepTimerDialog(
     var custom by remember { mutableStateOf("") }
     val customMinutes = custom.toIntOrNull()?.takeIf { it in 1..720 }
 
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("Sleep timer", fontSize = 16.sp) },
+        title = "Sleep timer",
+        titleSize = 16.sp,
         text = {
             Column {
                 Text(
@@ -96,13 +97,13 @@ private fun SleepTimerDialog(
                 Spacer(Modifier.height(12.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     SLEEP_TIMER_PRESETS.forEach { minutes ->
-                        FilterChip(
+                        SkinnedFilterChip(
                             selected = minutes == lastMinutes && timer == null,
                             onClick = { state.startSleepTimer(minutes); dismiss() },
                             label = { Text("$minutes min", fontSize = 11.sp) },
                         )
                     }
-                    FilterChip(
+                    SkinnedFilterChip(
                         selected = timer == SleepTimerState.EndOfTrack,
                         onClick = { state.sleepAtEndOfTrack(); dismiss() },
                         label = { Text("End of track", fontSize = 11.sp) },
@@ -119,7 +120,7 @@ private fun SleepTimerDialog(
                         modifier = Modifier.width(120.dp),
                     )
                     Spacer(Modifier.width(10.dp))
-                    Button({ customMinutes?.let { state.startSleepTimer(it); dismiss() } }, enabled = customMinutes != null) {
+                    SkinnedButton({ customMinutes?.let { state.startSleepTimer(it); dismiss() } }, enabled = customMinutes != null) {
                         Text("Start")
                     }
                 }
@@ -127,14 +128,14 @@ private fun SleepTimerDialog(
         },
         confirmButton = {
             if (timer is SleepTimerState.Countdown) {
-                TextButton({ state.extendSleepTimer(15); dismiss() }) { Text("+15 min") }
+                SkinnedTextButton({ state.extendSleepTimer(15); dismiss() }) { Text("+15 min") }
             }
         },
         dismissButton = {
             if (timer != null) {
-                OutlinedButton({ state.cancelSleepTimer(); dismiss() }) { Text("Stop timer") }
+                SkinnedOutlinedButton({ state.cancelSleepTimer(); dismiss() }) { Text("Stop timer") }
             } else {
-                TextButton(dismiss) { Text("Cancel") }
+                SkinnedTextButton(dismiss) { Text("Cancel") }
             }
         },
     )

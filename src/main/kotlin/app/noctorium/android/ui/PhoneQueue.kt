@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -44,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
+import app.noctorium.core.Destination
 import app.noctorium.domain.Track
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.PlaybackStatus
@@ -78,7 +78,7 @@ internal fun QueueScreen(state: AppState) {
     }
 
     ScreenScaffold {
-        ScreenTitle("Queue", "What is playing, and what follows") {
+        ScreenTitle("Queue", "What is playing, and what follows", close = { state.navigate(Destination.HOME) }) {
             if (queue.tracks.isNotEmpty()) QueueMenu(queue, state) { naming = true }
         }
         saved?.let {
@@ -94,7 +94,7 @@ internal fun QueueScreen(state: AppState) {
             return@ScreenScaffold
         }
         val upNext = upNext(queue, settings.preferences.autoplay)
-        LazyColumn(contentPadding = chromePadding(24.dp)) {
+        LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
             items(queue.tracks.size) { index ->
                 val track = queue.tracks[index]
                 TrackRow(
@@ -189,7 +189,7 @@ private fun AutoplayNote(upNext: UpNext, state: AppState) {
         Text(autoplayNote(upNext), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
         if (upNext == UpNext.OFF) {
             // Moved back by its own padding, so its word lines up with the line above it.
-            TextButton({ state.setAutoplay(true) }, Modifier.offset(x = (-12).dp)) { Text("Turn on") }
+            SkinnedTextButton({ state.setAutoplay(true) }, Modifier.offset(x = (-12).dp)) { Text("Turn on") }
         }
     }
 }

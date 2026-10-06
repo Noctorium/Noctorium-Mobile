@@ -29,13 +29,10 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
@@ -121,7 +118,7 @@ private fun LyricsSources(lyrics: LyricsUiState, refresh: () -> Unit, choose: (L
             items(ordered, key = { it.provider.name }) { outcome ->
                 val empty = outcome.status != LyricsProviderStatus.FOUND && outcome.status != LyricsProviderStatus.LINK_ONLY &&
                     outcome.status != LyricsProviderStatus.SEARCHING
-                FilterChip(
+                SkinnedFilterChip(
                     selected = lyrics.selectedProvider == outcome.provider,
                     onClick = { choose(outcome.provider) },
                     label = {
@@ -214,7 +211,7 @@ private fun LyricsElsewhere(result: app.noctorium.lyrics.LyricsResult, state: Ap
         LyricsNote(result.message ?: "${result.provider.displayName} has these lyrics on its own site.")
         Spacer(Modifier.height(12.dp))
         result.sourceUrl?.let { url ->
-            FilledTonalButton({ state.openExternalUrl(url) }) {
+            SkinnedTonalButton({ state.openExternalUrl(url) }) {
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Open ${result.provider.displayName}")
@@ -285,7 +282,7 @@ private fun FollowingLyrics(result: app.noctorium.lyrics.LyricsResult, positionM
                     modifier = Modifier.weight(1f),
                 )
                 result.sourceUrl?.let { url ->
-                    TextButton({ state.openExternalUrl(url) }) { Text("Source", fontSize = 10.sp) }
+                    SkinnedTextButton({ state.openExternalUrl(url) }) { Text("Source", fontSize = 10.sp) }
                 }
             }
             LazyColumn(

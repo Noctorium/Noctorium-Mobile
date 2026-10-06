@@ -68,9 +68,10 @@ internal fun ConnectButton(state: AppState, haptics: Haptics) {
     }
 
     if (!open) return
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = { open = false },
-        title = { Text("Noctorium Connect", fontSize = 16.sp) },
+        title = "Noctorium Connect",
+        titleSize = 16.sp,
         text = {
             Column {
                 Text(
@@ -130,14 +131,14 @@ internal fun ConnectButton(state: AppState, haptics: Haptics) {
         },
         confirmButton = {
             if (connect.target != null) {
-                TextButton({ state.bringPlaybackBack(); open = false }) { Text("Bring it back") }
+                SkinnedTextButton({ state.bringPlaybackBack(); open = false }) { Text("Bring it back") }
             } else {
-                TextButton({ open = false }) { Text("Close") }
+                SkinnedTextButton({ open = false }) { Text("Close") }
             }
         },
         dismissButton = {
             if (connect.target != null) {
-                TextButton({ state.stopControlling(); open = false }) { Text("Leave it playing") }
+                SkinnedTextButton({ state.stopControlling(); open = false }) { Text("Leave it playing") }
             }
         },
     )
@@ -204,7 +205,7 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
             modifier = Modifier.fillMaxWidth(),
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End) {
-            TextButton({ state.renameThisDevice(name) }) { Text("Save") }
+            SkinnedTextButton({ state.renameThisDevice(name) }) { Text("Save") }
         }
 
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -220,7 +221,7 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
                     fontSize = 11.sp,
                 )
             }
-            Switch(settings.preferences.connect.enabled, state::setConnectEnabled)
+            SkinnedSwitch(settings.preferences.connect.enabled, state::setConnectEnabled)
         }
 
         connect.controlledBy?.let {

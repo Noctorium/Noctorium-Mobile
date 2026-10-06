@@ -9,11 +9,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import app.noctorium.settings.NoctoriumPreferences
 import app.noctorium.settings.resolvedAccent
+import app.noctorium.settings.themeSkin
 import app.noctorium.settings.themeColours
 
 /**
  * Noctorium's look, worked out from the shared preferences: the theme's colours with the accent in force,
- * the corners, the typeface, the text size, whether things move, and whether the phone can shape the sound.
+ * the corners, the typeface, the text size, whether things move, whether the phone can shape the sound, and
+ * the skin -- the rest of the look the Windows themes draw beyond their colours.
  *
  * The theme and the accent are the shared preferences, so a theme picked on the desktop is the theme here.
  * Kept apart from the activity so that the screenshots rendered on the JVM are drawn in exactly this theme
@@ -26,11 +28,13 @@ internal fun NoctoriumTheme(
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
+    val skin = preferences.themeSkin
     MaterialTheme(
         // A colour still being dragged on the accent picker comes first, so the whole interface recolours
         // under the finger before anything is saved; see AccentPreview.
         colorScheme = noctoriumColors(preferences.themeColours(), Color(AccentPreview.argb ?: preferences.resolvedAccent(null))),
-        shapes = noctoriumShapes(preferences.cornerStyle),
+        // The Windows themes bring their own corners: none at all for 98, and Luna's few pixels for XP.
+        shapes = skinShapes(skin) ?: noctoriumShapes(preferences.cornerStyle),
         typography = remember(preferences.font) { noctoriumTypography(preferences.font) },
     ) {
         /*
@@ -46,6 +50,7 @@ internal fun NoctoriumTheme(
             LocalDensity provides Density(density.density, density.fontScale * preferences.textSize.scale),
             LocalMotion provides preferences.animations,
             LocalEqualizerAvailable provides equalizerAvailable,
+            LocalSkin provides skin,
             content = content,
         )
     }

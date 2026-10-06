@@ -19,18 +19,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -82,7 +75,7 @@ internal fun PhoneYouTubeExtras(settings: SettingsState, likes: LikeState, state
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (likes.youTubeReady) {
             // The way SimpMusic signs its desktop in: from here, where the account already is.
-            OutlinedButton({
+            SkinnedOutlinedButton({
                 scanner.launch(
                     ScanOptions()
                         .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
@@ -96,8 +89,8 @@ internal fun PhoneYouTubeExtras(settings: SettingsState, likes: LikeState, state
                 Text("Send to computer")
             }
         }
-        if (source.isConfigured) OutlinedButton(state::checkYouTubeSignIn) { Text("Check now") }
-        TextButton({ pasteOpen = true }) { Text("Paste cookies") }
+        if (source.isConfigured) SkinnedOutlinedButton(state::checkYouTubeSignIn) { Text("Check now") }
+        SkinnedTextButton({ pasteOpen = true }) { Text("Paste cookies") }
     }
 
     likes.message?.let { message ->
@@ -129,7 +122,7 @@ internal fun PhoneYouTubeExtras(settings: SettingsState, likes: LikeState, state
                     border = BorderStroke(1.dp, if (chosen) MaterialTheme.colorScheme.primary.copy(alpha = .5f) else MaterialTheme.colorScheme.outlineVariant),
                 ) {
                     Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(chosen, { state.setYouTubeChannel(channel) })
+                        SkinnedRadioButton(chosen, { state.setYouTubeChannel(channel) })
                         Artwork(channel.photoUrl, 36.dp, corner = 18.dp)
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
@@ -156,7 +149,7 @@ internal fun PhoneYouTubeExtras(settings: SettingsState, likes: LikeState, state
                 fontSize = 11.sp,
             )
         }
-        Switch(preferences.youtubeHistory, state::setYouTubeHistory)
+        SkinnedSwitch(preferences.youtubeHistory, state::setYouTubeHistory)
     }
 }
 
@@ -167,7 +160,7 @@ internal fun PhoneFollowArtistChip(track: Track, state: AppState, modifier: Modi
     if (track.provider != ProviderType.YOUTUBE_MUSIC && track.provider != ProviderType.YOUTUBE_VIDEO) return
     val known = artist ?: return
     val following = known.following == true
-    FilterChip(
+    SkinnedFilterChip(
         selected = following,
         onClick = state::toggleFollowArtist,
         label = { Text(if (following) "Following ${known.name}" else "Follow ${known.name}") },
@@ -179,9 +172,9 @@ internal fun PhoneFollowArtistChip(track: Track, state: AppState, modifier: Modi
 @Composable
 private fun PhonePasteCookiesDialog(state: AppState, close: () -> Unit) {
     var text by remember { mutableStateOf("") }
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = close,
-        title = { Text("Paste cookies") },
+        title = "Paste cookies",
         text = {
             Column {
                 Text(
@@ -194,7 +187,7 @@ private fun PhonePasteCookiesDialog(state: AppState, close: () -> Unit) {
                 OutlinedTextField(text, { text = it }, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp))
             }
         },
-        confirmButton = { Button({ state.importYouTubeCookies(text); close() }, enabled = text.isNotBlank()) { Text("Sign in") } },
-        dismissButton = { TextButton(close) { Text("Cancel") } },
+        confirmButton = { SkinnedButton({ state.importYouTubeCookies(text); close() }, enabled = text.isNotBlank()) { Text("Sign in") } },
+        dismissButton = { SkinnedTextButton(close) { Text("Cancel") } },
     )
 }

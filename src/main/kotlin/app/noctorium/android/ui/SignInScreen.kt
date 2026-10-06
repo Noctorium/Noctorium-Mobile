@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -149,7 +148,7 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                     )
                 }
                 val busy = saving || (isVk && vk.checking)
-                Button(
+                SkinnedButton(
                     enabled = !busy,
                     onClick = {
                         problem = null
@@ -158,7 +157,7 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                                 problem = "VK has not given this page a session yet. Finish signing in, and Noctorium " +
                                     "carries on by itself."
                             }
-                            return@Button
+                            return@SkinnedButton
                         }
                         saving = true
                         scope.launch {

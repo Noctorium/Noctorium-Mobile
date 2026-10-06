@@ -1,6 +1,7 @@
 package app.noctorium.android.screenshots
 
 import android.app.Application
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -12,6 +13,12 @@ import app.noctorium.android.ui.NowPlaying
 import app.noctorium.android.ui.NowPlayingLookCard
 import app.noctorium.android.ui.NowPlayingScreen
 import app.noctorium.android.ui.PlayerBarCard
+import app.noctorium.android.ui.QueueScreen
+import app.noctorium.android.ui.SettingsPage
+import app.noctorium.android.ui.SettingsPageScreen
+import app.noctorium.android.ui.SettingsScreen
+import app.noctorium.android.ui.SkinnedAlertDialog
+import app.noctorium.android.ui.SkinnedTextButton
 import app.noctorium.android.ui.SingAlongNowPlaying
 import app.noctorium.core.AppState
 import app.noctorium.domain.Track
@@ -52,7 +59,7 @@ class LooksScreenshots(private val look: Look) {
     companion object {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = (seekBarLooks() + playerBarLooks() + layoutLooks()).map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = (seekBarLooks() + playerBarLooks() + layoutLooks() + skinLooks()).map { arrayOf(it) }
     }
 }
 
@@ -72,7 +79,7 @@ class PickerScreenshots(private val look: Look) {
     companion object {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = pickerLooks().map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = (pickerLooks() + skinPageLooks()).map { arrayOf(it) }
     }
 }
 
@@ -85,11 +92,13 @@ class Look(
     private val preferences: NoctoriumPreferences,
     private val playing: () -> Track? = { Covers.on(Still.nowPlaying) },
     private val kept: () -> SavedQueue? = { null },
+    /** Whether to take the whole screen rather than the content: a dialog is a window of its own. */
+    private val whole: Boolean = false,
     private val screen: @Composable (SettingsState, AppState) -> Unit,
 ) {
     fun shoot(compose: ComposeContentTestRule) {
         Covers.install(ApplicationProvider.getApplicationContext())
-        compose.shootPhone(screenshotFolder, name, preferences, playing(), kept = kept(), content = screen)
+        compose.shootPhone(screenshotFolder, name, preferences, playing(), kept = kept(), then = if (whole) ({}) else null, content = screen)
     }
 
     override fun toString() = name
@@ -206,5 +215,74 @@ private fun pickerLooks(): List<Look> = THEMES.flatMap { (theme, preferences) ->
         Look("picker-now-playing-$theme", preferences.copy(phone = PhonePreferences(nowPlayingLayout = PhoneNowPlayingLayout.COVER_FLOW))) { settings, state ->
             Card { NowPlayingLookCard(settings, state) }
         },
+    )
+}
+
+/** The two Windows themes, by the name each picture carries. */
+private val SKINS = listOf(
+    "98" to NoctoriumPreferences(theme = ThemePreset.WINDOWS_98),
+    "xp" to NoctoriumPreferences(theme = ThemePreset.WINDOWS_XP),
+)
+
+/**
+ * The Windows skins on the screens they dress: Home with its taskbar, a list, Settings, Now playing on the
+ * desktop and on the cover's wash, and a dialog.
+ */
+private fun skinLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
+    val plain = preferences.copy(ambientBackdrop = false)
+    listOf(
+        Look("skin-$skin-home", preferences) { _, state -> NoctoriumPhone(state) },
+        Look(
+            "skin-$skin-home-taskbar-bar",
+            preferences.copy(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR)),
+        ) { _, state -> NoctoriumPhone(state) },
+        Look(
+            "skin-$skin-home-floating-bar",
+            preferences.copy(progressBarStyle = if (skin == "98") ProgressBarStyle.CLASSIC else ProgressBarStyle.LUNA, phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.FLOATING)),
+        ) { _, state -> NoctoriumPhone(state) },
+        Look(
+            "skin-$skin-queue",
+            preferences,
+            playing = { Covers.on(Still.queue[1]) },
+            kept = { SavedQueue(Covers.on(Still.queue), 1, 83_000) },
+        ) { _, state -> QueueScreen(state) },
+        Look("skin-$skin-settings", preferences) { _, state -> SettingsScreen(state) {} },
+        Look("skin-$skin-now-playing", plain) { _, state -> NowPlayingScreen(state) {} },
+        Look("skin-$skin-now-playing-wash", preferences.copy(progressBarStyle = ProgressBarStyle.MATERIAL)) { _, state -> NowPlayingScreen(state) {} },
+        Look(
+            "skin-$skin-now-playing-seek",
+            plain.copy(progressBarStyle = if (skin == "98") ProgressBarStyle.CLASSIC else ProgressBarStyle.LUNA),
+        ) { _, state -> NowPlayingScreen(state) {} },
+        Look(
+            "skin-$skin-cover-flow",
+            plain.copy(phone = PhonePreferences(nowPlayingLayout = PhoneNowPlayingLayout.COVER_FLOW)),
+            playing = { Covers.on(Still.queue[2]) },
+            kept = { SavedQueue(Covers.on(Still.queue), 2, 83_000) },
+        ) { _, state -> NowPlayingScreen(state) {} },
+        Look("skin-$skin-dialog", preferences, whole = true) { _, _ -> DeleteDialogShown() },
+    )
+}
+
+/** The pages of Settings under the skins, which want the very tall screen to be seen whole. */
+private fun skinPageLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
+    listOf(
+        Look("skin-$skin-playback", preferences.copy(playbackSpeed = 1.25f)) { _, state ->
+            SettingsPageScreen(SettingsPage.PLAYBACK, state, signIn = {}, back = {})
+        },
+        Look("skin-$skin-player-bar-card", preferences.copy(progressBarStyle = if (skin == "98") ProgressBarStyle.CLASSIC else ProgressBarStyle.LUNA)) { settings, state ->
+            Card { PlayerBarCard(settings, state) }
+        },
+    )
+}
+
+/** A question with two answers, as the playlists ask before deleting one, over Home. */
+@Composable
+private fun DeleteDialogShown() {
+    SkinnedAlertDialog(
+        onDismissRequest = {},
+        title = "Delete \"Night Drives\"?",
+        text = { Text("This deletes the playlist from YouTube Music too. The songs in it are not touched.") },
+        confirmButton = { SkinnedTextButton({}) { Text("Delete") } },
+        dismissButton = { SkinnedTextButton({}) { Text("Keep") } },
     )
 }

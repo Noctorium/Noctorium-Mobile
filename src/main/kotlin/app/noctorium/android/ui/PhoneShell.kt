@@ -85,6 +85,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.luminance
 import app.noctorium.settings.ThemeColours
 import app.noctorium.settings.ThemePreset
+import app.noctorium.settings.ThemeSkin
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -244,7 +245,8 @@ fun NoctoriumPhone(state: AppState) {
             ui.destination != Destination.HOME,
     ) { state.navigate(Destination.HOME) }
 
-    val glass = settings.preferences.surfaceStyle.isGlass
+    // The Windows themes draw their own taskbar and bars, and glass is not a thing either of them had.
+    val glass = settings.preferences.surfaceStyle.isGlass && LocalSkin.current == ThemeSkin.STANDARD
     val screens: @Composable () -> Unit = {
         // One tab giving way to the next with a short fade and rise, rather than the screen cutting.
         MotionContent(ui.destination, Modifier.fillMaxSize()) { destination ->
@@ -314,15 +316,30 @@ fun NoctoriumPhone(state: AppState) {
                             settings.preferences.phone.playerBarStyle,
                         ) { nowPlayingOpen = true }
                     }
-                    PhoneNavigation(
-                        ui.destination,
-                        settings.preferences.phone.navigationLabels,
-                        // A hidden tab is only off the bar. Its page is still drawn when something leads
-                        // there -- a shared link opening Link, a playlist on Home opening Library -- and
-                        // simply has no tab lit while it is showing.
-                        visibleTabs(settings.preferences.phone.hiddenDestinations),
-                        state::navigate,
-                    )
+                    val skin = LocalSkin.current
+                    if (skin == ThemeSkin.STANDARD) {
+                        PhoneNavigation(
+                            ui.destination,
+                            settings.preferences.phone.navigationLabels,
+                            // A hidden tab is only off the bar. Its page is still drawn when something leads
+                            // there -- a shared link opening Link, a playlist on Home opening Library -- and
+                            // simply has no tab lit while it is showing.
+                            visibleTabs(settings.preferences.phone.hiddenDestinations),
+                            state::navigate,
+                        )
+                    } else {
+                        // The Windows themes' tabs are their taskbar. A taskbar player bar right above it has the
+                        // clock already, and one clock is enough.
+                        SkinTaskbar(
+                            ui.destination,
+                            settings.preferences.phone.navigationLabels,
+                            visibleTabs(settings.preferences.phone.hiddenDestinations),
+                            clock = playback.track == null || barAtTop ||
+                                settings.preferences.phone.playerBarStyle != PhonePlayerBarStyle.TASKBAR,
+                            icon = { it.tabIcon() },
+                            go = state::navigate,
+                        )
+                    }
                 }
             }
 
@@ -628,11 +645,14 @@ private fun PlayerBar(
                 }
             },
         )
+    // Under the Windows skins the strip is a panel of the window's own face -- 98's raised grey, a Luna toolbar
+    // -- except where the bar draws a face of its own: the floating card, and the taskbar.
+    val dressed = LocalSkin.current != ThemeSkin.STANDARD && !glass && !floating && layout != PhonePlayerBarStyle.TASKBAR
     Surface(
         color = if (glass || floating) Color.Transparent else MaterialTheme.colorScheme.surface,
         tonalElevation = if (glass || floating) 0.dp else 3.dp,
     ) {
-        Box {
+        Box(if (dressed) Modifier.skinPanel() else Modifier) {
             if (layout == PhonePlayerBarStyle.SPOTLIGHT) SpotlightBackdrop(track.artworkUrl, glass)
             if (floating) {
                 FloatingBar(track, playback, state, style, onSpotify, hasNext, gestures)
@@ -1060,6 +1080,10 @@ internal fun playbackFraction(positionMs: Long, durationMs: Long): Float =
 
 @Composable
 internal fun Artwork(url: String?, size: Dp, corner: Dp = 8.dp) {
+    if (LocalSkin.current != ThemeSkin.STANDARD) {
+        SkinArtwork(url, size, corner)
+        return
+    }
     Box(
         Modifier
             .size(size)
@@ -1085,13 +1109,31 @@ internal fun Artwork(url: String?, size: Dp, corner: Dp = 8.dp) {
     }
 }
 
-/** A track as a row: art, title, and the one line of detail that fits. */
+/**
+ * A track as a row: art, title, and the one line of detail that fits. The song playing has its title in the
+ * accent -- or under the Windows skins, the whole row in the selection's blue, the way their lists marked it.
+ */
 @Composable
 internal fun TrackRow(
     track: Track,
     state: AppState,
     isCurrent: Boolean = false,
     trailing: @Composable (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    if (isCurrent && LocalSkin.current != ThemeSkin.STANDARD) {
+        SkinSelected { TrackRowLine(track, state, isCurrent, trailing, onClick) }
+    } else {
+        TrackRowLine(track, state, isCurrent, trailing, onClick)
+    }
+}
+
+@Composable
+private fun TrackRowLine(
+    track: Track,
+    state: AppState,
+    isCurrent: Boolean,
+    trailing: @Composable (() -> Unit)?,
     onClick: () -> Unit,
 ) {
     Row(

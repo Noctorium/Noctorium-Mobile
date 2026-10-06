@@ -14,7 +14,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import app.noctorium.settings.ThemeSkin
 import app.noctorium.settings.themeColours
+import app.noctorium.settings.themeSkin
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -108,13 +110,13 @@ class MainActivity : ComponentActivity() {
                 (application as NoctoriumApplication).player.setSkipSilence(settings.preferences.phone.skipSilence)
             }
             // The status bar's icons have to be told which way round the theme is, or a light theme gets
-            // white icons on a white bar.
+            // white icons on a white bar. XP's taskbar runs on under the navigation in its blue, which wants white.
             val theme = settings.preferences.themeColours()
             val view = LocalView.current
             SideEffect {
                 WindowCompat.getInsetsController(window, view).apply {
                     isAppearanceLightStatusBars = theme.light
-                    isAppearanceLightNavigationBars = theme.light
+                    isAppearanceLightNavigationBars = theme.light && settings.preferences.themeSkin != ThemeSkin.WINDOWS_XP
                 }
             }
             val equalizerAvailable by (application as NoctoriumApplication).player.equalizerAvailable.collectAsState()

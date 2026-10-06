@@ -24,18 +24,15 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.domain.Playlist
 import app.noctorium.domain.ProviderType
+import app.noctorium.settings.ThemeSkin
 import app.noctorium.domain.editableOnService
 import app.noctorium.domain.pluralTracks
 import app.noctorium.playlists.LocalPlaylist
@@ -112,7 +110,7 @@ internal fun ServicePlaylistControls(playlist: Playlist, notice: String?, state:
         verticalAlignment = Alignment.CenterVertically,
     ) {
         listOf(false, true).forEach { isPublic ->
-            FilterChip(
+            SkinnedFilterChip(
                 selected = playlist.isPublic == isPublic,
                 onClick = { setPublic(isPublic) },
                 label = { Text(if (isPublic) "Public" else "Private") },
@@ -198,19 +196,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
     }
 
     ScreenScaffold {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(state::closeLocalPlaylist) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to the library") }
-            Column(Modifier.weight(1f)) {
-                Text(playlist.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    pluralTracks(playlist.trackCount) + " · made in Noctorium",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                )
-            }
+        val actions: @Composable () -> Unit = {
             if (playlist.tracks.isNotEmpty()) {
                 IconButton({ state.playLocalPlaylist(playlist) }) { Icon(Icons.Default.PlayArrow, "Play this playlist") }
             }
@@ -247,6 +233,28 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
                 }
             }
         }
+        // A window's title bar under the Windows skins, closed by its cross; the row it always was otherwise.
+        if (LocalSkin.current != ThemeSkin.STANDARD) {
+            SkinScreenTitle(playlist.title, pluralTracks(playlist.trackCount) + " · made in Noctorium", state::closeLocalPlaylist) {
+                Row { actions() }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(state::closeLocalPlaylist) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to the library") }
+                Column(Modifier.weight(1f)) {
+                    Text(playlist.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        pluralTracks(playlist.trackCount) + " · made in Noctorium",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                    )
+                }
+                actions()
+            }
+        }
 
         notice?.let {
             Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
@@ -255,7 +263,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
         if (playlist.tracks.isEmpty()) {
             EmptyNote("Nothing in here yet", "Add songs from the menu on any track, under Add to playlist.")
         } else {
-            LazyColumn(contentPadding = chromePadding(24.dp)) {
+            LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
                 itemsIndexed(playlist.tracks, key = { _, track -> track.queueKey }) { index, track ->
                     // Rows glide to their new places when one moves or is taken out, instead of jumping.
                     Box(if (LocalMotion.current) Modifier.animateItem() else Modifier) {
@@ -290,27 +298,27 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
 @Composable
 internal fun PlaylistNameDialog(title: String, initial: String, confirm: String, finish: (String?) -> Unit) {
     var name by remember { mutableStateOf(initial) }
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = { finish(null) },
-        title = { Text(title) },
+        title = title,
         text = {
             OutlinedTextField(name, { name = it.take(100) }, singleLine = true, label = { Text("Name") })
         },
         confirmButton = {
-            TextButton(enabled = name.isNotBlank() && name.trim() != initial, onClick = { finish(name.trim()) }) { Text(confirm) }
+            SkinnedTextButton(enabled = name.isNotBlank() && name.trim() != initial, onClick = { finish(name.trim()) }) { Text(confirm) }
         },
-        dismissButton = { TextButton({ finish(null) }) { Text("Cancel") } },
+        dismissButton = { SkinnedTextButton({ finish(null) }) { Text("Cancel") } },
     )
 }
 
 @Composable
 private fun DeletePlaylistDialog(title: String, detail: String, dismiss: () -> Unit, delete: () -> Unit) {
-    AlertDialog(
+    SkinnedAlertDialog(
         onDismissRequest = dismiss,
-        title = { Text("Delete \"$title\"?") },
+        title = "Delete \"$title\"?",
         text = { Text(detail) },
-        confirmButton = { TextButton(delete) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton(dismiss) { Text("Keep") } },
+        confirmButton = { SkinnedTextButton(delete) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { SkinnedTextButton(dismiss) { Text("Keep") } },
     )
 }
 

@@ -49,14 +49,13 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
@@ -68,6 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -78,6 +78,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import app.noctorium.core.AppState
+import app.noctorium.core.Destination
 import app.noctorium.domain.Track
 import app.noctorium.lyrics.LyricsUiState
 import app.noctorium.playback.PlaybackState
@@ -88,8 +89,10 @@ import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.SeekBar
 import app.noctorium.settings.SettingsState
+import app.noctorium.settings.ThemeSkin
 import app.noctorium.settings.TimeDisplay
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
@@ -148,10 +151,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
         toggleLyrics = { lyricsAsked = !lyricsAsked },
         close = close,
     )
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-      Box(Modifier.fillMaxSize()) {
-        // The full cover is its own backdrop, and the wash behind it would only be painted over.
-        if (settings.preferences.ambientBackdrop && layout != PhoneNowPlayingLayout.FULL_COVER) AmbientBackdrop(track.artworkUrl)
+    val laidOut: @Composable () -> Unit = {
         when (layout) {
             PhoneNowPlayingLayout.CLASSIC -> ClassicNowPlaying(screen)
             PhoneNowPlayingLayout.FULL_COVER -> FullCoverNowPlaying(screen)
@@ -160,7 +160,88 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
             PhoneNowPlayingLayout.SING_ALONG -> SingAlongNowPlaying(screen)
             PhoneNowPlayingLayout.BIG_TYPE -> BigTypeNowPlaying(screen)
         }
+    }
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+      Box(Modifier.fillMaxSize()) {
+        if (LocalSkin.current == ThemeSkin.STANDARD) {
+            // The full cover is its own backdrop, and the wash behind it would only be painted over.
+            if (settings.preferences.ambientBackdrop && layout != PhoneNowPlayingLayout.FULL_COVER) AmbientBackdrop(track.artworkUrl)
+            laidOut()
+        } else {
+            /*
+             * The Windows themes put Now playing in a window, standing on the desktop -- 98's teal or XP's
+             * hill -- or on the wash of the cover when the backdrop is on, with the desktop's taskbar under
+             * it. The window's close button and its minimise both send it back down to the bar, which is where
+             * a minimised window went, and so does its button on the taskbar; the start button goes Home. The
+             * buttons the bar along the top had are on the window's toolbar.
+             */
+            if (settings.preferences.ambientBackdrop) AmbientBackdrop(track.artworkUrl) else SkinDesktop()
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.navigationBars))) {
+                SkinWindow(
+                    title = "Now Playing",
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp),
+                    close = close,
+                    minimise = close,
+                    toolbar = { NowPlayingToolbar(screen) },
+                ) {
+                    // Cut to the window, as a window's contents were: the cover flow's outer covers would
+                    // otherwise spill over its frame onto the desktop.
+                    Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                        CompositionLocalProvider(LocalInSkinWindow provides true) { laidOut() }
+                    }
+                }
+                TaskbarStrip {
+                    StartButton(pressed = false, named = true, description = "Home") {
+                        state.navigate(Destination.HOME)
+                        close()
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    TaskbarButton(chosen = true, description = "Now Playing", modifier = Modifier.weight(1f), onClick = close) { ink ->
+                        WindowIcon(16.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Now Playing", color = ink, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Tray { ink -> TrayClock(ink) }
+                }
+            }
+        }
       }
+    }
+}
+
+/** Whether the now playing screen is inside a Windows skin's window, which has the bar along the top's work. */
+private val LocalInSkinWindow = staticCompositionLocalOf { false }
+
+/**
+ * The bar along the top's buttons as a Windows toolbar under the window's title bar: what the window is
+ * showing, then Connect, the sleep timer and the lyrics.
+ */
+@Composable
+private fun NowPlayingToolbar(screen: NowPlaying) {
+    val connect by screen.state.connect.collectAsState()
+    val sleepTimer by screen.state.sleepTimer.collectAsState()
+    val hidden = screen.hidden
+    Row(Modifier.fillMaxWidth().height(46.dp).padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (screen.showLyrics) "Lyrics" else screen.track.provider.displayName,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (showsPlayerButton(hidden, PlayerButton.DEVICES, inUse = connect.target != null)) {
+            ConnectButton(screen.state, screen.haptics)
+        }
+        if (showsPlayerButton(hidden, PlayerButton.SLEEP_TIMER, inUse = sleepTimer != null)) {
+            SleepTimerButton(screen.state, screen.haptics)
+        }
+        if (showsPlayerButton(hidden, PlayerButton.LYRICS)) {
+            IconButton(screen.toggleLyrics) {
+                Text(if (screen.showLyrics) "♪" else "Aa", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
@@ -235,6 +316,11 @@ private fun ClassicNowPlaying(screen: NowPlaying) {
 /** The column every layout but the full cover is laid out in: clear of the system bars, with a margin each side. */
 @Composable
 internal fun NowPlayingColumn(content: @Composable ColumnScope.() -> Unit) {
+    // In a skin's window the window has taken the system bars already, and its frame is the margin.
+    if (LocalInSkinWindow.current) {
+        Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 8.dp), content = content)
+        return
+    }
     Column(
         Modifier
             .fillMaxSize()
@@ -247,6 +333,8 @@ internal fun NowPlayingColumn(content: @Composable ColumnScope.() -> Unit) {
 /** The way down, what the screen is showing, and the buttons about the listening rather than the song. */
 @Composable
 internal fun NowPlayingTopBar(screen: NowPlaying) {
+    // A skin's window has these on its title bar and its toolbar instead.
+    if (LocalInSkinWindow.current) return
     val connect by screen.state.connect.collectAsState()
     val sleepTimer by screen.state.sleepTimer.collectAsState()
     val hidden = screen.hidden
@@ -530,7 +618,7 @@ private fun VolumeButton(playback: PlaybackState, state: AppState, modifier: Mod
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
-                Slider(
+                SkinnedSlider(
                     value = playback.volume.coerceIn(0f, 1f),
                     onValueChange = state::setVolume,
                     valueRange = 0f..1f,
@@ -538,13 +626,13 @@ private fun VolumeButton(playback: PlaybackState, state: AppState, modifier: Mod
                 // Taller than the same two chips on the desktop. Thirty density-independent pixels is a
                 // comfortable click and an awkward tap; this is what a thumb wants.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(
+                    SkinnedFilterChip(
                         selected = playback.isMuted,
                         onClick = state::toggleMute,
                         label = { Text(if (playback.isMuted) "Muted" else "Mute", fontSize = 12.sp) },
                         modifier = Modifier.height(38.dp),
                     )
-                    FilterChip(
+                    SkinnedFilterChip(
                         selected = playback.volumeBoostEnabled,
                         onClick = state::toggleVolumeBoost,
                         label = { Text("Boost", fontSize = 12.sp) },
@@ -593,7 +681,7 @@ internal fun Seekbar(
                 },
             )
         } else {
-        Slider(
+        SkinnedSlider(
             value = fraction,
             onValueChange = { dragging = it },
             onValueChangeFinished = {

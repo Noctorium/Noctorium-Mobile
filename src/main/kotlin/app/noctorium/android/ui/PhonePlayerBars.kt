@@ -28,8 +28,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -46,8 +48,11 @@ import app.noctorium.core.AppState
 import app.noctorium.domain.Track
 import app.noctorium.playback.PlaybackState
 import app.noctorium.settings.ProgressBarStyle
+import app.noctorium.settings.ThemeSkin
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 
 /*
  * The player bars the core added beside the first five: one lifted off the page, one as slight as a bar can
@@ -75,13 +80,30 @@ internal fun FloatingBar(
     gestures: Modifier,
 ) {
     val shape = MaterialTheme.shapes.large
+    // Under the Windows skins the card is a small window of its own: 98's raised slab, which had no shadow to
+    // cast, or a Luna toolbar in its pale blue edge.
+    val card = when (LocalSkin.current) {
+        ThemeSkin.STANDARD -> Modifier
+            .shadow(10.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = .45f), spotColor = Color.Black.copy(alpha = .55f))
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        ThemeSkin.WINDOWS_98 -> Modifier
+            .background(Win98.Face)
+            .drawWithContent {
+                drawContent()
+                drawEdge98(Edge98.WINDOW)
+            }
+        ThemeSkin.WINDOWS_XP -> Modifier
+            .shadow(4.dp, shape, clip = false)
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(Color(0xFFFDFDFB), Luna.Face)))
+            .border(1.dp, Luna.FieldEdge, shape)
+    }
     Box(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 6.dp, bottom = 8.dp)) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .shadow(10.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = .45f), spotColor = Color.Black.copy(alpha = .55f))
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .then(card)
                 .then(gestures),
         ) {
             ClassicBar(track, playback, state, glass = false, onSpotify = onSpotify, hasNext = hasNext)
@@ -182,6 +204,10 @@ internal fun TaskbarBar(
     glass: Boolean,
     open: () -> Unit,
 ) {
+    if (LocalSkin.current != ThemeSkin.STANDARD) {
+        SkinTaskbarBar(track, playback, state, style, open)
+        return
+    }
     val ink = MaterialTheme.colorScheme.onSurface
     val shape = MaterialTheme.shapes.small
     Row(
@@ -236,13 +262,51 @@ internal fun TaskbarBar(
 }
 
 /**
- * The time, as the phone tells it -- with or without the hours past noon, as the listener has it set --
- * changing on the minute. A taskbar without its clock is not one.
+ * The Taskbar bar in a Windows theme, drawn as that desktop's own taskbar: the start button with the N, which
+ * opens Now playing; the song as the button of the window in use, held down, with its progress along the
+ * button's foot; and the tray, with play beside the clock.
+ */
+@Composable
+private fun SkinTaskbarBar(track: Track, playback: PlaybackState, state: AppState, style: ProgressBarStyle, open: () -> Unit) {
+    TaskbarStrip {
+        StartButton(pressed = false, named = false, description = "Now playing", onClick = open)
+        Spacer(Modifier.width(6.dp))
+        TaskbarButton(
+            chosen = true,
+            description = track.title,
+            modifier = Modifier.weight(1f),
+            onClick = open,
+            foot = { PlaybackLine(playback, style) },
+        ) { ink ->
+            Artwork(track.artworkUrl, 22.dp, corner = 2.dp)
+            Spacer(Modifier.width(7.dp))
+            Text(
+                "${track.title} - ${track.artistLine.ifBlank { "Unknown artist" }}",
+                color = ink,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.width(6.dp))
+        Tray { ink ->
+            Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) { PlayPauseButton(playback, state, size = 18.dp) }
+            TrayClock(ink)
+        }
+    }
+}
+
+/**
+ * The time as a taskbar's tray showed it, hours and minutes and nothing else -- on the twenty-four hour clock
+ * when the phone is set to it -- changing on the minute. A taskbar without its clock is not one.
  */
 @Composable
 internal fun TrayClock(colour: Color, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val format = remember(context) { android.text.format.DateFormat.getTimeFormat(context) }
+    val format = remember(context) {
+        SimpleDateFormat(if (android.text.format.DateFormat.is24HourFormat(context)) "H:mm" else "h:mm", Locale.getDefault())
+    }
     val time by produceState(format.format(Date()), format) {
         while (true) {
             delay(60_000 - System.currentTimeMillis() % 60_000 + 50)
