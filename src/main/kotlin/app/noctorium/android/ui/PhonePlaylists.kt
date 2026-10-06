@@ -288,7 +288,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
 
 /** A name for a playlist, new or changed. Answers null when the listener thought better of it. */
 @Composable
-private fun PlaylistNameDialog(title: String, initial: String, confirm: String, finish: (String?) -> Unit) {
+internal fun PlaylistNameDialog(title: String, initial: String, confirm: String, finish: (String?) -> Unit) {
     var name by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = { finish(null) },

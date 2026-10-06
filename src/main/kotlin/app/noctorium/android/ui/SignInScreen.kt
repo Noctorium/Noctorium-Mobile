@@ -105,7 +105,7 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
         LaunchedEffect(vk.connected) { if (vk.connected) close() }
         // The WebView's copy of the session goes when this does, however it ends: Noctorium keeps its own,
         // and two holders of one session is how a copy dies. Only VK's cookies, never the whole store.
-        DisposableEffect(Unit) { onDispose { WebViewSignIn.clearVkCookies() } }
+        DisposableEffect(Unit) { onDispose { WebViewSignIn.clearCookiesOf(ProviderType.VK) } }
     }
     // VK's refusal, once VK has been asked and has answered; Noctorium's own words otherwise.
     val shownProblem = problem ?: vk.message.takeIf { isVk && handedOver != null && !vk.checking && !vk.connected }
@@ -119,12 +119,6 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
             else -> close()
         }
     }
-
-    // Always from a clean store. Reusing whatever was there opens a page already signed in as the previous
-    // account, asks the listener for nothing, and harvests the same stale cookies again — the loop this
-    // project has already had once, from the desktop browser. VK's own cookies only, for VK: SoundCloud's
-    // writes are made from this store, and a VK sign-in should not sign anybody out of SoundCloud.
-    LaunchedEffect(provider) { if (isVk) WebViewSignIn.clearVkCookies() else WebViewSignIn.clearCookies() }
 
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Column(
@@ -189,8 +183,8 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                                 state.completeYouTubeSignIn(saved.toString(), webView?.settings?.userAgentString)
                                 // The WebView's copy goes once Noctorium has its own, as SimpMusic does it:
                                 // two holders of one session is how a copy dies, whichever renews the
-                                // cookies turning the other's into yesterday's.
-                                WebViewSignIn.clearCookies()
+                                // cookies turning the other's into yesterday's. Google's and YouTube's only.
+                                WebViewSignIn.clearCookiesOf(provider)
                             }
                             saving = false
                             close()
@@ -230,6 +224,14 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                                 },
                                 onPopup = { popup = it },
                             )
+                            // Always from a clean store. Reusing whatever was there opens a page already
+                            // signed in as the previous account, asks the listener for nothing, and harvests
+                            // the same stale cookies again — the loop this project has already had once, from
+                            // the desktop browser. Cleared here, before the page is asked for, rather than in
+                            // an effect that ran once it was already loading. This service's own cookies only:
+                            // SoundCloud's writes are made from this store, and signing in to YouTube or VK
+                            // should not sign anybody out of it.
+                            WebViewSignIn.clearCookiesOf(provider)
                             view.loadUrl(WebViewSignIn.startUrlFor(provider))
                             webView = view
                         }

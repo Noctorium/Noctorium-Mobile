@@ -112,7 +112,7 @@ internal fun LinkScreen(state: AppState) {
                     },
                     onSubmit = { submit(text) },
                     onClear = { text = ""; state.clearLink() },
-                    placeholder = "Paste a YouTube or SoundCloud link",
+                    placeholder = "Paste a music link",
                 )
             }
             item {
@@ -131,7 +131,7 @@ internal fun LinkScreen(state: AppState) {
                     Icon(Icons.Default.Share, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "Or, in YouTube, YouTube Music or SoundCloud, tap Share and pick Noctorium.",
+                        "Or, wherever you found it, tap Share and pick Noctorium.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )

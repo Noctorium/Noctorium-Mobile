@@ -88,6 +88,7 @@ class NoctoriumApplication : Application(), ImageLoaderFactory {
             backend,
             downloadedFile = downloads::localFile,
             networkProblem = { describeNetworkProblem() },
+            vkAgent = { (backend as? NewPipeBackend)?.vkAgent },
         )
 
         state = AppState(

@@ -19,11 +19,9 @@ import app.noctorium.auth.writeCookieFile
 import app.noctorium.domain.ProviderType
 import app.noctorium.settings.AppDirectories
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.nio.file.Path
 import java.time.Instant
-import kotlin.coroutines.resume
 
 /**
  * Signing in on a phone, in the service's own page.
@@ -65,6 +63,51 @@ internal fun cookieValue(header: String?, name: String): String? = header.orEmpt
 /** The names in such a line, for removing them one by one. */
 internal fun cookieNames(header: String?): List<String> =
     header.orEmpty().split(';').mapNotNull { it.substringBefore('=', "").trim().takeIf(String::isNotEmpty) }.distinct()
+
+/**
+ * Every host a sign-in to [provider] passes through and might leave a cookie on: the ones its session is read
+ * from, and the ones its sign-in page visits on the way. None for a service that is not signed in to here.
+ *
+ * Each service's own, so that one sign-in can start clean without ending another. SoundCloud's writes are
+ * made from this same store, and a YouTube sign-in that emptied it signed the listener out of SoundCloud too.
+ */
+internal fun cookieHostsFor(provider: ProviderType): List<String> = when (provider) {
+    ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO -> (hostsOf(YOUTUBE_SESSION_URLS) + GOOGLE_SIGN_IN_HOSTS).distinct()
+    ProviderType.SOUNDCLOUD -> hostsOf(SOUNDCLOUD_SESSION_URLS)
+    ProviderType.VK -> VK_COOKIE_HOSTS
+    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.LOCAL -> emptyList()
+}
+
+/**
+ * The lines that end the cookie [name] seen on [host], one for each place the store might hold it -- the host
+ * alone, the host and everything under it, or the whole site -- since it will not say which.
+ *
+ * Secure throughout: Chromium refuses to touch a `__Secure-` or `__Host-` cookie for a line without it, and
+ * those are where Google keeps the half of its session that matters.
+ */
+internal fun expiredCookies(name: String, host: String): List<String> {
+    val ended = "$name=; Max-Age=0; Path=/; Secure"
+    // A __Host- cookie is only ever the host's own, and a line giving it a domain is refused outright.
+    if (name.startsWith("__Host-")) return listOf(ended)
+    return listOf(ended, "$ended; Domain=$host", "$ended; Domain=${registrableDomain(host)}").distinct()
+}
+
+/** The site a host belongs to, as a cookie's Domain names it: its last two labels, which is right for every host here. */
+internal fun registrableDomain(host: String): String = host.split('.').takeLast(2).joinToString(".")
+
+private fun hostsOf(urls: List<String>): List<String> = urls.map { it.substringAfter("://").substringBefore('/') }.distinct()
+
+/**
+ * Where Google's sign-in goes besides the hosts the YouTube session is read from: the mobile site a phone is
+ * sent to, the step that carries the session over to youtube.com, and the account pages.
+ */
+private val GOOGLE_SIGN_IN_HOSTS = listOf("m.youtube.com", "accounts.youtube.com", "myaccount.google.com")
+
+/** Every host a VK sign-in passes through and might leave a cookie on. */
+private val VK_COOKIE_HOSTS = listOf(
+    "vk.ru", "login.vk.ru", "id.vk.ru", "m.vk.ru",
+    "vk.com", "login.vk.com", "id.vk.com", "m.vk.com",
+)
 
 object WebViewSignIn {
 
@@ -165,15 +208,26 @@ object WebViewSignIn {
     }
 
     /**
-     * Forgets everything the WebView is holding.
+     * Forgets one service's cookies, and nobody else's.
      *
      * Run before a sign-in, always. Without it the page opens already signed in as whoever was there
      * before, the listener is never asked for anything, and the same dead cookies are harvested again and
-     * reported as success — the loop this project has already had once, from the other browser.
+     * reported as success — the loop this project has already had once, from the other browser. Run after
+     * one as well, where Noctorium keeps a copy of the session: two holders of one session is how a copy dies.
+     *
+     * Never the whole store: SoundCloud's writes are made from a WebView holding SoundCloud's session, and
+     * signing in to YouTube or VK has no business ending that. A WebView has no way of removing one host's
+     * cookies, so each one is set again already expired, in every place it might be held.
      */
-    suspend fun clearCookies(): Unit = suspendCancellableCoroutine { continuation ->
+    fun clearCookiesOf(provider: ProviderType) {
         val manager = CookieManager.getInstance()
-        manager.removeAllCookies { manager.flush(); if (continuation.isActive) continuation.resume(Unit) }
+        cookieHostsFor(provider).forEach { host ->
+            val url = "https://$host"
+            cookieNames(manager.getCookie(url)).forEach { name ->
+                expiredCookies(name, host).forEach { manager.setCookie(url, it) }
+            }
+        }
+        manager.flush()
     }
 
     /**
@@ -190,33 +244,6 @@ object WebViewSignIn {
             siteCookies = listOf(manager.getCookie("https://vk.ru"), manager.getCookie("https://m.vk.ru")),
         )
     }
-
-    /**
-     * Forgets VK's cookies, and nobody else's.
-     *
-     * Not [clearCookies], which empties the whole store: SoundCloud's writes are made from a WebView holding
-     * SoundCloud's session, and signing in to VK has no business ending that. A WebView has no way of
-     * removing one host's cookies, so each one is set again already expired -- as the host's own and as the
-     * whole domain's, since the store will not say which it was.
-     */
-    fun clearVkCookies() {
-        val manager = CookieManager.getInstance()
-        VK_COOKIE_HOSTS.forEach { host ->
-            val url = "https://$host"
-            val domain = host.split('.').takeLast(2).joinToString(".")
-            cookieNames(manager.getCookie(url)).forEach { name ->
-                manager.setCookie(url, "$name=; Max-Age=0; Path=/")
-                manager.setCookie(url, "$name=; Max-Age=0; Path=/; Domain=$domain")
-            }
-        }
-        manager.flush()
-    }
-
-    /** Every host a VK sign-in passes through and might leave a cookie on. */
-    private val VK_COOKIE_HOSTS = listOf(
-        "vk.ru", "login.vk.ru", "id.vk.ru", "m.vk.ru",
-        "vk.com", "login.vk.com", "id.vk.com", "m.vk.com",
-    )
 
     /**
      * The SoundCloud token, which its API needs in a header rather than as a cookie.

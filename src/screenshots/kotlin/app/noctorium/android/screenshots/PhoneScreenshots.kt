@@ -23,12 +23,15 @@ import androidx.compose.ui.unit.dp
 import app.noctorium.android.ui.ColourCard
 import app.noctorium.android.ui.HomeLookCard
 import app.noctorium.android.ui.LibraryScreen
+import app.noctorium.android.ui.LinkScreen
 import app.noctorium.android.ui.LyricsLookCard
 import app.noctorium.android.ui.NoctoriumPhone
 import app.noctorium.android.ui.NoctoriumTheme
 import app.noctorium.android.ui.NowPlayingScreen
 import app.noctorium.android.ui.PhoneOptionsCard
+import app.noctorium.android.ui.PlaybackOptionsCard
 import app.noctorium.android.ui.PlayerButtonsCard
+import app.noctorium.android.ui.QueueScreen
 import app.noctorium.android.ui.SearchScreen
 import app.noctorium.android.ui.SettingsPage
 import app.noctorium.android.ui.SettingsPageScreen
@@ -43,6 +46,8 @@ import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
 import app.noctorium.core.SearchMode
 import app.noctorium.domain.ProviderType
+import app.noctorium.playback.SavedQueue
+import app.noctorium.settings.AutoplaySource
 import app.noctorium.settings.DataSaver
 import app.noctorium.settings.SpotifyConnectionState
 import app.noctorium.settings.SpotifyPlayback
@@ -68,6 +73,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -90,6 +96,9 @@ private const val NARROW_PHONE = "w320dp-h1100dp-xxhdpi"
 
 /** Tall enough for the longest card to be seen whole. */
 private const val TALL_PHONE = "w411dp-h1100dp-xxhdpi"
+
+/** For the Playback card, which autoplay's choices have made the longest of all. */
+private const val VERY_TALL_PHONE = "w411dp-h1400dp-xxhdpi"
 
 /** A curve somebody made by hand: a lot of bass, a dip in the middle, some air at the top. */
 private val HAND_MADE = listOf(7f, 5f, 2f, -1f, -4f, -3f, 0f, 3f, 5.5f, 2f)
@@ -512,6 +521,145 @@ class PhoneScreenshots {
         },
     ) { _, state -> LibraryScreen(state) }
 
+    // --- The queue, and what autoplay lines up after it ---
+    //
+    // Each queue is on a song well before its end. Autoplay only looks for songs as the end nears, and a
+    // queue there would have it ask SoundCloud or YouTube for real; these are lined up by hand instead.
+
+    /** Five queued, and four of SoundCloud's related songs after them, quieter, to play, keep or leave out. */
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun queueUpNext() = shoot(
+        "queue-up-next",
+        playing = Still.queue[1],
+        kept = kept(Still.queue),
+        prepare = { it.lineUp(Still.related, "Related on SoundCloud") },
+    ) { _, state -> QueueScreen(state) }
+
+    @Test
+    @Config(qualifiers = NARROW_PHONE)
+    fun queueUpNextNarrow() = shoot(
+        "queue-up-next-narrow",
+        playing = Still.queue[1],
+        kept = kept(Still.queue),
+        prepare = { it.lineUp(Still.related, "Related on SoundCloud") },
+    ) { _, state -> QueueScreen(state) }
+
+    @Test
+    fun queueAutoplayOff() = shoot(
+        "queue-autoplay-off",
+        NoctoriumPreferences(autoplay = false),
+        playing = Still.queue[1],
+        kept = kept(Still.queue),
+    ) { _, state -> QueueScreen(state) }
+
+    /** On, with nothing lined up yet, because the queue's end is still three songs away. */
+    @Test
+    fun queueWaiting() = shoot("queue-waiting", playing = Still.queue[1], kept = kept(Still.queue)) { _, state -> QueueScreen(state) }
+
+    /** Spotify songs played on Spotify, whose own autoplay takes over at the end. Nothing plays, so nothing is matched. */
+    @Test
+    fun queueOnSpotify() = shoot(
+        "queue-spotify",
+        kept = kept(Still.spotifyQueue),
+        prepare = { it.lineUp(emptyList(), "Spotify chooses what comes next", continuesElsewhere = true) },
+    ) { _, state -> QueueScreen(state) }
+
+    @Test
+    fun queueMenu() = shoot(
+        "queue-menu",
+        playing = Still.queue[1],
+        kept = kept(Still.queue),
+        then = {
+            openQueueMenu()
+            compose.onNodeWithText("Shuffle what's next").assertExists()
+            compose.onNodeWithText("Clear what's next").assertExists()
+            compose.onNodeWithText("Save queue as playlist…").assertExists()
+            compose.onNodeWithText("Clear the queue").assertExists()
+        },
+    ) { _, state -> QueueScreen(state) }
+
+    // "Save queue as playlist…" opens the same name dialog as a new playlist, and is not drawn here: a text
+    // field with a label inside a dialog never lets Robolectric settle, focused or not, in touch mode or out.
+
+    /** Launched with last time's queue kept and nothing playing: its song in the bar, paused, ready to go on. */
+    @Test
+    fun keptQueueHome() = shoot("kept-queue-home", kept = kept(Still.queue, positionMs = 67_000)) { _, state ->
+        NoctoriumPhone(state)
+    }
+
+    @Test
+    fun keptQueueNowPlaying() = shoot("kept-queue-now-playing", kept = kept(Still.queue, positionMs = 67_000)) { _, state ->
+        NowPlayingScreen(state) {}
+    }
+
+    /** The last song with autoplay off: next has nowhere to go, so it is greyed, in the bar and the full screen. */
+    @Test
+    fun lastSongHome() = shoot(
+        "last-song-home",
+        NoctoriumPreferences(autoplay = false),
+        playing = Still.queue.last(),
+        kept = kept(Still.queue, index = Still.queue.lastIndex),
+    ) { _, state -> NoctoriumPhone(state) }
+
+    @Test
+    fun lastSongControlsBar() = shoot(
+        "last-song-controls-bar",
+        NoctoriumPreferences(autoplay = false, phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.CONTROLS)),
+        playing = Still.queue.last(),
+        kept = kept(Still.queue, index = Still.queue.lastIndex),
+    ) { _, state -> NoctoriumPhone(state) }
+
+    @Test
+    fun lastSongNowPlaying() = shoot(
+        "last-song-now-playing",
+        NoctoriumPreferences(autoplay = false),
+        playing = Still.queue.last(),
+        kept = kept(Still.queue, index = Still.queue.lastIndex),
+    ) { _, state -> NowPlayingScreen(state) {} }
+
+    /** Autoplay's choices on the Playback page: where its songs come from, what it leaves out, and the kept queue. */
+    @Test
+    @Config(qualifiers = VERY_TALL_PHONE)
+    fun playbackAutoplay() = shoot("playback-autoplay") { settings, state -> Card { PlaybackOptionsCard(settings, state) } }
+
+    @Test
+    @Config(qualifiers = VERY_TALL_PHONE)
+    fun playbackAutoplayOff() = shoot(
+        "playback-autoplay-off",
+        NoctoriumPreferences(autoplay = false, autoplayFrom = AutoplaySource.YOUTUBE_MUSIC, keepQueue = false),
+    ) { settings, state -> Card { PlaybackOptionsCard(settings, state) } }
+
+    @Test
+    @Config(qualifiers = "w320dp-h2100dp-xxhdpi")
+    fun playbackAutoplayNarrow() = shoot("playback-autoplay-narrow") { settings, state -> Card { PlaybackOptionsCard(settings, state) } }
+
+    @Test
+    fun linkScreen() = shoot("link-screen") { _, state -> LinkScreen(state) }
+
+    @Test
+    @Config(qualifiers = "w360dp-h891dp-xxhdpi")
+    fun linkScreen360() = shoot("link-screen-360") { _, state -> LinkScreen(state) }
+
+    @Test
+    @Config(qualifiers = NARROW_PHONE)
+    fun linkScreenNarrow() = shoot("link-screen-narrow") { _, state -> LinkScreen(state) }
+
+    /** [tracks] as last time's queue, on its [index]th song. */
+    private fun kept(tracks: List<Track>, index: Int = 1, positionMs: Long = 0) = SavedQueue(tracks, index, positionMs)
+
+    /** Lines up autoplay's songs after the queue as core does, for its last song, so nothing is asked for. */
+    private fun AppState.lineUp(songs: List<Track>, from: String, continuesElsewhere: Boolean = false) {
+        val last = queue.state.value.tracks.last()
+        queue.setSuggestions("${last.queueKey}|${AutoplaySource.SAME_SERVICE}", songs, from, continuesElsewhere)
+    }
+
+    private fun openQueueMenu() {
+        compose.onNodeWithContentDescription("Queue actions").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.waitForIdle()
+    }
+
     /** Spotify songs set to play on Spotify, which a Premium sign-in allows. */
     private fun onSpotify() = NoctoriumPreferences(spotifyCanPlay = true, spotifyPlayback = SpotifyPlayback.ON_SPOTIFY)
 
@@ -541,11 +689,12 @@ class PhoneScreenshots {
         preferences: NoctoriumPreferences = NoctoriumPreferences(),
         playing: Track? = null,
         equalizerAvailable: Boolean = true,
+        kept: SavedQueue? = null,
         prepare: (AppState) -> Unit = {},
         then: (() -> Unit)? = null,
         content: @Composable (SettingsState, AppState) -> Unit,
     ) {
-        val state = stillState(preferences, playing)
+        val state = stillState(preferences, playing, kept = kept)
         try {
             prepare(state)
             // Time moves only when told to. The full-screen seek bar's wave runs for as long as it is on

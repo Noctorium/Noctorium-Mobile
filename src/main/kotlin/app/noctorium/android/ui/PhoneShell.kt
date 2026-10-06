@@ -200,7 +200,11 @@ fun noctoriumColors(theme: ThemeColours, accent: Color): ColorScheme {
 @Composable
 fun NoctoriumPhone(state: AppState) {
     val ui by state.ui.collectAsState()
-    val playback by state.playback.collectAsState()
+    val reported by state.playback.collectAsState()
+    val queue by state.queue.state.collectAsState()
+    // The queue kept from the last session puts its song in the player at launch, paused, so the music
+    // is where it was left rather than nowhere; play picks it up at the place it stopped.
+    val playback = shownPlayback(reported, queue)
     val library by state.library.collectAsState()
     val settings by state.settings.collectAsState()
     // Asked once, the first time something plays on a phone that could stop it when the screen locks.
@@ -592,6 +596,9 @@ private fun PlayerBar(
     val track = playback.track ?: return
     val haptics = rememberHaptics(state)
     val settings by state.settings.collectAsState()
+    val queue by state.queue.state.collectAsState()
+    // Next is greyed where it would go nowhere: the end of a queue with nothing lined up after it.
+    val hasNext = queue.hasNext
     // A song the account's own Spotify app is playing says so, or the bar would read as this phone playing it.
     val onSpotify = playsOnSpotify(track, settings.spotify)
     // Controls carries a seek bar of its own, and a line under a seek bar is the same thing twice.
@@ -622,11 +629,11 @@ private fun PlayerBar(
             ) {
                 if (!glass && line) PlaybackLine(playback, style)
                 when (layout) {
-                    PhonePlayerBarStyle.CLASSIC -> ClassicBar(track, playback, state, glass, onSpotify)
+                    PhonePlayerBarStyle.CLASSIC -> ClassicBar(track, playback, state, glass, onSpotify, hasNext)
                     PhonePlayerBarStyle.SLIM -> SlimBar(track, playback, state, glass, onSpotify = onSpotify)
                     PhonePlayerBarStyle.SLIM_LEFT -> SlimBar(track, playback, state, glass, controlsFirst = true, onSpotify = onSpotify)
-                    PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass, onSpotify)
-                    PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass, onSpotify)
+                    PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass, onSpotify, hasNext)
+                    PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass, onSpotify, hasNext)
                 }
                 // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
                 // rounded ends would be cut off at an angle, which reads as a mistake.
@@ -642,7 +649,7 @@ private fun PlayerBar(
 
 /** The cover, the track, play and next. The bar as it has always been. */
 @Composable
-private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, onSpotify: Boolean) {
+private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, onSpotify: Boolean, hasNext: Boolean) {
     val haptics = rememberHaptics(state)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 8.dp),
@@ -652,7 +659,7 @@ private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, g
         Spacer(Modifier.width(11.dp))
         TrackLines(track, playback, onSpotify, Modifier.weight(1f))
         PlayPauseButton(playback, state)
-        IconButton({ haptics.tick(); state.next() }) {
+        IconButton({ haptics.tick(); state.next() }, enabled = hasNext) {
             Icon(Icons.Default.SkipNext, "Next track")
         }
     }
@@ -748,7 +755,7 @@ private fun SlimControls(playback: PlaybackState, state: AppState) {
             Icon(Icons.Default.SkipPrevious, "Previous track", Modifier.size(22.dp))
         }
         Box(Modifier.size(SLIM_BUTTON), contentAlignment = Alignment.Center) { PlayPauseButton(playback, state, size = 24.dp) }
-        IconButton({ haptics.tick(); state.next() }, Modifier.size(SLIM_BUTTON)) {
+        IconButton({ haptics.tick(); state.next() }, Modifier.size(SLIM_BUTTON), enabled = queue.hasNext) {
             Icon(Icons.Default.SkipNext, "Next track", Modifier.size(22.dp))
         }
         if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
@@ -778,7 +785,15 @@ private val SLIM_BUTTON = 38.dp
  * and tapping it seeks rather than opening the full screen.
  */
 @Composable
-private fun ControlsBar(track: Track, playback: PlaybackState, state: AppState, style: ProgressBarStyle, glass: Boolean, onSpotify: Boolean) {
+private fun ControlsBar(
+    track: Track,
+    playback: PlaybackState,
+    state: AppState,
+    style: ProgressBarStyle,
+    glass: Boolean,
+    onSpotify: Boolean,
+    hasNext: Boolean,
+) {
     val haptics = rememberHaptics(state)
     val settings by state.settings.collectAsState()
     Column(Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 6.dp)) {
@@ -790,7 +805,7 @@ private fun ControlsBar(track: Track, playback: PlaybackState, state: AppState, 
                 Icon(Icons.Default.SkipPrevious, "Previous track")
             }
             PlayPauseButton(playback, state)
-            IconButton({ haptics.tick(); state.next() }) {
+            IconButton({ haptics.tick(); state.next() }, enabled = hasNext) {
                 Icon(Icons.Default.SkipNext, "Next track")
             }
         }
@@ -809,7 +824,7 @@ private fun ControlsBar(track: Track, playback: PlaybackState, state: AppState, 
 
 /** A larger cover and a larger title, over the artwork itself blurred behind them. */
 @Composable
-private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, onSpotify: Boolean) {
+private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, onSpotify: Boolean, hasNext: Boolean) {
     val haptics = rememberHaptics(state)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 10.dp),
@@ -837,7 +852,7 @@ private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState,
                 else -> PlayPauseIcon(playback.isPlaying, 28.dp)
             }
         }
-        IconButton({ haptics.tick(); state.next() }) {
+        IconButton({ haptics.tick(); state.next() }, enabled = hasNext) {
             Icon(Icons.Default.SkipNext, "Next track")
         }
     }

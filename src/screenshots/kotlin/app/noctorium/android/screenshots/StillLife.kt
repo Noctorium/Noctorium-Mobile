@@ -15,6 +15,8 @@ import app.noctorium.playback.MusicBackend
 import app.noctorium.playback.PlaybackEngine
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.PlaybackStatus
+import app.noctorium.playback.QueueStore
+import app.noctorium.playback.SavedQueue
 import app.noctorium.playlists.PinnedTracksRepository
 import app.noctorium.playlists.RecentTracksRepository
 import app.noctorium.providers.MusicProvider
@@ -155,6 +157,14 @@ internal object Still {
 
     val spotifyPlaying = spotifySong("sp-np", "Lanterns Over the Harbour", "The Quiet Hours", 247)
 
+    /** Spotify songs queued, for a queue that goes on in Spotify's own autoplay once they are done. */
+    val spotifyQueue = listOf(
+        spotifySong("sp-q1", "Paper Lanterns", "Marrow & Fern", 189),
+        spotifyPlaying,
+        spotifySong("sp-q2", "Lantern Light", "Juniper Kaye", 214),
+        spotifySong("sp-q3", "Lantern Season", "Juniper Kaye", 236),
+    )
+
     /** What a Spotify search finds: two albums and an artist, the way Spotify's search answers, and songs. */
     val spotifyFound = SearchResults(
         tracks = listOf(
@@ -201,13 +211,30 @@ internal object Still {
             sourceUrl = "https://vk.ru/audio-2001_9002#vk-access=made-up",
         ),
     )
+
+    /** A queue of five, played from the top: what the queue's screens are drawn from. */
+    val queue = listOf(
+        track(ProviderType.SOUNDCLOUD, "q1", "Low Tide Static", "Odile Brandt", 305),
+        track(ProviderType.SOUNDCLOUD, "q2", "Tape Hiss Lullaby", "Saltmarsh", 181),
+        track(ProviderType.SOUNDCLOUD, "q3", "Night Bus (Demo)", "Saltmarsh", 174),
+        track(ProviderType.SOUNDCLOUD, "q4", "Fog Machine", "Odile Brandt", 288),
+        track(ProviderType.SOUNDCLOUD, "q5", "Second Draft", "Pell Mell", 203),
+    )
+
+    /** What SoundCloud would relate to the queue's last song. */
+    val related = listOf(
+        track(ProviderType.SOUNDCLOUD, "a1", "Harbour Wall", "Odile Brandt", 226),
+        track(ProviderType.SOUNDCLOUD, "a2", "Pier Lights at Four", "Pell Mell", 197),
+        track(ProviderType.SOUNDCLOUD, "a3", "Shingle", "Saltmarsh", 241),
+        track(ProviderType.SOUNDCLOUD, "a4", "Undertow (Rough Mix)", "Ilse Varga", 263),
+    )
 }
 
 /**
  * The application state for one screenshot, settled before it is drawn.
  *
- * Settings, pins and the recently played list are written to a folder of their own first, as a phone would
- * have them on disk, so the state reads them in the ordinary way.
+ * Settings, pins, the recently played list and the [kept] queue are written to a folder of their own first,
+ * as a phone would have them on disk, so the state reads them in the ordinary way.
  */
 internal fun stillState(
     preferences: NoctoriumPreferences,
@@ -215,6 +242,7 @@ internal fun stillState(
     pinned: List<Track> = Still.pinned,
     recent: List<Track> = Still.recent,
     shelves: List<HomeSection> = Still.shelves,
+    kept: SavedQueue? = null,
 ): AppState {
     val base: Path = Files.createTempDirectory("noctorium-screenshots")
     AppDirectories.useBase(base)
@@ -250,6 +278,12 @@ internal fun stillState(
         settingsRepository = settings,
         pinnedRepository = PinnedTracksRepository(base.resolve("pinned.json")).also { it.save(pinned) },
         recentRepository = RecentTracksRepository(base.resolve("recent.json")).also { it.save(recent) },
+        // A song playing is always in a queue in the app, so it is here too, with songs after it: without one
+        // the player would rightly grey out next, and every picture of it would look broken. Five after it, so
+        // the end is far enough off that autoplay never goes looking for more.
+        queueStore = QueueStore(base.resolve("queue.json")).also { store ->
+            (kept ?: playing?.let { song -> SavedQueue(listOf(song) + Still.queue, 0) })?.let(store::save)
+        },
         deviceName = { "Screenshot phone" },
         deviceKind = DeviceKind.PHONE,
     )

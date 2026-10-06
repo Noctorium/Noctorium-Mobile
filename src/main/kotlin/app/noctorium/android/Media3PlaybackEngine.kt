@@ -16,9 +16,13 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import app.noctorium.domain.Track
 import app.noctorium.net.networkFailureMessage
 import app.noctorium.playback.MAX_SPEED
@@ -103,6 +107,18 @@ private fun ensureAudioSession(player: ExoPlayer, context: Context) {
 }
 
 /**
+ * Where the player's requests go out: the way they always have, except that VK's media hosts are asked as the
+ * browser their addresses were issued to. VK refuses the audio -- playlist, segments and keys -- to any other,
+ * and every other service is left on the agent it already answers.
+ */
+@OptIn(UnstableApi::class)
+private fun mediaRequests(context: Context, vkAgent: () -> String?): DataSource.Factory =
+    ResolvingDataSource.Factory(DefaultDataSource.Factory(context)) { spec ->
+        val headers = mediaRequestHeaders(spec.uri.host, vkAgent())
+        if (headers.isEmpty()) spec else spec.withAdditionalHeaders(headers)
+    }
+
+/**
  * Playing on Android, through Media3.
  *
  * The desktop drives mpv as a child process over a pipe, which is why closing the window there had to
@@ -121,6 +137,8 @@ class Media3PlaybackEngine(
     private val downloadedFile: (Track) -> Path? = { null },
     /** What the phone knows about its connection when a stream fails for a network reason. */
     private val networkProblem: () -> String? = { null },
+    /** The browser VK issued its audio addresses to, once a VK song has been looked up; see [mediaRequestHeaders]. */
+    private val vkAgent: () -> String? = { null },
 ) : PlaybackEngine {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -177,6 +195,7 @@ class Media3PlaybackEngine(
      */
     internal val mediaPlayer: ExoPlayer get() = player
 
+    @OptIn(UnstableApi::class)
     private val player: ExoPlayer = ExoPlayer.Builder(context)
         .setAudioAttributes(
             AudioAttributes.Builder()
@@ -209,6 +228,7 @@ class Media3PlaybackEngine(
                 )
                 .build(),
         )
+        .setMediaSourceFactory(DefaultMediaSourceFactory(mediaRequests(context, vkAgent)))
         .build()
         .apply {
             // Start where the state says, not where ExoPlayer's own default is.

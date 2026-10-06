@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -28,12 +31,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.playback.MAX_SPEED
 import app.noctorium.playback.MIN_SPEED
+import app.noctorium.settings.AutoplaySource
 import app.noctorium.settings.DataSaver
 import app.noctorium.settings.SettingsState
 import kotlin.math.roundToInt
@@ -182,10 +187,40 @@ internal fun PlaybackOptionsCard(settings: SettingsState, state: AppState) {
 
         Toggle(
             "Keep playing when the queue ends",
-            "Songs like the last one follow it: Bandcamp and VK suggest their own, and YouTube Music's radio " +
-                "answers for everything else.",
+            autoplayDetail(preferences.autoplayFrom),
             preferences.autoplay,
         ) { state.setAutoplay(it) }
+
+        // What autoplay plays and what it leaves out, which only mean something while it is on.
+        Text(
+            "Where autoplay's songs come from",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 6.dp).alpha(if (preferences.autoplay) 1f else DISABLED_ALPHA),
+        )
+        Column(Modifier.selectableGroup()) {
+            AutoplaySource.entries.forEach { source ->
+                AutoplaySourceRow(source, selected = preferences.autoplayFrom == source, enabled = preferences.autoplay) {
+                    state.setAutoplayFrom(source)
+                }
+            }
+        }
+        Toggle(
+            "Skip songs played lately",
+            "Autoplay leaves out what you have heard lately, so it brings something new rather than the same " +
+                "songs again.",
+            preferences.autoplayAvoidRecent,
+            enabled = preferences.autoplay,
+            onChange = state::setAutoplayAvoidRecent,
+        )
+
+        Toggle(
+            "Keep the queue between launches",
+            "Noctorium opens with the queue it closed with, on the song it was playing, and play carries on " +
+                "where it stopped. Off, the kept queue is forgotten.",
+            preferences.keepQueue,
+            onChange = state::setKeepQueue,
+        )
 
         OptionRow("A sleep timer fades out over") {
             sleepFadeChoices(preferences.sleepFadeSeconds).forEach { seconds ->
@@ -239,6 +274,27 @@ internal fun TabsCard(settings: SettingsState, state: AppState) {
 
 /** The offered jumps. Small enough to catch a missed word, large enough to clear an intro. */
 private val SEEK_STEPS = listOf(5, 10, 30)
+
+/** One place autoplay can take its songs from, with what that means, as a choice between the two. */
+@Composable
+private fun AutoplaySourceRow(source: AutoplaySource, selected: Boolean, enabled: Boolean, choose: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = choose)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(source.displayName, fontSize = 13.sp)
+            Text(source.description, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+        }
+        Spacer(Modifier.width(12.dp))
+        // The row is what is tapped; the button only shows which one is chosen.
+        RadioButton(selected = selected, onClick = null, enabled = enabled)
+    }
+}
 
 
 /** A labelled row of chips. Shared with the other settings cards, so every choice in Settings is the same shape. */

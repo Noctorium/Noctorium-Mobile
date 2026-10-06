@@ -124,6 +124,13 @@ class NewPipeBackend(
     /** Bandcamp and VK, which core reads for itself rather than through NewPipe. See [ServiceStreams]. */
     @Volatile private var serviceStreams: ServiceStreams? = null
 
+    /**
+     * The browser VK issued its audio addresses to, as its streams name it; null until a VK song has been
+     * looked up. The player asks VK's media hosts as that browser, since they serve nobody else.
+     */
+    @Volatile var vkAgent: String? = null
+        private set
+
     override fun useServiceStreams(streams: ServiceStreams) {
         serviceStreams = streams
     }
@@ -279,7 +286,10 @@ class NewPipeBackend(
      */
     private suspend fun freshAddress(sourceUrl: String, small: Boolean): String {
         // Core's own services first: NewPipe cannot read their pages, and core already has the address.
-        serviceStreams?.streamFor(sourceUrl)?.let { return it.address }
+        serviceStreams?.streamFor(sourceUrl)?.let { stream ->
+            if (isVkMediaHost(hostOf(stream.address))) stream.userAgent?.let { vkAgent = it }
+            return stream.address
+        }
         if (providerOf(sourceUrl) == ProviderType.SOUNDCLOUD && secretOf(sourceUrl) != null) {
             return privateSoundCloudStream?.invoke(sourceUrl)
                 ?: throw BackendException("SoundCloud would not give Noctorium the audio of this private track.")

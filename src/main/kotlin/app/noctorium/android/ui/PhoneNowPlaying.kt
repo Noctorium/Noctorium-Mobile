@@ -96,8 +96,10 @@ import kotlin.math.roundToInt
  */
 @Composable
 internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
-    val playback by state.playback.collectAsState()
+    val reported by state.playback.collectAsState()
     val queue by state.queue.state.collectAsState()
+    // A queue kept from the last session shows its song here too, paused, until play picks it up.
+    val playback = shownPlayback(reported, queue)
     val likes by state.likes.collectAsState()
     val lyrics by state.lyrics.collectAsState()
     val settings by state.settings.collectAsState()
@@ -249,7 +251,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 }
                 IconButton(state::previous) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(34.dp)) }
                 PlayPauseButton(playback, state, size = 44.dp)
-                IconButton(state::next) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(34.dp)) }
+                IconButton(state::next, enabled = queue.hasNext) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(34.dp)) }
                 if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
                     IconButton(state::cycleRepeat) {
                         Icon(

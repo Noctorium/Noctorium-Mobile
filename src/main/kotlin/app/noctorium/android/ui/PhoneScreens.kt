@@ -39,7 +39,6 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Downloading
@@ -851,41 +850,6 @@ private fun DownloadsCard(downloads: app.noctorium.downloads.DownloadsState, sta
                         modifier = Modifier.fillMaxWidth().height(3.dp),
                     )
                 }
-            }
-        }
-    }
-}
-
-// --- Queue ---
-
-@Composable
-internal fun QueueScreen(state: AppState) {
-    val queue by state.queue.state.collectAsState()
-    val playback by state.playback.collectAsState()
-
-    ScreenScaffold {
-        ScreenTitle("Queue", "What is playing, and what follows") {
-            if (queue.tracks.isNotEmpty()) {
-                IconButton(state::clearQueue) { Icon(Icons.Default.Delete, "Clear the queue") }
-            }
-        }
-        if (queue.tracks.isEmpty()) {
-            EmptyNote("Nothing queued", "Play something and it will show up here.")
-            return@ScreenScaffold
-        }
-        LazyColumn(contentPadding = chromePadding(24.dp)) {
-            items(queue.tracks.size) { index ->
-                val track = queue.tracks[index]
-                TrackRow(
-                    track,
-                    state,
-                    isCurrent = index == queue.currentIndex,
-                    trailing = {
-                        IconButton({ state.removeQueueItem(index) }) {
-                            Icon(Icons.Default.Delete, "Remove from the queue", Modifier.size(18.dp))
-                        }
-                    },
-                ) { state.jumpToQueueItem(index) }
             }
         }
     }
