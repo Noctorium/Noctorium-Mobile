@@ -2,16 +2,22 @@ package app.noctorium.android.screenshots
 
 import android.app.Application
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import app.noctorium.android.ui.NoctoriumPhone
+import app.noctorium.android.ui.NowPlaying
+import app.noctorium.android.ui.NowPlayingLookCard
 import app.noctorium.android.ui.NowPlayingScreen
 import app.noctorium.android.ui.PlayerBarCard
+import app.noctorium.android.ui.SingAlongNowPlaying
 import app.noctorium.core.AppState
 import app.noctorium.domain.Track
 import app.noctorium.playback.SavedQueue
 import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.PhoneNowPlayingLayout
 import app.noctorium.settings.PhonePlayerBarStyle
 import app.noctorium.settings.PhonePreferences
 import app.noctorium.settings.ProgressBarStyle
@@ -46,7 +52,7 @@ class LooksScreenshots(private val look: Look) {
     companion object {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = (seekBarLooks() + playerBarLooks()).map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = (seekBarLooks() + playerBarLooks() + layoutLooks()).map { arrayOf(it) }
     }
 }
 
@@ -139,11 +145,66 @@ private fun playerBarLooks(): List<Look> = NEW_PLAYER_BARS.flatMap { layout ->
     kept = { SavedQueue(Covers.on(Still.queue), 1, 67_000) },
 ) { _, state -> NoctoriumPhone(state) }
 
+/** Each now playing layout, with Classic beside them now that it has a cover to show. */
+private fun layoutLooks(): List<Look> = THEMES.flatMap { (theme, preferences) ->
+    fun laid(layout: PhoneNowPlayingLayout) = preferences.copy(phone = PhonePreferences(nowPlayingLayout = layout))
+    listOf(
+        PhoneNowPlayingLayout.CLASSIC,
+        PhoneNowPlayingLayout.FULL_COVER,
+        PhoneNowPlayingLayout.RECORD,
+        PhoneNowPlayingLayout.BIG_TYPE,
+    ).map { layout ->
+        Look("layout-${layout.name.lowercase().replace('_', '-')}-$theme", laid(layout)) { _, state -> NowPlayingScreen(state) {} }
+    } + listOf(
+        // In the middle of the queue, so there are covers either side.
+        Look(
+            "layout-cover-flow-$theme",
+            laid(PhoneNowPlayingLayout.COVER_FLOW),
+            playing = { Covers.on(Still.queue[2]) },
+            kept = { SavedQueue(Covers.on(Still.queue), 2, 83_000) },
+        ) { _, state -> NowPlayingScreen(state) {} },
+        Look(
+            "layout-big-type-long-$theme",
+            laid(PhoneNowPlayingLayout.BIG_TYPE),
+            playing = { Covers.on(Still.longTitle) },
+        ) { _, state -> NowPlayingScreen(state) {} },
+        // Drawn with lyrics of its own making, since the screen itself would ask the lyric sources for some.
+        Look("layout-sing-along-$theme", laid(PhoneNowPlayingLayout.SING_ALONG)) { settings, state -> SingAlongWithLyrics(settings, state) },
+    )
+}
+
+/** Sing along, as the now playing screen lays it out, with [Still.lyrics] in place of what would be fetched. */
+@Composable
+private fun SingAlongWithLyrics(settings: SettingsState, state: AppState) {
+    val playback by state.playback.collectAsState()
+    val queue by state.queue.state.collectAsState()
+    val track = playback.track ?: return
+    SingAlongNowPlaying(
+        NowPlaying(
+            state = state,
+            track = track,
+            playback = playback,
+            queue = queue,
+            settings = settings,
+            lyrics = Still.lyrics(track),
+            hidden = emptySet(),
+            haptics = {},
+            onSpotify = false,
+            showLyrics = true,
+            toggleLyrics = {},
+            close = {},
+        ),
+    )
+}
+
 /** The pickers in Customization. */
 private fun pickerLooks(): List<Look> = THEMES.flatMap { (theme, preferences) ->
     listOf(
         Look("picker-player-bar-$theme", preferences.copy(progressBarStyle = ProgressBarStyle.NEON)) { settings, state ->
             Card { PlayerBarCard(settings, state) }
+        },
+        Look("picker-now-playing-$theme", preferences.copy(phone = PhonePreferences(nowPlayingLayout = PhoneNowPlayingLayout.COVER_FLOW))) { settings, state ->
+            Card { NowPlayingLookCard(settings, state) }
         },
     )
 }

@@ -58,6 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -75,12 +76,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import app.noctorium.core.AppState
+import app.noctorium.domain.Track
+import app.noctorium.lyrics.LyricsUiState
 import app.noctorium.playback.PlaybackState
+import app.noctorium.playback.QueueState
 import app.noctorium.playback.RepeatMode
+import app.noctorium.settings.PhoneNowPlayingLayout
 import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.SeekBar
+import app.noctorium.settings.SettingsState
 import app.noctorium.settings.TimeDisplay
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
@@ -97,6 +104,10 @@ import kotlin.math.roundToInt
  * The desktop shows this beside everything else; a phone has no beside. So it comes up over the whole
  * interface and goes away again, which is also why the only way out is the chevron rather than a tab —
  * leaving by tapping something else would lose the track you were looking at.
+ *
+ * How it is arranged is the listener's choice of [PhoneNowPlayingLayout]. Every layout is made of the same
+ * parts below -- the bar along the top, the track, the seek bar, the controls and the tools -- so each has
+ * every button the others have, and a button added to one is added to all of them.
  */
 @Composable
 internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
@@ -104,17 +115,17 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
     val queue by state.queue.state.collectAsState()
     // A queue kept from the last session shows its song here too, paused, until play picks it up.
     val playback = shownPlayback(reported, queue)
-    val likes by state.likes.collectAsState()
     val lyrics by state.lyrics.collectAsState()
     val settings by state.settings.collectAsState()
-    val connect by state.connect.collectAsState()
-    val sleepTimer by state.sleepTimer.collectAsState()
     val track = playback.track ?: return
+    val layout = settings.preferences.phone.nowPlayingLayout
 
     val hidden = settings.preferences.phone.hiddenPlayerButtons
-    // A hidden lyrics button closes the lyrics too, or they would be open with no way of closing them.
+    // A hidden lyrics button closes the lyrics too, or they would be open with no way of closing them. Sing
+    // along is the one layout that opens on the lyrics, and there the button puts the cover in their place.
     var lyricsAsked by remember { mutableStateOf(false) }
-    val showLyrics = lyricsAsked && showsPlayerButton(hidden, PlayerButton.LYRICS)
+    val lyricsButton = showsPlayerButton(hidden, PlayerButton.LYRICS)
+    val showLyrics = if (layout == PhoneNowPlayingLayout.SING_ALONG) !(lyricsAsked && lyricsButton) else lyricsAsked && lyricsButton
     val haptics = rememberHaptics(state)
 
     // Lyrics are fetched only when asked for. Eight providers get queried, and doing that for a track
@@ -123,88 +134,181 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
         if (showLyrics) state.loadLyrics(track)
     }
 
+    val screen = NowPlaying(
+        state = state,
+        track = track,
+        playback = playback,
+        queue = queue,
+        settings = settings,
+        lyrics = lyrics,
+        hidden = hidden,
+        haptics = haptics,
+        onSpotify = playsOnSpotify(track, settings.spotify),
+        showLyrics = showLyrics,
+        toggleLyrics = { lyricsAsked = !lyricsAsked },
+        close = close,
+    )
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
       Box(Modifier.fillMaxSize()) {
-        if (settings.preferences.ambientBackdrop) AmbientBackdrop(track.artworkUrl)
-        Column(
-            Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.navigationBars))
-                .padding(horizontal = 24.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(close) { Icon(Icons.Default.ExpandMore, "Close") }
-                Spacer(Modifier.weight(1f))
-                Text(
-                    if (showLyrics) "Lyrics" else "Now playing",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                )
-                Spacer(Modifier.weight(1f))
-                if (showsPlayerButton(hidden, PlayerButton.DEVICES, inUse = connect.target != null)) {
-                    ConnectButton(state, haptics)
-                }
-                if (showsPlayerButton(hidden, PlayerButton.SLEEP_TIMER, inUse = sleepTimer != null)) {
-                    SleepTimerButton(state, haptics)
-                }
-                if (showsPlayerButton(hidden, PlayerButton.LYRICS)) {
-                    IconButton({ lyricsAsked = !showLyrics }) {
-                        Text(if (showLyrics) "♪" else "Aa", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    }
+        // The full cover is its own backdrop, and the wash behind it would only be painted over.
+        if (settings.preferences.ambientBackdrop && layout != PhoneNowPlayingLayout.FULL_COVER) AmbientBackdrop(track.artworkUrl)
+        when (layout) {
+            PhoneNowPlayingLayout.CLASSIC -> ClassicNowPlaying(screen)
+            PhoneNowPlayingLayout.FULL_COVER -> FullCoverNowPlaying(screen)
+            PhoneNowPlayingLayout.RECORD -> RecordNowPlaying(screen)
+            PhoneNowPlayingLayout.COVER_FLOW -> CoverFlowNowPlaying(screen)
+            PhoneNowPlayingLayout.SING_ALONG -> SingAlongNowPlaying(screen)
+            PhoneNowPlayingLayout.BIG_TYPE -> BigTypeNowPlaying(screen)
+        }
+      }
+    }
+}
+
+/**
+ * Everything the parts of the now playing screen are drawn from, gathered once for whichever layout is
+ * drawing them, so no part reads the state a second time and disagrees with its neighbour.
+ */
+@Stable
+internal class NowPlaying(
+    val state: AppState,
+    val track: Track,
+    val playback: PlaybackState,
+    val queue: QueueState,
+    val settings: SettingsState,
+    val lyrics: LyricsUiState,
+    val hidden: Set<PlayerButton>,
+    val haptics: Haptics,
+    /** The song is playing in the account's own Spotify app rather than on this phone. */
+    val onSpotify: Boolean,
+    val showLyrics: Boolean,
+    val toggleLyrics: () -> Unit,
+    val close: () -> Unit,
+) {
+    /** Back or forward by the double tap's step, from where the song is now, and never past either end. */
+    fun jump(forward: Boolean) {
+        val step = settings.preferences.phone.seekStepSeconds * 1_000L
+        haptics.tick()
+        state.seekTo(
+            (playback.positionMs + if (forward) step else -step)
+                .coerceIn(0L, playback.durationMs.coerceAtLeast(0L)),
+        )
+    }
+}
+
+/** The screen as it has always been: the cover, then the track, the seek bar and the controls. */
+@Composable
+private fun ClassicNowPlaying(screen: NowPlaying) {
+    NowPlayingColumn {
+        NowPlayingTopBar(screen)
+
+        /*
+         * fillMaxWidth is what makes the centring mean anything.
+         *
+         * A Column child is as wide as its content unless told otherwise, so this Box was exactly as
+         * wide as the 300dp cover inside it and had nothing to centre it in. The Column then laid the
+         * Box out at its default Start, and the cover sat hard against the left margin while the
+         * title, the seek bar and the controls all ran the full width.
+         */
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            if (screen.showLyrics) {
+                LyricsPane(screen.lyrics, screen.playback.positionMs, screen.track, screen.state)
+            } else {
+                Box(Modifier.size(300.dp).seekOnDoubleTap(screen)) {
+                    Artwork(
+                        screen.track.artworkUrl,
+                        300.dp,
+                        // A percentage of the side, not a fixed radius, so Circle really is one.
+                        corner = 300.dp * screen.settings.preferences.phone.artworkShape.cornerPercent / 100,
+                    )
                 }
             }
+        }
 
-            /*
-             * fillMaxWidth is what makes the centring mean anything.
-             *
-             * A Column child is as wide as its content unless told otherwise, so this Box was exactly as
-             * wide as the 300dp cover inside it and had nothing to centre it in. The Column then laid the
-             * Box out at its default Start, and the cover sat hard against the left margin while the
-             * title, the seek bar and the controls all ran the full width.
-             */
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                if (showLyrics) {
-                    LyricsPane(lyrics, playback.positionMs, track, state)
-                } else {
-                    /*
-                     * Double tapping the left or right of the cover jumps back or forward.
-                     *
-                     * The alternative on a phone is dragging a seek bar three hundred pixels wide across
-                     * a whole track, which cannot express ten seconds. The current position is read
-                     * through rememberUpdatedState rather than captured: the gesture handler is built
-                     * once and would otherwise seek relative to wherever the track was when this screen
-                     * opened.
-                     */
-                    val live by rememberUpdatedState(playback)
-                    val step = settings.preferences.phone.seekStepSeconds * 1_000L
-                    Box(
-                        Modifier.size(300.dp).pointerInput(step) {
-                            detectTapGestures(onDoubleTap = { at ->
-                                val forward = at.x > size.width / 2
-                                haptics.tick()
-                                state.seekTo(
-                                    (live.positionMs + if (forward) step else -step)
-                                        .coerceIn(0L, live.durationMs.coerceAtLeast(0L)),
-                                )
-                            })
-                        },
-                    ) {
-                        Artwork(
-                            track.artworkUrl,
-                            300.dp,
-                            // A percentage of the side, not a fixed radius, so Circle really is one.
-                            corner = 300.dp * settings.preferences.phone.artworkShape.cornerPercent / 100,
-                        )
-                    }
-                }
+        TrackHeading(screen)
+        Spacer(Modifier.height(14.dp))
+        NowPlayingSeekbar(screen)
+        TransportRow(screen)
+        ToolsRow(screen)
+    }
+}
+
+/** The column every layout but the full cover is laid out in: clear of the system bars, with a margin each side. */
+@Composable
+internal fun NowPlayingColumn(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.navigationBars))
+            .padding(horizontal = 24.dp),
+        content = content,
+    )
+}
+
+/** The way down, what the screen is showing, and the buttons about the listening rather than the song. */
+@Composable
+internal fun NowPlayingTopBar(screen: NowPlaying) {
+    val connect by screen.state.connect.collectAsState()
+    val sleepTimer by screen.state.sleepTimer.collectAsState()
+    val hidden = screen.hidden
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(screen.close) { Icon(Icons.Default.ExpandMore, "Close") }
+        Spacer(Modifier.weight(1f))
+        Text(
+            if (screen.showLyrics) "Lyrics" else "Now playing",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.weight(1f))
+        if (showsPlayerButton(hidden, PlayerButton.DEVICES, inUse = connect.target != null)) {
+            ConnectButton(screen.state, screen.haptics)
+        }
+        if (showsPlayerButton(hidden, PlayerButton.SLEEP_TIMER, inUse = sleepTimer != null)) {
+            SleepTimerButton(screen.state, screen.haptics)
+        }
+        if (showsPlayerButton(hidden, PlayerButton.LYRICS)) {
+            IconButton(screen.toggleLyrics) {
+                Text(if (screen.showLyrics) "♪" else "Aa", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
+        }
+    }
+}
 
+/**
+ * Double tapping the left or right of whatever this is on jumps back or forward.
+ *
+ * The alternative on a phone is dragging a seek bar three hundred pixels wide across a whole track, which
+ * cannot express ten seconds. The current position is read through rememberUpdatedState rather than
+ * captured: the gesture handler is built once and would otherwise seek relative to wherever the track was
+ * when this screen opened.
+ */
+@Composable
+internal fun Modifier.seekOnDoubleTap(screen: NowPlaying): Modifier {
+    val live by rememberUpdatedState(screen)
+    return pointerInput(Unit) {
+        detectTapGestures(onDoubleTap = { at -> live.jump(forward = at.x > size.width / 2) })
+    }
+}
+
+/**
+ * The title over the artist, and under them where the song is playing when it is not here, the artist to
+ * follow, and what went wrong. [title] false leaves the first two to a layout that sets them itself, and
+ * [centred] lines everything up under a cover in the middle.
+ */
+@Composable
+internal fun TrackHeading(screen: NowPlaying, title: Boolean = true, centred: Boolean = false, titleSize: TextUnit = 22.sp) {
+    val track = screen.track
+    Column(
+        if (centred) Modifier.fillMaxWidth() else Modifier,
+        horizontalAlignment = if (centred) Alignment.CenterHorizontally else Alignment.Start,
+    ) {
+        if (title) {
             Text(
                 track.title,
-                fontSize = 22.sp,
+                fontSize = titleSize,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                textAlign = if (centred) TextAlign.Center else TextAlign.Start,
             )
             Text(
                 track.artistLine.ifBlank { "Unknown artist" },
@@ -213,99 +317,115 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val onSpotify = playsOnSpotify(track, settings.spotify)
-            if (onSpotify) OnSpotifyLine(spotifyDeviceName(settings.spotify), Modifier.padding(top = 4.dp))
-            PhoneFollowArtistChip(track, state, Modifier.padding(top = 4.dp))
-            playback.errorMessage?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-            }
-
-            Spacer(Modifier.height(14.dp))
-            Seekbar(
-                playback.positionMs,
-                playback.durationMs,
-                settings.preferences.timeDisplay,
-                settings.preferences.progressBarStyle,
-                playback.isPlaying,
-                state::seekTo,
-                seed = track.queueKey,
-            )
-
-            // A hidden shuffle or repeat leaves its place empty rather than closing up, so play stays in the
-            // middle of the screen under the thumb that knows where it is.
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (showsPlayerButton(hidden, PlayerButton.SHUFFLE)) {
-                    IconButton(state::toggleShuffle) {
-                        Icon(
-                            Icons.Default.Shuffle,
-                            "Shuffle",
-                            tint = if (queue.shuffleEnabled) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                } else {
-                    Spacer(Modifier.size(48.dp))
-                }
-                IconButton(state::previous) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(34.dp)) }
-                PlayPauseButton(playback, state, size = 44.dp)
-                IconButton(state::next, enabled = queue.hasNext) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(34.dp)) }
-                if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
-                    IconButton(state::cycleRepeat) {
-                        Icon(
-                            if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                            "Repeat",
-                            tint = if (queue.repeatMode == RepeatMode.OFF) {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            },
-                        )
-                    }
-                } else {
-                    Spacer(Modifier.size(48.dp))
-                }
-            }
-
-            // The like and the menu are about this track, so they stay under the middle of it. Volume is
-            // not about the track at all, and sitting in that group it read as a third thing of the same
-            // kind; out at the edge, under the end of the seek bar, it is plainly its own. The speed is not
-            // about the track either, and takes the other edge.
-            Box(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-                // Not for a song Spotify is playing, which plays at Spotify's own speed whatever is set here.
-                if (!onSpotify) {
-                    SpeedButton(settings.preferences.playbackSpeed, state, Modifier.align(Alignment.CenterStart))
-                }
-                Row(
-                    Modifier.align(Alignment.Center),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (likes.supports(track) && showsPlayerButton(hidden, PlayerButton.LIKE)) {
-                        val liked = likes.isLiked(track)
-                        // The heart pops as it fills, so a like is seen to land and not only to change colour.
-                        IconButton({ state.toggleLike(track) }, Modifier.popOn(liked, pop = liked), enabled = !likes.isBusy(track)) {
-                            Icon(
-                                if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                if (liked) "Remove from likes" else "Like",
-                                tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    TrackMenuButton(track, state)
-                }
-                if (showsPlayerButton(hidden, PlayerButton.VOLUME)) {
-                    VolumeButton(playback, state, Modifier.align(Alignment.CenterEnd))
-                }
-            }
         }
-      }
+        if (screen.onSpotify) OnSpotifyLine(spotifyDeviceName(screen.settings.spotify), Modifier.padding(top = 4.dp))
+        PhoneFollowArtistChip(track, screen.state, Modifier.padding(top = 4.dp))
+        screen.playback.errorMessage?.let {
+            Spacer(Modifier.height(6.dp))
+            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        }
+    }
+}
+
+/** The seek bar the listener chose, and its two times. */
+@Composable
+internal fun NowPlayingSeekbar(screen: NowPlaying) {
+    Seekbar(
+        screen.playback.positionMs,
+        screen.playback.durationMs,
+        screen.settings.preferences.timeDisplay,
+        screen.settings.preferences.progressBarStyle,
+        screen.playback.isPlaying,
+        screen.state::seekTo,
+        seed = screen.track.queueKey,
+    )
+}
+
+/** Shuffle, previous, play, next and repeat. */
+@Composable
+internal fun TransportRow(screen: NowPlaying) {
+    val state = screen.state
+    val queue = screen.queue
+    val hidden = screen.hidden
+    // A hidden shuffle or repeat leaves its place empty rather than closing up, so play stays in the
+    // middle of the screen under the thumb that knows where it is.
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (showsPlayerButton(hidden, PlayerButton.SHUFFLE)) {
+            IconButton(state::toggleShuffle) {
+                Icon(
+                    Icons.Default.Shuffle,
+                    "Shuffle",
+                    tint = if (queue.shuffleEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        } else {
+            Spacer(Modifier.size(48.dp))
+        }
+        IconButton(state::previous) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(34.dp)) }
+        PlayPauseButton(screen.playback, state, size = 44.dp)
+        IconButton(state::next, enabled = queue.hasNext) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(34.dp)) }
+        if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
+            IconButton(state::cycleRepeat) {
+                Icon(
+                    if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                    "Repeat",
+                    tint = if (queue.repeatMode == RepeatMode.OFF) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                )
+            }
+        } else {
+            Spacer(Modifier.size(48.dp))
+        }
+    }
+}
+
+/** The speed, the like and the song's menu, and the volume. */
+@Composable
+internal fun ToolsRow(screen: NowPlaying) {
+    val likes by screen.state.likes.collectAsState()
+    val state = screen.state
+    val track = screen.track
+    val hidden = screen.hidden
+    // The like and the menu are about this track, so they stay under the middle of it. Volume is
+    // not about the track at all, and sitting in that group it read as a third thing of the same
+    // kind; out at the edge, under the end of the seek bar, it is plainly its own. The speed is not
+    // about the track either, and takes the other edge.
+    Box(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+        // Not for a song Spotify is playing, which plays at Spotify's own speed whatever is set here.
+        if (!screen.onSpotify) {
+            SpeedButton(screen.settings.preferences.playbackSpeed, state, Modifier.align(Alignment.CenterStart))
+        }
+        Row(
+            Modifier.align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (likes.supports(track) && showsPlayerButton(hidden, PlayerButton.LIKE)) {
+                val liked = likes.isLiked(track)
+                // The heart pops as it fills, so a like is seen to land and not only to change colour.
+                IconButton({ state.toggleLike(track) }, Modifier.popOn(liked, pop = liked), enabled = !likes.isBusy(track)) {
+                    Icon(
+                        if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        if (liked) "Remove from likes" else "Like",
+                        tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            TrackMenuButton(track, state)
+        }
+        if (showsPlayerButton(hidden, PlayerButton.VOLUME)) {
+            VolumeButton(screen.playback, state, Modifier.align(Alignment.CenterEnd))
+        }
     }
 }
 

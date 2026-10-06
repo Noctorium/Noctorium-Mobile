@@ -430,13 +430,25 @@ internal fun PlayerBarCard(settings: SettingsState, state: AppState) {
 /** What the Bars preview is made from while nothing is playing: any song's row is better than an even one. */
 private const val PREVIEW_SEED = "noctorium"
 
-/** How the full-screen player looks: the cover's shape, and whether its colours spill onto the page. */
+/**
+ * How the full-screen player looks: how it is laid out, the cover's shape, and whether its colours spill onto
+ * the page.
+ */
 @Composable
-private fun NowPlayingLookCard(settings: SettingsState, state: AppState) {
+internal fun NowPlayingLookCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     SettingsCardShell {
         CardHeading(Icons.Default.Album, "Now playing")
         Spacer(Modifier.height(10.dp))
+
+        Text("Layout", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+        NowPlayingPicker(preferences.phone.nowPlayingLayout) { layout -> state.updatePhone { copy(nowPlayingLayout = layout) } }
+        Text(
+            preferences.phone.nowPlayingLayout.description,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
 
         ChoiceRow("Cover shape") {
             ArtworkShape.entries.forEach { shape ->

@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
+import app.noctorium.settings.PhoneNowPlayingLayout
 import app.noctorium.settings.PhonePlayerBarStyle
 
 /*
@@ -212,5 +213,123 @@ private fun DrawScope.planPrevious(c: PlanColours, centreX: Float, centreY: Floa
     }
     drawPath(path, colour)
     drawRect(colour, Offset(centreX - half * 1.1f, centreY - half * .85f), Size(half * .35f, half * 1.7f))
+}
+
+
+/** Every now playing layout, three to a row, each as a plan of the whole screen. */
+@Composable
+internal fun NowPlayingPicker(selected: PhoneNowPlayingLayout, choose: (PhoneNowPlayingLayout) -> Unit) {
+    val colours = planColours()
+    PickerGrid(PhoneNowPlayingLayout.entries, columns = 3) { layout, modifier ->
+        PickerTile(layout.displayName, selected == layout, { choose(layout) }, modifier) {
+            Canvas(Modifier.fillMaxWidth().aspectRatio(.62f)) { drawNowPlayingPlan(layout, colours) }
+        }
+    }
+}
+
+/** A whole now playing screen as [layout] arranges it. */
+private fun DrawScope.drawNowPlayingPlan(layout: PhoneNowPlayingLayout, c: PlanColours) {
+    val u = size.width / 100f
+    val corner = CornerRadius(5 * u, 5 * u)
+    drawRoundRect(c.page, cornerRadius = corner)
+    val ink = c.ink
+    if (layout == PhoneNowPlayingLayout.FULL_COVER) {
+        drawRoundRect(c.cover(Offset.Zero, size), cornerRadius = corner)
+        drawRoundRect(
+            Brush.verticalGradient(
+                0f to Color.Transparent,
+                .42f to Color.Transparent,
+                .7f to c.page.copy(alpha = .85f),
+                1f to c.page,
+                startY = 0f,
+                endY = size.height,
+            ),
+            cornerRadius = corner,
+        )
+    }
+    // The bar along the top: the way down, the screen's name, and the buttons at its end.
+    val top = 8 * u
+    val chevron = Path().apply {
+        moveTo(6 * u, top - 1.2f * u); lineTo(8.5f * u, top + 1.2f * u); lineTo(11 * u, top - 1.2f * u)
+    }
+    drawPath(chevron, ink, style = Stroke(1.1f * u, cap = StrokeCap.Round))
+    drawRoundRect(c.faint, Offset(38 * u, top - .9f * u), Size(24 * u, 1.8f * u), CornerRadius(u, u))
+    drawCircle(c.faint, 1.4f * u, Offset(84 * u, top))
+    drawCircle(c.faint, 1.4f * u, Offset(92 * u, top))
+
+    var titleLines = true
+    when (layout) {
+        PhoneNowPlayingLayout.CLASSIC -> planCover(c, 19 * u, 26 * u, 62 * u, corner = 4 * u)
+        PhoneNowPlayingLayout.FULL_COVER -> Unit
+        PhoneNowPlayingLayout.RECORD -> planRecord(c, Offset(50 * u, 57 * u), 33 * u)
+        PhoneNowPlayingLayout.COVER_FLOW -> planCoverFlow(c, u)
+        PhoneNowPlayingLayout.SING_ALONG -> {
+            titleLines = false
+            val widths = listOf(46f, 62f, 40f, 70f, 56f, 36f, 50f)
+            widths.forEachIndexed { i, w ->
+                val sung = i == 3
+                val tall = if (sung) 3.6f else 2.6f
+                drawRoundRect(
+                    if (sung) c.accent else c.faint,
+                    Offset((50 - w / 2) * u, (20 + i * 10) * u - tall / 2 * u),
+                    Size(w * u, tall * u),
+                    CornerRadius(u, u),
+                )
+            }
+            planCover(c, 7 * u, 92 * u, 12 * u, corner = 2 * u)
+            planText(c, 23 * u, 94 * u, 40 * u, 26 * u, u)
+        }
+        PhoneNowPlayingLayout.BIG_TYPE -> {
+            titleLines = false
+            listOf(80f, 66f, 42f).forEachIndexed { i, w ->
+                drawRoundRect(ink, Offset(7 * u, (30 + i * 16) * u), Size(w * u, 11 * u), CornerRadius(2 * u, 2 * u))
+            }
+            drawRoundRect(c.faint, Offset(7 * u, 83 * u), Size(40 * u, 3 * u), CornerRadius(u, u))
+        }
+    }
+    if (titleLines) {
+        // Under a cover in the middle, the track is centred under it too.
+        val centred = layout == PhoneNowPlayingLayout.COVER_FLOW
+        drawRoundRect(ink, Offset((if (centred) 21f else 7f) * u, 104 * u), Size(58 * u, 3.6f * u), CornerRadius(u, u))
+        drawRoundRect(c.faint, Offset((if (centred) 32f else 7f) * u, 111 * u), Size(36 * u, 2.4f * u), CornerRadius(u, u))
+    }
+    // The seek bar, the controls under it and the row of tools at the foot: the same in every layout.
+    drawRect(c.faint, Offset(7 * u, 122 * u), Size(86 * u, 1.1f * u))
+    drawRect(c.accent, Offset(7 * u, 122 * u), Size(86 * u * .4f, 1.1f * u))
+    drawCircle(c.accent, 2 * u, Offset((7 + 86 * .4f) * u, 122.5f * u))
+    drawCircle(c.faint, 1.5f * u, Offset(13 * u, 136 * u))
+    planPrevious(c, 31 * u, 136 * u, 3.4f * u, colour = ink)
+    planPlay(c, 51 * u, 136 * u, 5.2f * u, colour = ink)
+    planNext(c, 69 * u, 136 * u, 3.4f * u, colour = ink)
+    drawCircle(c.faint, 1.5f * u, Offset(87 * u, 136 * u))
+    listOf(12f, 50f, 88f).forEach { x -> drawCircle(c.faint, 1.4f * u, Offset(x * u, 150 * u)) }
+}
+
+/** The queue's covers in a row, the one playing large and the others turned away, each over its reflection. */
+private fun DrawScope.planCoverFlow(c: PlanColours, u: Float) {
+    fun turned(nearX: Float, farX: Float) {
+        val near = 21 * u
+        val far = 14 * u
+        val middle = 52 * u
+        val path = Path().apply {
+            moveTo(nearX, middle - near); lineTo(farX, middle - far); lineTo(farX, middle + far); lineTo(nearX, middle + near); close()
+        }
+        drawPath(path, c.cover(Offset(minOf(nearX, farX), middle - near), Size(kotlin.math.abs(nearX - farX), near * 2)))
+        drawPath(path, Color.Black.copy(alpha = .25f))
+        val shadow = Path().apply {
+            moveTo(nearX, middle + near + u); lineTo(farX, middle + far + u); lineTo(farX, middle + far + 7 * u); lineTo(nearX, middle + near + 9 * u); close()
+        }
+        drawPath(shadow, Brush.verticalGradient(listOf(c.accent.copy(alpha = .25f), Color.Transparent), startY = middle + far, endY = middle + near + 9 * u))
+    }
+    turned(25 * u, 4 * u)
+    turned(75 * u, 96 * u)
+    val side = 46 * u
+    val topLeft = Offset(27 * u, 52 * u - side / 2)
+    planCover(c, topLeft.x, topLeft.y, side, corner = 2 * u)
+    drawRect(
+        Brush.verticalGradient(listOf(c.accent.copy(alpha = .3f), Color.Transparent), startY = topLeft.y + side + u, endY = topLeft.y + side + 12 * u),
+        Offset(topLeft.x, topLeft.y + side + u),
+        Size(side, 11 * u),
+    )
 }
 

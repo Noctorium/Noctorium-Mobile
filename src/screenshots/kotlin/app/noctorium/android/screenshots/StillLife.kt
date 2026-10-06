@@ -10,6 +10,12 @@ import app.noctorium.domain.Playlist
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.SearchResults
 import app.noctorium.domain.Track
+import app.noctorium.lyrics.LyricLine
+import app.noctorium.lyrics.LyricsProviderId
+import app.noctorium.lyrics.LyricsProviderOutcome
+import app.noctorium.lyrics.LyricsProviderStatus
+import app.noctorium.lyrics.LyricsResult
+import app.noctorium.lyrics.LyricsUiState
 import app.noctorium.platform.SystemBridge
 import app.noctorium.playback.MusicBackend
 import app.noctorium.playback.PlaybackEngine
@@ -220,6 +226,44 @@ internal object Still {
         track(ProviderType.SOUNDCLOUD, "q4", "Fog Machine", "Odile Brandt", 288),
         track(ProviderType.SOUNDCLOUD, "q5", "Second Draft", "Pell Mell", 203),
     )
+
+    /** A title long enough that the big type has to shrink it to fit, and must not break a word to. */
+    val longTitle = track(
+        ProviderType.YOUTUBE_MUSIC,
+        "lt",
+        "Everything the Harbour Lights Remembered After the Ferries Stopped",
+        "Marrow & Fern",
+        322,
+    )
+
+    /**
+     * Synced lyrics for [track], made up for the purpose: what a lyric source would answer, so the Sing along
+     * pictures show lyrics without asking any source for them.
+     */
+    fun lyrics(track: Track): LyricsUiState {
+        val lines = listOf(
+            "Lanterns over the harbour",
+            "Swinging on a wire of salt",
+            "Every boat a little window",
+            "Every window someone's fault",
+            "",
+            "Hold the light a little longer",
+            "Till the tide forgets the shore",
+            "We were small against the water",
+            "We were never small before",
+            "Lanterns over the harbour",
+            "Going out the way they came",
+        ).mapIndexed { index, text -> LyricLine(text, startTimeMs = index * 11_000L) }
+        val result = LyricsResult(LyricsProviderId.LRCLIB, lines, synced = true)
+        return LyricsUiState(
+            trackKey = track.queueKey,
+            outcomes = listOf(
+                LyricsProviderOutcome(LyricsProviderId.LRCLIB, LyricsProviderStatus.FOUND, result),
+                LyricsProviderOutcome(LyricsProviderId.LYRICS_OVH, LyricsProviderStatus.NOT_FOUND),
+            ),
+            selectedProvider = LyricsProviderId.LRCLIB,
+        )
+    }
 
     /** What SoundCloud would relate to the queue's last song. */
     val related = listOf(
