@@ -61,8 +61,11 @@ internal fun ProviderBadge(track: Track, modifier: Modifier = Modifier) {
     }
 }
 
-/** The same colours the desktop badges use, so a card reads identically on either screen. */
-private fun ProviderType.badgeColour(): Color = when (this) {
+/**
+ * The same colours the desktop badges use, so a card reads identically on either screen. Bandcamp's Settings
+ * tile is tinted with its own, the way Spotify's is with Spotify's green.
+ */
+internal fun ProviderType.badgeColour(): Color = when (this) {
     ProviderType.YOUTUBE_MUSIC -> Color(0xFF8B5CF6)
     ProviderType.YOUTUBE_VIDEO -> Color(0xFFCC0000)
     ProviderType.SOUNDCLOUD -> Color(0xFFFF7300)

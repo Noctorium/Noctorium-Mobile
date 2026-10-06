@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -86,9 +87,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.noctorium.bandcamp.BandcampMusicProvider
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.domain.HomeSection
+import app.noctorium.domain.pageUrl
 import app.noctorium.domain.pluralTracks
 import app.noctorium.domain.Playlist
 import app.noctorium.domain.editableOnService
@@ -142,7 +145,7 @@ internal fun HomeScreen(state: AppState) {
     // empty Home is judged by what is actually on it.
     val sections = ui.homeSections.withoutHidden(hidden)
     val recent = if (HomePart.RECENT in hidden) emptyList() else ui.recentTracks
-    val servicesHidden = HomePart.YOUTUBE_MUSIC in hidden && HomePart.SOUNDCLOUD in hidden
+    val servicesHidden = serviceRowsAllHidden(hidden)
     val everythingHidden = servicesHidden && HomePart.PINNED in hidden && HomePart.RECENT in hidden
 
     ScreenScaffold {
@@ -260,12 +263,7 @@ private fun TrackCarousel(
     val width = preferences.cardSize.phoneWidth()
     val showBadges = preferences.badgePolicy.showsFor(tracks)
     Column(Modifier.padding(top = 14.dp)) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            subtitle?.let {
-                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-            }
-        }
+        ShelfHeading(title, subtitle)
         Spacer(Modifier.height(10.dp))
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -302,6 +300,17 @@ private fun TrackCarousel(
     }
 }
 
+/** A row's name over it, the way every shelf on Home and in Search begins. */
+@Composable
+private fun ShelfHeading(title: String, subtitle: String?) {
+    Column(Modifier.padding(horizontal = 20.dp)) {
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        subtitle?.let {
+            Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+        }
+    }
+}
+
 /**
  * Asking for a name, and for which account it belongs to when there is more than one.
  *
@@ -310,6 +319,9 @@ private fun TrackCarousel(
  *
  * The chooser appears only when it is a real choice. Somebody signed into one service does not want to be
  * asked which one, and the caption says where the playlist will end up either way.
+ *
+ * With no account to offer, nothing is made. This used to fall back to YouTube Music, which made a SoundCloud
+ * song's playlist on YouTube, empty, and would have handed YouTube anything else that had no account here.
  */
 @Composable
 private fun NewPlaylistDialog(
@@ -318,7 +330,7 @@ private fun NewPlaylistDialog(
     create: (String, ProviderType) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
-    var service by remember { mutableStateOf(services.firstOrNull() ?: ProviderType.YOUTUBE_MUSIC) }
+    var service by remember { mutableStateOf(services.firstOrNull()) }
     AlertDialog(
         onDismissRequest = dismiss,
         title = { Text("New playlist") },
@@ -344,14 +356,18 @@ private fun NewPlaylistDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Made on ${service.displayName}, and private until you say otherwise.",
+                    service?.let { "Made on ${it.displayName}, and private until you say otherwise." }
+                        ?: "Sign in under Settings to the service this track is on, and it can be made there.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                 )
             }
         },
         confirmButton = {
-            TextButton(enabled = name.isNotBlank(), onClick = { create(name.trim(), service) }) { Text("Create") }
+            TextButton(
+                enabled = name.isNotBlank() && service != null,
+                onClick = { service?.let { create(name.trim(), it) } },
+            ) { Text("Create") }
         },
         dismissButton = { TextButton(dismiss) { Text("Cancel") } },
     )
@@ -377,6 +393,9 @@ private fun playlistServices(state: AppState): List<ProviderType> {
  * worth a look. A card leads to the playlist screen the library already uses, which is why tapping one
  * also moves to the library -- that screen lives there, and opening something the listener cannot see
  * would be the same as doing nothing.
+ *
+ * An artist is a card too, from a Bandcamp search: opened, it is everything they have put out. It is drawn
+ * round and says "Artist", so it is not mistaken for one record of theirs.
  */
 @Composable
 private fun PlaylistCarousel(
@@ -386,21 +405,19 @@ private fun PlaylistCarousel(
     state: AppState,
     preferences: NoctoriumPreferences,
 ) {
-    if (playlists.isEmpty()) return
+    // Once each: a service that lists the same album twice would otherwise stop the row with a repeated key.
+    val shown = remember(playlists) { playlists.distinctBy(Playlist::playlistKey) }
+    if (shown.isEmpty()) return
     val width = preferences.cardSize.phoneWidth()
     Column(Modifier.padding(top = 14.dp)) {
-        Column(Modifier.padding(horizontal = 20.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            subtitle?.let {
-                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-            }
-        }
+        ShelfHeading(title, subtitle)
         Spacer(Modifier.height(10.dp))
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            items(playlists, key = Playlist::id) { playlist ->
+            items(shown, key = Playlist::playlistKey) { playlist ->
+                val artist = BandcampMusicProvider.isArtist(playlist)
                 Column(
                     Modifier
                         .width(width)
@@ -409,7 +426,7 @@ private fun PlaylistCarousel(
                             state.navigate(Destination.LIBRARY)
                         },
                 ) {
-                    Artwork(playlist.artworkUrl, width, corner = 10.dp)
+                    Artwork(playlist.artworkUrl, width, corner = if (artist) width / 2 else 10.dp)
                     Spacer(Modifier.height(6.dp))
                     Text(
                         playlist.title,
@@ -419,7 +436,9 @@ private fun PlaylistCarousel(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        playlist.ownerName ?: playlist.provider.displayName,
+                        // Where an artist is from, when Bandcamp says: that is what its owner line holds.
+                        if (artist) listOfNotNull("Artist", playlist.ownerName).joinToString(" · ")
+                        else playlist.ownerName ?: playlist.provider.displayName,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         maxLines = 1,
@@ -449,13 +468,16 @@ private fun greeting(): String = when (java.time.LocalTime.now().hour) {
 internal fun SearchScreen(state: AppState) {
     val ui by state.ui.collectAsState()
     val playback by state.playback.collectAsState()
+    val settings by state.settings.collectAsState()
 
     ScreenScaffold {
         ScreenTitle("Search")
         OutlinedTextField(
             ui.searchQuery,
             state::search,
-            placeholder = { Text("YouTube Music and SoundCloud") },
+            // What to type rather than where it goes: the chips below say where, and a list of services
+            // here went out of date the moment a third arrived.
+            placeholder = { Text("Songs, albums and artists") },
             leadingIcon = { Icon(Icons.Default.Search, null) },
             trailingIcon = {
                 if (ui.searchLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -489,16 +511,35 @@ internal fun SearchScreen(state: AppState) {
         Spacer(Modifier.height(8.dp))
 
         val results = ui.searchResults.tracks
+        // Albums and artists, from the services that answer with them -- Bandcamp's releases and the people
+        // behind them. They open as playlists, the way an album on Home does.
+        val releases = ui.searchResults.playlists
         when {
             ui.searchQuery.isBlank() -> EmptyNote(
                 "Find something",
-                "Both services answer a search without an account, so this works straight away.",
+                "Every service here answers a search without an account, so this works straight away.",
             )
-            results.isEmpty() && !ui.searchLoading -> EmptyNote(
+            results.isEmpty() && releases.isEmpty() && !ui.searchLoading -> EmptyNote(
                 "Nothing found",
-                "No track matched \"${ui.searchQuery}\".",
+                "Nothing matched \"${ui.searchQuery}\".",
             )
             else -> LazyColumn(contentPadding = chromePadding(24.dp)) {
+                if (releases.isNotEmpty()) {
+                    item(key = "search:releases") {
+                        PlaylistCarousel(
+                            "Albums and artists",
+                            releases.map { it.provider.displayName }.distinct().joinToString(" and "),
+                            releases,
+                            state,
+                            settings.preferences,
+                        )
+                    }
+                    if (results.isNotEmpty()) {
+                        item(key = "search:songs") {
+                            Box(Modifier.padding(top = 18.dp, bottom = 4.dp)) { ShelfHeading("Songs", null) }
+                        }
+                    }
+                }
                 items(results, key = { it.queueKey }) { track ->
                     TrackRow(
                         track,
@@ -608,7 +649,8 @@ private fun LibraryList(
                     EmptyNote(
                         "No playlists yet",
                         library.errorMessage
-                            ?: "Connect YouTube Music, SoundCloud or Spotify under Settings to see yours here.",
+                            ?: "Connect YouTube Music, SoundCloud or Spotify, or give your Bandcamp name, " +
+                                "under Settings to see yours here.",
                     )
                 }
                 else -> {
@@ -696,13 +738,18 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
                 )
             }
             if (playlist.tracks.isNotEmpty()) {
-                // The whole playlist kept in one tap, and greyed out once there is nothing left to keep.
-                val missing = playlist.tracks.count { !downloads.isDownloaded(state.downloadableTrack(it)) }
-                IconButton({ state.downloadAll(playlist.tracks) }, enabled = missing > 0) {
-                    Icon(
-                        if (missing > 0) Icons.Default.Download else Icons.Default.DownloadDone,
-                        if (missing > 0) "Download $missing" else "All downloaded",
-                    )
+                // The whole playlist kept in one tap, and greyed out once there is nothing left to keep. Not
+                // there at all for a Bandcamp album, none of which may be kept: it leads to its page instead.
+                val missing = downloadsWanted(playlist.tracks, state::canKeep) {
+                    downloads.isDownloaded(state.downloadableTrack(it))
+                }
+                if (missing != null) {
+                    IconButton({ state.downloadAll(playlist.tracks) }, enabled = missing > 0) {
+                        Icon(
+                            if (missing > 0) Icons.Default.Download else Icons.Default.DownloadDone,
+                            if (missing > 0) "Download $missing" else "All downloaded",
+                        )
+                    }
                 }
                 IconButton({ state.playPlaylist(playlist) }) { Icon(Icons.Default.PlayArrow, "Play this playlist") }
             }
@@ -710,6 +757,7 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
 
         // The account's own playlists can be made public or private, renamed and deleted from here.
         if (playlist.editableOnService()) ServicePlaylistControls(playlist, notice, state)
+        bandcampPage(playlist.provider, playlist.sourceUrl)?.let { page -> BandcampPageAction(page, state) }
         notice?.let {
             Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
         }
@@ -853,6 +901,8 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
     val onDisk = state.downloadableTrack(track)
     val job = downloads.jobFor(onDisk)
     val kept = downloads.isDownloaded(onDisk)
+    // A Bandcamp song is heard here and bought on its page, so its menu leads there instead of to a download.
+    val keepable = state.canKeep(track)
     val pinned = ui.pinnedTracks.any { it.queueKey == track.queueKey }
 
     var addOpen by remember { mutableStateOf(false) }
@@ -903,25 +953,35 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
                     leadingIcon = { Icon(Icons.Default.DownloadDone, null, tint = MaterialTheme.colorScheme.primary) },
                     onClick = { state.deleteDownload(onDisk.queueKey); open = false },
                 )
-                else -> DropdownMenuItem(
+                keepable -> DropdownMenuItem(
                     text = { Text("Download for offline") },
                     leadingIcon = { Icon(Icons.Default.Download, null) },
                     onClick = { state.downloadTrack(track); open = false },
                 )
             }
-            DropdownMenuItem(
-                text = { Text("Save a copy…") },
-                leadingIcon = { Icon(Icons.Default.SaveAlt, null) },
-                onClick = { state.exportTrack(track); open = false },
-            )
+            if (keepable) {
+                DropdownMenuItem(
+                    text = { Text("Save a copy…") },
+                    leadingIcon = { Icon(Icons.Default.SaveAlt, null) },
+                    onClick = { state.exportTrack(track); open = false },
+                )
+            }
+            bandcampPage(track.provider, track.pageUrl)?.let {
+                DropdownMenuItem(
+                    text = { Text("Open on Bandcamp") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
+                    onClick = { state.openExternalUrl(it); open = false },
+                )
+            }
             // Wherever the track's own service keeps playlists. Not Spotify, which is read here and never
-            // written to, and not a local file, which belongs to no account at all.
+            // written to, not a local file, which belongs to no account at all, and not Bandcamp, whose
+            // lists are what a fan bought.
             //
             // This said YouTube only, left behind when the dialog underneath it learned about SoundCloud:
             // the dialog could add a SoundCloud track to a SoundCloud playlist perfectly well and no menu
             // ever opened it. Which is worth remembering -- changing what a screen can do and not the one
             // line that decides whether anybody reaches it leaves no trace at all.
-            if (track.provider in YOUTUBE_PROVIDERS || track.provider == ProviderType.SOUNDCLOUD) {
+            if (playlistAccountFor(track) != null) {
                 DropdownMenuItem(
                     text = { Text("Add to playlist…") },
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
@@ -948,17 +1008,6 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
     }
 }
 
-/** The providers whose tracks a YouTube Music playlist will accept. */
-private val YOUTUBE_PROVIDERS = setOf(ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO)
-
-/**
- * YouTube's own lists, which cannot be added to.
- *
- * Liked Music fills itself from the heart, Episodes for Later from podcasts. Offering them here would be
- * offering something that quietly does nothing.
- */
-private val YOUTUBE_SYSTEM_PLAYLISTS = setOf("LM", "SE", "HL", "WL", "LL")
-
 /**
  * Choosing which playlist a track goes into, or making one to hold it.
  *
@@ -977,7 +1026,7 @@ private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Un
         NewPlaylistDialog(
             // A playlist made to hold this track is made where the track can go into it: SoundCloud's
             // playlists take SoundCloud tracks and nothing else, and the same is true of YouTube Music's.
-            services = playlistServices(state).filter { it == track.provider },
+            services = playlistServices(state).filter { it == playlistAccountFor(track) },
             dismiss = { naming = false },
             create = { name, service ->
                 state.createPlaylist(name, service, listOf(track))
@@ -990,11 +1039,7 @@ private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Un
 
     // Only the ones this track can actually join. A SoundCloud track in a YouTube Music playlist is not
     // something either service will accept, so offering it would only produce a failure at the end.
-    val writable = library.playlists.filter {
-        it.provider == track.provider &&
-            (track.provider != ProviderType.YOUTUBE_MUSIC || it.id !in YOUTUBE_SYSTEM_PLAYLISTS) &&
-            (track.provider != ProviderType.SOUNDCLOUD || it.id != "likes")
-    }
+    val writable = playlistsToAddTo(track, library.playlists)
 
     AlertDialog(
         onDismissRequest = dismiss,

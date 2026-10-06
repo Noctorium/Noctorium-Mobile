@@ -248,7 +248,11 @@ fun NoctoriumPhone(state: AppState) {
                 Destination.LINK -> LinkScreen(state)
                 Destination.LIBRARY -> LibraryScreen(state)
                 Destination.DOWNLOADS -> DownloadsScreen(state)
-                Destination.SETTINGS -> SettingsScreen(state, backEnabled = !overlaid && !nowPlayingOpen) { signingInTo = it }
+                // Only to a service with a sign-in page of its own: the page treats anything that is not
+                // SoundCloud as YouTube, and Bandcamp, which needs only a name, would be signed in to Google.
+                Destination.SETTINGS -> SettingsScreen(state, backEnabled = !overlaid && !nowPlayingOpen) { provider ->
+                    if (hasSignInPage(provider)) signingInTo = provider
+                }
                 Destination.QUEUE -> QueueScreen(state)
                 // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
                 // Home with the sheet open instead of on an empty screen.

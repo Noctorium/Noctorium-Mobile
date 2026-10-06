@@ -62,6 +62,13 @@ import kotlinx.coroutines.launch
  */
 @Composable
 internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> Unit) {
+    // Everything below is SoundCloud's or else YouTube's -- the page, the cookies taken, the session kept --
+    // so a service without a page of its own is turned away before anything loads. Nothing leads here with
+    // one; this keeps it that way.
+    if (!hasSignInPage(provider)) {
+        LaunchedEffect(provider) { close() }
+        return
+    }
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf(true) }
     var saving by remember { mutableStateOf(false) }

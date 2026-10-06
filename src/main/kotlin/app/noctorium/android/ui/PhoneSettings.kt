@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,8 +21,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
@@ -32,6 +37,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Lyrics
@@ -43,6 +49,8 @@ import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,13 +69,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
 import app.noctorium.domain.ProviderType
+import app.noctorium.settings.HomePart
 import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.ThemePreset
 
@@ -83,6 +96,7 @@ internal enum class SettingsPage(val title: String) {
     YOUTUBE("YouTube Music"),
     SOUNDCLOUD("SoundCloud"),
     SPOTIFY("Spotify library"),
+    BANDCAMP("Bandcamp"),
     CUSTOMIZATION("Customization"),
     PLAYBACK("Playback"),
     SOUND("Sound"),
@@ -184,6 +198,16 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
                 tint = Color(0xFF1DB954),
                 active = spotify.connected,
             ) { open(SettingsPage.SPOTIFY) }
+        }
+        item {
+            val name = preferences.bandcampUsername
+            SettingsTile(
+                Icons.Default.Album,
+                "Bandcamp",
+                bandcampSummary(name, settings.bandcamp),
+                tint = ProviderType.BANDCAMP.badgeColour(),
+                active = name.isNotBlank(),
+            ) { open(SettingsPage.BANDCAMP) }
         }
 
         item { SectionLabel("Look and feel") }
@@ -327,6 +351,10 @@ internal fun SettingsPageScreen(page: SettingsPage, state: AppState, signIn: (Pr
             SettingsPage.YOUTUBE -> item { ServiceCard(ProviderType.YOUTUBE_MUSIC, settings, likes, state, signIn) }
             SettingsPage.SOUNDCLOUD -> item { ServiceCard(ProviderType.SOUNDCLOUD, settings, likes, state, signIn) }
             SettingsPage.SPOTIFY -> item { SpotifyCard(settings, state) }
+            SettingsPage.BANDCAMP -> {
+                item { BandcampCard(settings, state) }
+                item { BandcampGenresCard(settings, state) }
+            }
             SettingsPage.CUSTOMIZATION -> customizationCards(settings, state)
             SettingsPage.PLAYBACK -> item { PlaybackOptionsCard(settings, state) }
             SettingsPage.SOUND -> item { SoundCard(settings, state) }
@@ -527,6 +555,9 @@ private fun NoctoriumAccountForm(state: AppState, busy: Boolean) {
  * Signing in needs a WebView flow that does not exist yet, so this reports what is stored and points at
  * the desktop rather than offering a button that cannot work. Saying "not yet" is better than a control
  * that does nothing.
+ *
+ * YouTube Music's and SoundCloud's only: everything here that is not SoundCloud's is read as YouTube's.
+ * Bandcamp, which needs a name rather than a session, has a card of its own.
  */
 @Composable
 private fun ServiceCard(
@@ -704,6 +735,119 @@ private fun SpotifyCard(settings: app.noctorium.settings.SettingsState, state: A
                 if (spotify.ownApp) {
                     OutlinedButton({ clientId = ""; state.setSpotifyClientId("") }) { Text("Use Noctorium's") }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Bandcamp, which needs no sign-in: a fan's collection is shown to anybody, so the name at the end of their
+ * address is all it takes to bring it into the library, with the wishlist beside it.
+ *
+ * The name is checked with Bandcamp when it is saved, which is the moment of checking after Save -- a
+ * misspelt one would otherwise be an empty library with no reason given. Searching Bandcamp, its rows on
+ * Home and playing from it want no name at all, and the card says so, so nobody thinks they must give one.
+ */
+@Composable
+private fun BandcampCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
+    val saved = settings.preferences.bandcampUsername
+    val bandcamp = settings.bandcamp
+    val focus = LocalFocusManager.current
+    var name by remember(saved) { mutableStateOf(saved) }
+    // Only a name other than the one kept, read the way core will read it, is worth asking Bandcamp about.
+    val asked = bandcampName(name)
+    val canSave = !bandcamp.checking && asked.isNotBlank() && !asked.equals(saved, ignoreCase = true)
+
+    fun save() {
+        if (!canSave) return
+        // The keyboard goes, so Bandcamp's answer under the buttons is not left behind it.
+        focus.clearFocus()
+        state.setBandcampUsername(name)
+    }
+
+    SettingsCardShell {
+        CardHeading(Icons.Default.Album, "Bandcamp", tint = ProviderType.BANDCAMP.badgeColour())
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "No sign-in is needed. Give your Bandcamp name, the end of bandcamp.com/<name>, and your " +
+                "collection and wishlist appear in the library. Searching Bandcamp and its rows on Home " +
+                "work without one.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            name,
+            { name = it.take(120) },
+            label = { Text("Your Bandcamp name") },
+            placeholder = { Text("your-name") },
+            singleLine = true,
+            supportingText = { Text("Or paste the whole address.") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { save() }),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button({ save() }, enabled = canSave) { Text("Save") }
+            if (saved.isNotBlank()) {
+                OutlinedButton(
+                    { focus.clearFocus(); state.setBandcampUsername("") },
+                    enabled = !bandcamp.checking,
+                ) { Text("Remove") }
+            }
+        }
+        bandcampStatus(saved, bandcamp)?.let { status ->
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (bandcamp.checking) {
+                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(status, fontSize = 12.sp)
+            }
+        }
+        bandcamp.message?.let {
+            Spacer(Modifier.height(8.dp))
+            Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+        }
+    }
+}
+
+/**
+ * The genres Home has a Bandcamp row for: Bandcamp's best-sellers in each one picked, in the order picked.
+ *
+ * Whether Bandcamp's rows are on Home at all is decided under Customization, so this says when they are put
+ * away -- otherwise picking a genre here would seem to do nothing.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BandcampGenresCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
+    val chosen = settings.preferences.bandcampGenres
+    SettingsCardShell {
+        CardHeading(Icons.Default.Home, "Genres on Home")
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Each genre picked is a row on Home of what sells best on Bandcamp in it.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+        )
+        if (HomePart.BANDCAMP in settings.preferences.hiddenHomeParts) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Bandcamp's rows are put away just now. Bring them back under Customization, Home.",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 11.sp,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            BandcampGenre.entries.forEach { genre ->
+                FilterChip(
+                    selected = genre in chosen,
+                    onClick = { state.setBandcampGenres(toggledGenre(chosen, genre)) },
+                    label = { Text(genre.displayName, fontSize = 11.sp) },
+                )
             }
         }
     }

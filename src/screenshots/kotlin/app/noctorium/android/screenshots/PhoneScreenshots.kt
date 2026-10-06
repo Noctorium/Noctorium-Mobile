@@ -22,17 +22,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.noctorium.android.ui.ColourCard
 import app.noctorium.android.ui.HomeLookCard
+import app.noctorium.android.ui.LibraryScreen
 import app.noctorium.android.ui.LyricsLookCard
 import app.noctorium.android.ui.NoctoriumPhone
 import app.noctorium.android.ui.NoctoriumTheme
 import app.noctorium.android.ui.NowPlayingScreen
 import app.noctorium.android.ui.PlayerButtonsCard
+import app.noctorium.android.ui.SearchScreen
 import app.noctorium.android.ui.SettingsPage
 import app.noctorium.android.ui.SettingsPageScreen
 import app.noctorium.android.ui.SettingsScreen
 import app.noctorium.android.ui.SoundCard
 import app.noctorium.android.ui.TabsCard
 import app.noctorium.android.ui.TextAndLayoutCard
+import app.noctorium.android.ui.TrackRow
+import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.domain.Track
@@ -51,8 +55,15 @@ import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.SettingsState
 import app.noctorium.settings.ThemePreset
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -239,6 +250,87 @@ class PhoneScreenshots {
         NoctoriumPreferences(hiddenHomeParts = HomePart.entries.toSet()),
     ) { _, state -> NoctoriumPhone(state) }
 
+    // --- Bandcamp ---
+
+    /** No name given yet: what Bandcamp wants and does not, and the genres Home starts with. */
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun bandcampSettingsEmpty() = shoot("bandcamp-settings-empty") { _, state ->
+        SettingsPageScreen(SettingsPage.BANDCAMP, state, signIn = {}, back = {})
+    }
+
+    /** A name kept, three genres picked in an order of their own, and Bandcamp's rows put away on Home. */
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun bandcampSettings() = shoot(
+        "bandcamp-settings",
+        NoctoriumPreferences(
+            bandcampUsername = "nightowl",
+            bandcampGenres = listOf(BandcampGenre.AMBIENT, BandcampGenre.JAZZ, BandcampGenre.ELECTRONIC),
+            hiddenHomeParts = setOf(HomePart.BANDCAMP),
+        ),
+    ) { _, state -> SettingsPageScreen(SettingsPage.BANDCAMP, state, signIn = {}, back = {}) }
+
+    @Test
+    @Config(qualifiers = TALL_PHONE)
+    fun settingsHomeBandcamp() = shoot("settings-home-bandcamp", NoctoriumPreferences(bandcampUsername = "nightowl")) { _, state ->
+        SettingsScreen(state) {}
+    }
+
+    /** Albums and an artist from a Bandcamp search, above its songs. */
+    @Test
+    fun searchBandcamp() = shoot("search-bandcamp", prepare = { it.searchAndWait("harbour") }) { _, state ->
+        SearchScreen(state)
+    }
+
+    @Test
+    @Config(qualifiers = NARROW_PHONE)
+    fun searchBandcampNarrow() = shoot("search-bandcamp-narrow", prepare = { it.searchAndWait("harbour") }) { _, state ->
+        SearchScreen(state)
+    }
+
+    /** A Bandcamp album opened: no download at the top, and the way to its page instead. */
+    @Test
+    fun bandcampAlbum() = shoot("bandcamp-album", prepare = { it.openAndWait(Still.bandcampAlbum) }) { _, state ->
+        LibraryScreen(state)
+    }
+
+    /** A Bandcamp song's menu: nothing to download or save, and its page in their place. */
+    @Test
+    fun bandcampTrackMenu() = shoot(
+        "bandcamp-track-menu",
+        prepare = { it.openAndWait(Still.bandcampAlbum) },
+        then = {
+            openFirstTrackMenu()
+            // The album's own, on the page, and the song's, in the menu.
+            compose.onAllNodesWithText("Open on Bandcamp").assertCountEquals(2)
+            compose.onNodeWithText("Copy link").assertExists()
+            compose.onNodeWithText("Download for offline").assertDoesNotExist()
+            compose.onNodeWithText("Save a copy…").assertDoesNotExist()
+            compose.onNodeWithText("Add to playlist…").assertDoesNotExist()
+        },
+    ) { _, state -> LibraryScreen(state) }
+
+    /** The same menu on a YouTube Music song, which keeps its download, its copy and its playlists. */
+    @Test
+    fun youTubeTrackMenu() = shoot(
+        "youtube-track-menu",
+        then = {
+            openFirstTrackMenu()
+            compose.onNodeWithText("Download for offline").assertExists()
+            compose.onNodeWithText("Save a copy…").assertExists()
+            compose.onNodeWithText("Add to playlist…").assertExists()
+            compose.onNodeWithText("Open on Bandcamp").assertDoesNotExist()
+        },
+    ) { _, state -> Column { TrackRow(Still.nowPlaying, state) {} } }
+
+    /** Taps the first row's ⋮ and lets the menu finish opening. */
+    private fun openFirstTrackMenu() {
+        compose.onAllNodesWithContentDescription("Track actions")[0].performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.waitForIdle()
+    }
+
     private fun handMadeCurve() = NoctoriumPreferences(
         equalizer = EqualizerSettings(enabled = true, preset = EqualizerPreset.CUSTOM, customGains = HAND_MADE, preampDb = -3f),
     )
@@ -246,14 +338,17 @@ class PhoneScreenshots {
     /**
      * Draws [content] in the app's theme over its own background, from a still-life state made of
      * [preferences], and saves it as [name].png. [prepare] runs on the state first, for anything that is
-     * done rather than set -- a sleep timer started, say.
+     * done rather than set -- a sleep timer started, say. [then] is done to the screen once it has settled,
+     * such as opening a menu; the picture is then of the whole screen, so the menu's own window is in it.
      */
+    @OptIn(ExperimentalRoborazziApi::class)
     private fun shoot(
         name: String,
         preferences: NoctoriumPreferences = NoctoriumPreferences(),
         playing: Track? = null,
         equalizerAvailable: Boolean = true,
         prepare: (AppState) -> Unit = {},
+        then: (() -> Unit)? = null,
         content: @Composable (SettingsState, AppState) -> Unit,
     ) {
         val state = stillState(preferences, playing)
@@ -272,7 +367,13 @@ class PhoneScreenshots {
                 }
             }
             compose.mainClock.advanceTimeBy(2_000)
-            compose.onRoot().captureRoboImage(File(folder, "$name.png").path)
+            if (then == null) {
+                compose.onRoot().captureRoboImage(File(folder, "$name.png").path)
+            } else {
+                then()
+                compose.mainClock.advanceTimeBy(1_000)
+                captureScreenRoboImage(File(folder, "$name.png").path)
+            }
         } finally {
             state.close()
         }

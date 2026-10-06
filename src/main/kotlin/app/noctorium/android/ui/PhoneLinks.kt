@@ -260,7 +260,8 @@ private fun PhoneLinkTrackCard(track: Track, playing: Boolean, state: AppState) 
                 FilledTonalButton({ state.addToQueue(track) }) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue")
                 }
-                PhoneDownloadButton(track, state)
+                // Not for a Bandcamp song, which is there to be heard and bought on its page rather than kept.
+                if (state.canKeep(track)) PhoneDownloadButton(track, state)
             }
         }
     }
@@ -280,8 +281,11 @@ private fun PhonePlaylistActions(tracks: List<Track>, state: AppState) {
         FilledTonalButton({ tracks.forEach(state::addToQueue) }) {
             Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue all", maxLines = 1)
         }
-        FilledTonalButton({ state.downloadAll(tracks) }) {
-            Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download all", maxLines = 1)
+        // A Bandcamp album has nothing in it that may be kept, so it is offered nothing to keep.
+        if (tracks.any(state::canKeep)) {
+            FilledTonalButton({ state.downloadAll(tracks) }) {
+                Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download all", maxLines = 1)
+            }
         }
     }
     Text(
@@ -336,6 +340,9 @@ internal fun DownloadsScreen(state: AppState) {
     val playback by state.playback.collectAsState()
     val clipboard = LocalClipboardManager.current
     var text by remember { mutableStateOf("") }
+    // A Bandcamp link is turned down here, where taking it would download nothing and say nothing.
+    val pasted = findMusicLink(text)
+    val downloadable = downloadsFrom(pasted)
 
     val summary = buildString {
         append(if (downloads.entries.isEmpty()) "Nothing kept yet" else pluralTracks(downloads.entries.size))
@@ -353,7 +360,7 @@ internal fun DownloadsScreen(state: AppState) {
                 PhoneLinkField(
                     text = text,
                     onText = { text = it },
-                    onSubmit = { if (findMusicLink(text) != null) state.openLink(text, LinkAction.DOWNLOAD) },
+                    onSubmit = { if (downloadable) state.openLink(text, LinkAction.DOWNLOAD) },
                     onClear = { text = "" },
                     placeholder = "Paste a link to download it",
                 )
@@ -370,10 +377,16 @@ internal fun DownloadsScreen(state: AppState) {
                     Button(
                         { state.openLink(text, LinkAction.DOWNLOAD) },
                         Modifier.weight(1f),
-                        enabled = findMusicLink(text) != null,
+                        enabled = downloadable,
                     ) {
                         Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download")
                     }
+                }
+                if (pasted != null && !downloadable) {
+                    PhoneNote(
+                        "Bandcamp streams are for listening, so its songs are not downloaded. Buy one on its " +
+                            "Bandcamp page and the file is yours.",
+                    )
                 }
                 if (link.action == LinkAction.DOWNLOAD) {
                     when (link.status) {

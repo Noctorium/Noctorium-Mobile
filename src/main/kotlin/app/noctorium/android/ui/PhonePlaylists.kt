@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -51,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.domain.Playlist
 import app.noctorium.domain.ProviderType
+import app.noctorium.domain.editableOnService
 import app.noctorium.domain.pluralTracks
 import app.noctorium.playlists.LocalPlaylist
 
@@ -61,9 +63,13 @@ import app.noctorium.playlists.LocalPlaylist
  * Privacy is two chips side by side rather than a button that says the opposite of the current state: the
  * lit one is how it is now, and the other is one tap away. While the service is being asked, the chosen one
  * shows a spinner, so a tap never looks as though it did nothing.
+ *
+ * Nothing at all for a playlist the account cannot change. Every write below is SoundCloud's or else
+ * YouTube's, so renaming or deleting a Bandcamp album that got this far would be asked of YouTube.
  */
 @Composable
 internal fun ServicePlaylistControls(playlist: Playlist, notice: String?, state: AppState) {
+    if (!playlist.editableOnService()) return
     val onSoundCloud = playlist.provider == ProviderType.SOUNDCLOUD
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
@@ -143,6 +149,23 @@ internal fun ServicePlaylistControls(playlist: Playlist, notice: String?, state:
 }
 
 /**
+ * The way from a Bandcamp album, artist or wishlist to its own page, where it is bought.
+ *
+ * In the place the service controls take for an account's own playlists, which a Bandcamp one never has.
+ * What Bandcamp streams is for listening, so there is no download for it here; the page is the other half.
+ */
+@Composable
+internal fun BandcampPageAction(page: String, state: AppState) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        AssistChip(
+            onClick = { state.openExternalUrl(page) },
+            label = { Text("Open on Bandcamp") },
+            leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(16.dp)) },
+        )
+    }
+}
+
+/**
  * A playlist made in Noctorium, opened: play it, put it in order, take tracks out, rename it, delete it,
  * or copy it up to an account.
  *
@@ -198,15 +221,20 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
                         leadingIcon = { Icon(Icons.Default.Edit, null) },
                         onClick = { menu = false; renaming = true },
                     )
-                    // Copied up only to the accounts that are signed in, and only the tracks that live there.
+                    // Copied up only to the accounts that are signed in, and only the tracks that live there --
+                    // picked out here, since a Bandcamp song sent along to YouTube would arrive as a video id.
                     services.forEach { service ->
                         DropdownMenuItem(
                             text = { Text("Copy to ${service.displayName}") },
                             leadingIcon = { Icon(Icons.Default.CloudUpload, null) },
                             onClick = {
                                 menu = false
-                                if (service == ProviderType.SOUNDCLOUD) state.publishPlaylistToSoundCloud(playlist)
-                                else state.publishPlaylistToYouTube(playlist)
+                                val copy = playlist.copy(tracks = tracksPlaylistCanHold(service, playlist.tracks))
+                                when (service) {
+                                    ProviderType.SOUNDCLOUD -> state.publishPlaylistToSoundCloud(copy)
+                                    ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO -> state.publishPlaylistToYouTube(copy)
+                                    else -> Unit
+                                }
                             },
                         )
                     }

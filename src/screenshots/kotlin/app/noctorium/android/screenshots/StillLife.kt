@@ -1,5 +1,6 @@
 package app.noctorium.android.screenshots
 
+import app.noctorium.bandcamp.BandcampSource
 import app.noctorium.connect.DeviceKind
 import app.noctorium.core.AppState
 import app.noctorium.domain.Artist
@@ -89,6 +90,57 @@ internal object Still {
     )
 
     val shelves = listOf(youTubeShelf, soundCloudShelf)
+
+    /** A Bandcamp song, kept the way core keeps one: its page, with the ids that find its stream after a `#`. */
+    private fun bandcampSong(id: Long, slug: String, title: String, seconds: Long) = Track(
+        provider = ProviderType.BANDCAMP,
+        id = id.toString(),
+        title = title,
+        artists = listOf(Artist("801", "Harbour Lights Ensemble", ProviderType.BANDCAMP)),
+        durationMs = seconds * 1_000,
+        artworkUrl = null,
+        sourceUrl = BandcampSource.of("https://harbourlights.example.invalid/track/$slug", trackId = id, bandId = 801),
+    )
+
+    val bandcampAlbum = Playlist(
+        id = "album:801:9001",
+        title = "Weather for Small Boats",
+        provider = ProviderType.BANDCAMP,
+        ownerName = "Harbour Lights Ensemble",
+        sourceUrl = "https://harbourlights.example.invalid/album/weather-for-small-boats",
+        trackCount = 4,
+    )
+
+    val bandcampAlbumTracks = listOf(
+        bandcampSong(9101, "shipping-forecast", "Shipping Forecast", 251),
+        bandcampSong(9102, "low-tide-at-leith", "Low Tide at Leith", 198),
+        bandcampSong(9103, "harbour-lights", "Harbour Lights", 305),
+        bandcampSong(9104, "small-craft-warning", "Small Craft Warning", 222),
+    )
+
+    /** Everything the ensemble has put out, as Bandcamp's search offers an artist: where they are from below. */
+    val bandcampArtist = Playlist(
+        id = "band:801",
+        title = "Harbour Lights Ensemble",
+        provider = ProviderType.BANDCAMP,
+        ownerName = "Leith, Scotland",
+        sourceUrl = "https://harbourlights.example.invalid",
+    )
+
+    val bandcampSingle = Playlist(
+        id = "track:802:9201",
+        title = "Harbour Wall (Single)",
+        provider = ProviderType.BANDCAMP,
+        ownerName = "Odile Brandt",
+        sourceUrl = "https://odilebrandt.example.invalid/track/harbour-wall",
+        trackCount = 1,
+    )
+
+    /** What a Bandcamp search for "harbour" finds: two releases and an artist, and the songs. */
+    val bandcampFound = SearchResults(
+        tracks = bandcampAlbumTracks.take(3),
+        playlists = listOf(bandcampAlbum, bandcampArtist, bandcampSingle),
+    )
 }
 
 /**
@@ -124,6 +176,13 @@ internal fun stillState(
         injectedProviders = listOf(
             StillProvider(ProviderType.YOUTUBE_MUSIC, shelves),
             StillProvider(ProviderType.SOUNDCLOUD, shelves),
+            // Bandcamp has no rows of its own here, so Home is as it was; it answers searches and opens its album.
+            StillProvider(
+                ProviderType.BANDCAMP,
+                shelves,
+                found = Still.bandcampFound,
+                listed = mapOf(Still.bandcampAlbum.id to Still.bandcampAlbumTracks),
+            ),
         ),
         settingsRepository = settings,
         pinnedRepository = PinnedTracksRepository(base.resolve("pinned.json")).also { it.save(pinned) },
@@ -163,12 +222,43 @@ private class StillEngine(track: Track?) : PlaybackEngine {
     override fun close() = Unit
 }
 
-/** A service whose Home is whichever of the made-up rows are its own, and which finds nothing else. */
-private class StillProvider(override val type: ProviderType, private val shelves: List<HomeSection>) : MusicProvider {
+/**
+ * A service whose Home is whichever of the made-up rows are its own, whose searches all find [found], and
+ * whose playlists hold what [listed] says, by id.
+ */
+private class StillProvider(
+    override val type: ProviderType,
+    private val shelves: List<HomeSection>,
+    private val found: SearchResults = SearchResults(),
+    private val listed: Map<String, List<Track>> = emptyMap(),
+) : MusicProvider {
     override suspend fun getHome(): List<HomeSection> = shelves.filter { it.provider == type }
-    override suspend fun search(query: String): SearchResults = SearchResults()
+    override suspend fun search(query: String): SearchResults = found
     override suspend fun getTrack(id: String): Track? = null
     override suspend fun getRecommendations(context: PlaybackContext): List<Track> = emptyList()
+    override suspend fun getPlaylistTracks(playlist: Playlist): List<Track> = listed[playlist.id].orEmpty()
+}
+
+/** Searches for [query] and waits for the answer, which arrives after the search's pause for typing. */
+internal fun AppState.searchAndWait(query: String) {
+    search(query)
+    val deadline = System.currentTimeMillis() + 10_000
+    while (System.currentTimeMillis() < deadline) {
+        val ui = ui.value
+        if (!ui.searchLoading && (ui.searchResults.tracks.isNotEmpty() || ui.searchResults.playlists.isNotEmpty())) break
+        Thread.sleep(20)
+    }
+}
+
+/** Opens [playlist] the way a card does, and waits for its songs. */
+internal fun AppState.openAndWait(playlist: Playlist) {
+    openPlaylist(playlist)
+    val deadline = System.currentTimeMillis() + 10_000
+    while (System.currentTimeMillis() < deadline) {
+        val library = library.value
+        if (!library.openPlaylistLoading && library.openPlaylist?.tracks?.isNotEmpty() == true) break
+        Thread.sleep(20)
+    }
 }
 
 /** A backend that knows nothing and is never asked for anything that matters. */
