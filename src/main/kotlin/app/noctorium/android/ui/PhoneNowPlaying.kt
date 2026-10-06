@@ -201,8 +201,11 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                         Spacer(Modifier.width(6.dp))
                         Text("Now Playing", color = ink, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
                     }
-                    Spacer(Modifier.width(6.dp))
-                    Tray { ink -> TrayClock(ink) }
+                    // The tray holds only the clock here, so it goes with it.
+                    if (settings.preferences.taskbarClock) {
+                        Spacer(Modifier.width(6.dp))
+                        Tray { ink -> TrayClock(ink) }
+                    }
                 }
             }
         }

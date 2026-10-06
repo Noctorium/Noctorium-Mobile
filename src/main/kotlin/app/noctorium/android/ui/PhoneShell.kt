@@ -339,13 +339,15 @@ fun NoctoriumPhone(state: AppState) {
                         )
                     } else {
                         // The Windows themes' tabs are their taskbar. A taskbar player bar right above it has the
-                        // clock already, and one clock is enough.
+                        // clock already, and one clock is enough; put away, neither has one.
                         SkinTaskbar(
                             ui.destination,
                             settings.preferences.phone.navigationLabels,
                             visibleTabs(settings.preferences.phone.hiddenDestinations),
-                            clock = playback.track == null || barAtTop ||
-                                settings.preferences.phone.playerBarStyle != PhonePlayerBarStyle.TASKBAR,
+                            clock = settings.preferences.taskbarClock && (
+                                playback.track == null || barAtTop ||
+                                    settings.preferences.phone.playerBarStyle != PhonePlayerBarStyle.TASKBAR
+                                ),
                             icon = { it.tabIcon() },
                             go = state::navigate,
                         )
@@ -678,7 +680,7 @@ private fun PlayerBar(
                     PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass, onSpotify, hasNext)
                     PhonePlayerBarStyle.LINE -> LineBar(track, playback, state, style, glass, onSpotify)
                     PhonePlayerBarStyle.RECORD -> RecordBar(track, playback, state, glass, onSpotify, hasNext)
-                    PhonePlayerBarStyle.TASKBAR -> TaskbarBar(track, playback, state, style, glass, open)
+                    PhonePlayerBarStyle.TASKBAR -> TaskbarBar(track, playback, state, style, glass, settings.preferences.taskbarClock, open)
                 }
                 // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
                 // rounded ends would be cut off at an angle, which reads as a mistake.

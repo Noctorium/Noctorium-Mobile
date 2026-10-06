@@ -101,6 +101,9 @@ internal const val TALL_PHONE = "w411dp-h1100dp-xxhdpi"
 /** For the Playback card, which autoplay's choices have made the longest of all. */
 internal const val VERY_TALL_PHONE = "w411dp-h1400dp-xxhdpi"
 
+/** For the Player bar card with the Taskbar bar chosen, which offers the clock beside everything else. */
+internal const val TALLEST_PHONE = "w411dp-h1560dp-xxhdpi"
+
 /** A curve somebody made by hand: a lot of bass, a dip in the middle, some air at the top. */
 private val HAND_MADE = listOf(7f, 5f, 2f, -1f, -4f, -3f, 0f, 3f, 5.5f, 2f)
 

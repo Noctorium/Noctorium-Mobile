@@ -59,14 +59,14 @@ class LooksScreenshots(private val look: Look) {
     companion object {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = (seekBarLooks() + playerBarLooks() + layoutLooks() + skinLooks()).map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = (seekBarLooks() + playerBarLooks() + layoutLooks() + skinLooks() + clockLooks()).map { arrayOf(it) }
     }
 }
 
 /** The same, for the cards in Customization, which want a taller screen to be seen whole. */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = VERY_TALL_PHONE, application = Application::class)
+@Config(sdk = [35], qualifiers = TALLEST_PHONE, application = Application::class)
 class PickerScreenshots(private val look: Look) {
     private val compose = createComposeRule()
 
@@ -80,6 +80,34 @@ class PickerScreenshots(private val look: Look) {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
         fun looks(): List<Array<Any>> = (pickerLooks() + skinPageLooks()).map { arrayOf(it) }
+    }
+}
+
+/**
+ * The Windows taskbars on a phone 360 points wide, with the clock and without it: the room the clock gives up
+ * is what lets the start button keep its name there.
+ */
+@RunWith(ParameterizedRobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "w360dp-h891dp-xxhdpi", application = Application::class)
+class NarrowTaskbarScreenshots(private val look: Look) {
+    private val compose = createComposeRule()
+
+    @get:Rule
+    val rules: RuleChain = RuleChain.outerRule(EmptyActivityDeclared()).around(compose)
+
+    @Test
+    fun picture() = look.shoot(compose)
+
+    companion object {
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
+        fun looks(): List<Array<Any>> = SKINS.flatMap { (skin, preferences) ->
+            listOf(
+                Look("skin-$skin-home-360", preferences) { _, state -> NoctoriumPhone(state) },
+                Look("skin-$skin-home-360-no-clock", preferences.copy(taskbarClock = false)) { _, state -> NoctoriumPhone(state) },
+            )
+        }.map { arrayOf(it) }
     }
 }
 
@@ -212,6 +240,10 @@ private fun pickerLooks(): List<Look> = THEMES.flatMap { (theme, preferences) ->
         Look("picker-player-bar-$theme", preferences.copy(progressBarStyle = ProgressBarStyle.NEON)) { settings, state ->
             Card { PlayerBarCard(settings, state) }
         },
+        // The Taskbar bar chosen, so the card offers its clock.
+        Look("picker-player-bar-taskbar-$theme", preferences.copy(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR))) { settings, state ->
+            Card { PlayerBarCard(settings, state) }
+        },
         Look("picker-now-playing-$theme", preferences.copy(phone = PhonePreferences(nowPlayingLayout = PhoneNowPlayingLayout.COVER_FLOW))) { settings, state ->
             Card { NowPlayingLookCard(settings, state) }
         },
@@ -274,6 +306,31 @@ private fun skinPageLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
         },
     )
 }
+
+/**
+ * The taskbars' clock put away: under each Windows theme, from the tabs' taskbar, the Taskbar bar's and the
+ * one under the Now playing window; and the Taskbar bar without it in an ordinary theme, solid and under glass.
+ * With the clock, they are the pictures of Home and Now playing above.
+ */
+private fun clockLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
+    val off = preferences.copy(taskbarClock = false)
+    listOf(
+        Look("skin-$skin-home-no-clock", off) { _, state -> NoctoriumPhone(state) },
+        Look(
+            "skin-$skin-home-taskbar-bar-no-clock",
+            off.copy(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR)),
+        ) { _, state -> NoctoriumPhone(state) },
+        Look("skin-$skin-now-playing-no-clock", off.copy(ambientBackdrop = false)) { _, state -> NowPlayingScreen(state) {} },
+    )
+} + THEMES.map { (theme, preferences) ->
+    Look(
+        "bar-taskbar-$theme-no-clock",
+        preferences.copy(taskbarClock = false, phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR)),
+    ) { _, state -> NoctoriumPhone(state) }
+} + Look(
+    "bar-taskbar-night-glass-no-clock",
+    NoctoriumPreferences(surfaceStyle = SurfaceStyle.GLASS, taskbarClock = false, phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR)),
+) { _, state -> NoctoriumPhone(state) }
 
 /** A question with two answers, as the playlists ask before deleting one, over Home. */
 @Composable

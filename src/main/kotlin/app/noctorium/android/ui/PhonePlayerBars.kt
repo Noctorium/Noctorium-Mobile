@@ -193,7 +193,8 @@ internal fun RecordBar(
  * button held down -- the window in use -- and the tray at the end, with play and the time.
  *
  * Flat here, in the theme's own colours; the Windows themes dress it as their own taskbar. The song's
- * button carries the progress along its foot, the way a taskbar button showed a download's.
+ * button carries the progress along its foot, the way a taskbar button showed a download's. Without the
+ * [clock] the tray is only play, and the song's button has the room.
  */
 @Composable
 internal fun TaskbarBar(
@@ -202,10 +203,11 @@ internal fun TaskbarBar(
     state: AppState,
     style: ProgressBarStyle,
     glass: Boolean,
+    clock: Boolean,
     open: () -> Unit,
 ) {
     if (LocalSkin.current != ThemeSkin.STANDARD) {
-        SkinTaskbarBar(track, playback, state, style, open)
+        SkinTaskbarBar(track, playback, state, style, clock, open)
         return
     }
     val ink = MaterialTheme.colorScheme.onSurface
@@ -252,11 +254,11 @@ internal fun TaskbarBar(
         }
         Spacer(Modifier.width(6.dp))
         Row(
-            Modifier.fillMaxHeight().clip(shape).background(ink.copy(alpha = .05f)).padding(end = 10.dp),
+            Modifier.fillMaxHeight().clip(shape).background(ink.copy(alpha = .05f)).padding(end = if (clock) 10.dp else 0.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { PlayPauseButton(playback, state, size = 18.dp) }
-            TrayClock(MaterialTheme.colorScheme.onSurface)
+            if (clock) TrayClock(MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -264,10 +266,17 @@ internal fun TaskbarBar(
 /**
  * The Taskbar bar in a Windows theme, drawn as that desktop's own taskbar: the start button with the N, which
  * opens Now playing; the song as the button of the window in use, held down, with its progress along the
- * button's foot; and the tray, with play beside the clock.
+ * button's foot; and the tray, with play beside the [clock] while there is one.
  */
 @Composable
-private fun SkinTaskbarBar(track: Track, playback: PlaybackState, state: AppState, style: ProgressBarStyle, open: () -> Unit) {
+private fun SkinTaskbarBar(
+    track: Track,
+    playback: PlaybackState,
+    state: AppState,
+    style: ProgressBarStyle,
+    clock: Boolean,
+    open: () -> Unit,
+) {
     TaskbarStrip {
         StartButton(pressed = false, named = false, description = "Now playing", onClick = open)
         Spacer(Modifier.width(6.dp))
@@ -292,14 +301,15 @@ private fun SkinTaskbarBar(track: Track, playback: PlaybackState, state: AppStat
         Spacer(Modifier.width(6.dp))
         Tray { ink ->
             Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) { PlayPauseButton(playback, state, size = 18.dp) }
-            TrayClock(ink)
+            if (clock) TrayClock(ink)
         }
     }
 }
 
 /**
  * The time as a taskbar's tray showed it, hours and minutes and nothing else -- on the twenty-four hour clock
- * when the phone is set to it -- changing on the minute. A taskbar without its clock is not one.
+ * when the phone is set to it -- changing on the minute. There unless it has been put away, as Windows let a
+ * taskbar's clock go.
  */
 @Composable
 internal fun TrayClock(colour: Color, modifier: Modifier = Modifier) {

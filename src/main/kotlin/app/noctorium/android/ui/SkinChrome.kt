@@ -503,7 +503,8 @@ private val GROUP_CONTENT_AT = 22.dp
  * start button, the name in white italic. Noctorium's own N and its own name stand where Windows put its
  * flag and its word, and nothing of Microsoft's is drawn. The buttons give up their names, and then the start
  * button its own, before any of them is too narrow to press. [clock] false leaves the tray out, for when the
- * player bar above is a taskbar with a clock of its own.
+ * player bar above is a taskbar with a clock of its own or the clock has been put away; its room goes to the
+ * buttons, and with it, on a narrow phone, the start button's name can come back.
  */
 @Composable
 internal fun SkinTaskbar(

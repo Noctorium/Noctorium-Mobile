@@ -48,6 +48,7 @@ import app.noctorium.settings.AccentPreset
 import app.noctorium.settings.ArtworkShape
 import app.noctorium.settings.FontChoice
 import app.noctorium.settings.HomePart
+import app.noctorium.settings.PhonePlayerBarStyle
 import app.noctorium.settings.LyricsAlignment
 import app.noctorium.settings.LyricsSize
 import app.noctorium.settings.PlayerButton
@@ -420,6 +421,16 @@ internal fun PlayerBarCard(settings: SettingsState, state: AppState) {
             fontSize = 11.sp,
             modifier = Modifier.padding(bottom = 10.dp),
         )
+        // Only while there is a taskbar to have a clock: the Taskbar bar, or under the Windows themes the tabs.
+        if (LocalSkin.current != ThemeSkin.STANDARD || preferences.phone.playerBarStyle == PhonePlayerBarStyle.TASKBAR) {
+            Toggle(
+                "Show the clock",
+                "The time in the taskbar's tray, as Windows showed it. Off gives its room to the buttons beside it.",
+                preferences.taskbarClock,
+                onChange = state::setTaskbarClock,
+            )
+            Spacer(Modifier.height(6.dp))
+        }
 
         ChoiceRow("Time shows") {
             TimeDisplay.entries.forEach { display ->
