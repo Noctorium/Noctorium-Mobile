@@ -62,10 +62,18 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
         headers: Map<String, String>,
         body: String?,
     ): BrowserReply? = turn.withLock {
+        dispatched = false
         withTimeoutOrNull(REQUEST_TIMEOUT_MILLIS) {
             withContext(Dispatchers.Main) { request(method, url, headers, body) }
         }
+            // Sent, and nothing came back in time: not "no browser", which would have the caller send it
+            // again by a road the bot protection blocks -- the request may well have been carried out.
+            ?: BrowserReply.unanswered().takeIf { dispatched }
     }
+
+    /** Whether the request itself -- not the settling read before it -- has been handed to the page. */
+    @Volatile
+    private var dispatched = false
 
     private suspend fun request(
         method: String,
@@ -88,7 +96,8 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
         if (method.uppercase() !in REPEATABLE) return first
         Log.i(LOG, "refused; reloading $ORIGIN_PAGE and asking once more")
         reload()
-        return attempt(method, url, headers, body)?.also { cleared = it.status != REFUSED } ?: first
+        // The second try was sent, so silence from it is not the first refusal again: it may have worked.
+        return attempt(method, url, headers, body)?.also { cleared = it.status != REFUSED } ?: BrowserReply.unanswered()
     }
 
     /**
@@ -137,6 +146,7 @@ class WebViewRequester(private val context: Context) : BrowserRequester {
             val answer = CompletableDeferred<BrowserReply>()
             pending[id] = answer
             view.evaluateJavascript(script(id, method, url, headers, body), null)
+            if (url != SETTLING_URL) dispatched = true
             val reply = try {
                 withTimeoutOrNull(DOCUMENT_TIMEOUT_MILLIS) { answer.await() }
             } finally {
