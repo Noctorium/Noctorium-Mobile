@@ -428,17 +428,9 @@ private fun PlaylistCarousel(
     }
 }
 
-private fun HomeSection.matches(filter: ProviderFilter): Boolean = when (filter) {
-    ProviderFilter.ALL -> true
-    ProviderFilter.YOUTUBE_MUSIC -> provider.name.startsWith("YOUTUBE")
-    ProviderFilter.SOUNDCLOUD -> provider.name == "SOUNDCLOUD"
-}
+private fun HomeSection.matches(filter: ProviderFilter): Boolean = filter.matches(provider)
 
-private fun ProviderFilter.label(): String = when (this) {
-    ProviderFilter.ALL -> "All"
-    ProviderFilter.YOUTUBE_MUSIC -> "YouTube Music"
-    ProviderFilter.SOUNDCLOUD -> "SoundCloud"
-}
+private fun ProviderFilter.label(): String = displayName
 
 private fun greeting(): String = when (java.time.LocalTime.now().hour) {
     in 5..11 -> "Good morning"

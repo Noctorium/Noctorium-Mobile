@@ -13,6 +13,7 @@ import app.noctorium.domain.Track
 import app.noctorium.social.secretOf
 import app.noctorium.playback.BackendException
 import app.noctorium.playback.MusicBackend
+import app.noctorium.playback.ServiceStreams
 import app.noctorium.settings.CookieSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -110,6 +111,13 @@ class NewPipeBackend(
      * and is handed in once it exists, which is after this does.
      */
     @Volatile var privateSoundCloudStream: (suspend (String) -> String?)? = null
+
+    /** Bandcamp and VK, which core reads for itself rather than through NewPipe. See [ServiceStreams]. */
+    @Volatile private var serviceStreams: ServiceStreams? = null
+
+    override fun useServiceStreams(streams: ServiceStreams) {
+        serviceStreams = streams
+    }
 
     /**
      * Sessions, kept per provider.
@@ -253,6 +261,8 @@ class NewPipeBackend(
      * about the address and refusing to play would be inventing a failure.
      */
     private suspend fun freshAddress(sourceUrl: String): String {
+        // Core's own services first: NewPipe cannot read their pages, and core already has the address.
+        serviceStreams?.streamFor(sourceUrl)?.let { return it.address }
         if (providerOf(sourceUrl) == ProviderType.SOUNDCLOUD && secretOf(sourceUrl) != null) {
             return privateSoundCloudStream?.invoke(sourceUrl)
                 ?: throw BackendException("SoundCloud would not give Noctorium the audio of this private track.")
