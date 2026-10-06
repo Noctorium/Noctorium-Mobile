@@ -66,7 +66,6 @@ import app.noctorium.settings.CardSize
 import app.noctorium.settings.CornerStyle
 import app.noctorium.settings.SurfaceStyle
 import app.noctorium.settings.TextSize
-import app.noctorium.settings.PhonePlayerBarStyle
 import app.noctorium.settings.PlayerBarPosition
 import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.SettingsState
@@ -407,15 +406,8 @@ internal fun PlayerBarCard(settings: SettingsState, state: AppState) {
             }
         }
 
-        ChoiceRow("Layout") {
-            PhonePlayerBarStyle.entries.forEach { layout ->
-                FilterChip(
-                    selected = preferences.phone.playerBarStyle == layout,
-                    onClick = { state.updatePhone { copy(playerBarStyle = layout) } },
-                    label = { Text(layout.displayName, fontSize = 11.sp) },
-                )
-            }
-        }
+        Text("Layout", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+        PlayerBarPicker(preferences.phone.playerBarStyle) { layout -> state.updatePhone { copy(playerBarStyle = layout) } }
         Text(
             preferences.phone.playerBarStyle.description,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

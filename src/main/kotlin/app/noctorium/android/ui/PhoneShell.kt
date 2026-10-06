@@ -577,6 +577,7 @@ private fun PhoneNavigation(current: Destination, labels: Boolean, tabs: List<De
  * [layout] it is in. The layouts are what the strip is for: Classic is the cover, the track, play and next;
  * Slim gives the list above it as much of the screen as it can; Controls adds previous and a seek bar for
  * somebody who drives the music from here rather than from the full screen; Spotlight is about the record.
+ * Floating lifts Classic off the edge; Line is the least a bar can be; Record turns; Taskbar is a desktop's.
  */
 @Composable
 private fun PlayerBar(
@@ -601,45 +602,53 @@ private fun PlayerBar(
     val hasNext = queue.hasNext
     // A song the account's own Spotify app is playing says so, or the bar would read as this phone playing it.
     val onSpotify = playsOnSpotify(track, settings.spotify)
-    // Controls carries a seek bar of its own, and a line under a seek bar is the same thing twice.
-    val line = layout != PhonePlayerBarStyle.CONTROLS
+    // The line along the edge, for the bars without one of their own: Controls carries a seek bar, and a
+    // line under a seek bar is the same thing twice; Line is little more than its line, Taskbar keeps it in
+    // the song's button, and Floating along the foot of its card -- which under glass is the pane's foot.
+    val line = when (layout) {
+        PhonePlayerBarStyle.CONTROLS, PhonePlayerBarStyle.LINE, PhonePlayerBarStyle.TASKBAR -> false
+        PhonePlayerBarStyle.FLOATING -> glass
+        else -> true
+    }
+    // Floating draws its own card, so the strip it floats in is the page's own colour.
+    val floating = layout == PhonePlayerBarStyle.FLOATING && !glass
+    val gestures = Modifier
+        .clickable(onClick = open)
+        // Swiping the bar walks the queue. A drag threshold rather than a tap target, so it cannot be
+        // triggered by the small movement that comes with an ordinary press.
+        .then(
+            if (!swipeToChangeTrack) {
+                Modifier
+            } else {
+                Modifier.pointerInput(Unit) {
+                    detectHorizontalDragGestures { _, drag ->
+                        if (drag < -SWIPE_THRESHOLD) { haptics.tick(); state.next() }
+                        if (drag > SWIPE_THRESHOLD) { haptics.tick(); state.previous() }
+                    }
+                }
+            },
+        )
     Surface(
-        color = if (glass) Color.Transparent else MaterialTheme.colorScheme.surface,
-        tonalElevation = if (glass) 0.dp else 3.dp,
+        color = if (glass || floating) Color.Transparent else MaterialTheme.colorScheme.surface,
+        tonalElevation = if (glass || floating) 0.dp else 3.dp,
     ) {
         Box {
             if (layout == PhonePlayerBarStyle.SPOTLIGHT) SpotlightBackdrop(track.artworkUrl, glass)
-            Column(
-                Modifier
-                    .clickable(onClick = open)
-                    // Swiping the bar walks the queue. A drag threshold rather than a tap target, so it
-                    // cannot be triggered by the small movement that comes with an ordinary press.
-                    .then(
-                        if (!swipeToChangeTrack) {
-                            Modifier
-                        } else {
-                            Modifier.pointerInput(Unit) {
-                                detectHorizontalDragGestures { _, drag ->
-                                    if (drag < -SWIPE_THRESHOLD) { haptics.tick(); state.next() }
-                                    if (drag > SWIPE_THRESHOLD) { haptics.tick(); state.previous() }
-                                }
-                            }
-                        },
-                    ),
-            ) {
+            if (floating) {
+                FloatingBar(track, playback, state, style, onSpotify, hasNext, gestures)
+                return@Box
+            }
+            Column(gestures) {
                 if (!glass && line) PlaybackLine(playback, style)
                 when (layout) {
-                    // The core's four newer bars are Classic here until the phone draws them.
-                    PhonePlayerBarStyle.CLASSIC,
-                    PhonePlayerBarStyle.FLOATING,
-                    PhonePlayerBarStyle.LINE,
-                    PhonePlayerBarStyle.RECORD,
-                    PhonePlayerBarStyle.TASKBAR,
-                    -> ClassicBar(track, playback, state, glass, onSpotify, hasNext)
+                    PhonePlayerBarStyle.CLASSIC, PhonePlayerBarStyle.FLOATING -> ClassicBar(track, playback, state, glass, onSpotify, hasNext)
                     PhonePlayerBarStyle.SLIM -> SlimBar(track, playback, state, glass, onSpotify = onSpotify)
                     PhonePlayerBarStyle.SLIM_LEFT -> SlimBar(track, playback, state, glass, controlsFirst = true, onSpotify = onSpotify)
                     PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass, onSpotify, hasNext)
                     PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass, onSpotify, hasNext)
+                    PhonePlayerBarStyle.LINE -> LineBar(track, playback, state, style, glass, onSpotify)
+                    PhonePlayerBarStyle.RECORD -> RecordBar(track, playback, state, glass, onSpotify, hasNext)
+                    PhonePlayerBarStyle.TASKBAR -> TaskbarBar(track, playback, state, style, glass, open)
                 }
                 // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
                 // rounded ends would be cut off at an angle, which reads as a mistake.
@@ -655,7 +664,7 @@ private fun PlayerBar(
 
 /** The cover, the track, play and next. The bar as it has always been. */
 @Composable
-private fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, onSpotify: Boolean, hasNext: Boolean) {
+internal fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, glass: Boolean, onSpotify: Boolean, hasNext: Boolean) {
     val haptics = rememberHaptics(state)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = if (glass) 10.dp else 12.dp, vertical = 8.dp),
@@ -892,7 +901,7 @@ private fun BoxScope.SpotlightBackdrop(artworkUrl: String?, glass: Boolean) {
  * A new track's name rises into place as the last one lifts away, so a skip is seen as well as heard.
  */
 @Composable
-private fun TrackLines(track: Track, playback: PlaybackState, onSpotify: Boolean, modifier: Modifier) {
+internal fun TrackLines(track: Track, playback: PlaybackState, onSpotify: Boolean, modifier: Modifier) {
     MotionContent(track, modifier, kind = MotionKind.TRACK, contentKey = { it.queueKey }) { shown ->
         Column {
             Text(
@@ -921,7 +930,7 @@ private fun TrackLines(track: Track, playback: PlaybackState, onSpotify: Boolean
  * The bar's second line: what went wrong, or the artist -- after "On Spotify", in Spotify's green, while the
  * song is playing in the account's own Spotify app rather than on this phone.
  */
-private fun barDetail(track: Track, playback: PlaybackState, onSpotify: Boolean): AnnotatedString {
+internal fun barDetail(track: Track, playback: PlaybackState, onSpotify: Boolean): AnnotatedString {
     playback.errorMessage?.let { return AnnotatedString(it) }
     val artist = track.artistLine.ifBlank { "Unknown artist" }
     if (!onSpotify) return AnnotatedString(artist)

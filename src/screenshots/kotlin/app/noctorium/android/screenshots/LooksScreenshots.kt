@@ -12,8 +12,11 @@ import app.noctorium.core.AppState
 import app.noctorium.domain.Track
 import app.noctorium.playback.SavedQueue
 import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.PhonePlayerBarStyle
+import app.noctorium.settings.PhonePreferences
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.SettingsState
+import app.noctorium.settings.SurfaceStyle
 import app.noctorium.settings.ThemePreset
 import org.junit.Rule
 import org.junit.Test
@@ -43,7 +46,7 @@ class LooksScreenshots(private val look: Look) {
     companion object {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
-        fun looks(): List<Array<Any>> = seekBarLooks().map { arrayOf(it) }
+        fun looks(): List<Array<Any>> = (seekBarLooks() + playerBarLooks()).map { arrayOf(it) }
     }
 }
 
@@ -110,6 +113,31 @@ private fun seekBarLooks(): List<Look> = NEW_SEEK_BARS.flatMap { style ->
         )
     }
 }
+
+private val NEW_PLAYER_BARS = listOf(
+    PhonePlayerBarStyle.FLOATING,
+    PhonePlayerBarStyle.LINE,
+    PhonePlayerBarStyle.RECORD,
+    PhonePlayerBarStyle.TASKBAR,
+)
+
+/** Each new player bar on Home, solid and under glass, and with the Ruler for the line the others carry. */
+private fun playerBarLooks(): List<Look> = NEW_PLAYER_BARS.flatMap { layout ->
+    THEMES.flatMap { (theme, preferences) ->
+        val name = layout.name.lowercase()
+        SurfaceStyle.entries.map { surface ->
+            Look(
+                "bar-$name-$theme" + if (surface.isGlass) "-glass" else "",
+                preferences.copy(surfaceStyle = surface, phone = PhonePreferences(playerBarStyle = layout)),
+            ) { _, state -> NoctoriumPhone(state) }
+        }
+    }
+} + Look(
+    "bar-record-paused-night",
+    NoctoriumPreferences(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.RECORD)),
+    playing = { null },
+    kept = { SavedQueue(Covers.on(Still.queue), 1, 67_000) },
+) { _, state -> NoctoriumPhone(state) }
 
 /** The pickers in Customization. */
 private fun pickerLooks(): List<Look> = THEMES.flatMap { (theme, preferences) ->
