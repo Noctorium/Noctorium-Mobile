@@ -5,9 +5,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
+import app.noctorium.android.ui.CLOCK_MENU
 import app.noctorium.android.ui.NoctoriumPhone
 import app.noctorium.android.ui.NowPlaying
 import app.noctorium.android.ui.NowPlayingLookCard
@@ -122,11 +131,18 @@ class Look(
     private val kept: () -> SavedQueue? = { null },
     /** Whether to take the whole screen rather than the content: a dialog is a window of its own. */
     private val whole: Boolean = false,
+    /** Done to the screen once it has settled, such as holding something down; the whole screen is taken after. */
+    private val act: (ComposeContentTestRule.() -> Unit)? = null,
     private val screen: @Composable (SettingsState, AppState) -> Unit,
 ) {
     fun shoot(compose: ComposeContentTestRule) {
         Covers.install(ApplicationProvider.getApplicationContext())
-        compose.shootPhone(screenshotFolder, name, preferences, playing(), kept = kept(), then = if (whole) ({}) else null, content = screen)
+        val then: (() -> Unit)? = when {
+            act != null -> { { compose.act() } }
+            whole -> { {} }
+            else -> null
+        }
+        compose.shootPhone(screenshotFolder, name, preferences, playing(), kept = kept(), then = then, content = screen)
     }
 
     override fun toString() = name
@@ -308,9 +324,10 @@ private fun skinPageLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
 }
 
 /**
- * The taskbars' clock put away: under each Windows theme, from the tabs' taskbar, the Taskbar bar's and the
- * one under the Now playing window; and the Taskbar bar without it in an ordinary theme, solid and under glass.
- * With the clock, they are the pictures of Home and Now playing above.
+ * The taskbars' clock: put away under each Windows theme, from the tabs' taskbar, the Taskbar bar's and the one
+ * under the Now playing window; the Taskbar bar without it in an ordinary theme, solid and under glass; the
+ * menu holding it down opens, in each look; and that menu putting it away. With the clock, they are the
+ * pictures of Home and Now playing above.
  */
 private fun clockLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
     val off = preferences.copy(taskbarClock = false)
@@ -321,16 +338,40 @@ private fun clockLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
             off.copy(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR)),
         ) { _, state -> NoctoriumPhone(state) },
         Look("skin-$skin-now-playing-no-clock", off.copy(ambientBackdrop = false)) { _, state -> NowPlayingScreen(state) {} },
+        Look("skin-$skin-clock-menu", preferences, act = holdTheClock) { _, state -> NoctoriumPhone(state) },
+        Look("skin-$skin-clock-put-away", preferences, act = putTheClockAway) { _, state -> NoctoriumPhone(state) },
     )
-} + THEMES.map { (theme, preferences) ->
-    Look(
-        "bar-taskbar-$theme-no-clock",
-        preferences.copy(taskbarClock = false, phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR)),
-    ) { _, state -> NoctoriumPhone(state) }
+} + THEMES.flatMap { (theme, preferences) ->
+    val taskbar = preferences.copy(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR))
+    listOf(
+        Look("bar-taskbar-$theme-no-clock", taskbar.copy(taskbarClock = false)) { _, state -> NoctoriumPhone(state) },
+        Look("bar-taskbar-$theme-clock-menu", taskbar, act = holdTheClock) { _, state -> NoctoriumPhone(state) },
+    )
 } + Look(
     "bar-taskbar-night-glass-no-clock",
     NoctoriumPreferences(surfaceStyle = SurfaceStyle.GLASS, taskbarClock = false, phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR)),
 ) { _, state -> NoctoriumPhone(state) }
+
+/** The taskbar's clock, known by what holding it down does, since what it says is whenever the pictures are taken. */
+private val theClock = SemanticsMatcher("is the taskbar's clock") {
+    it.config.getOrNull(SemanticsActions.OnLongClick)?.label == CLOCK_MENU
+}
+
+private val holdTheClock: ComposeContentTestRule.() -> Unit = {
+    onNode(theClock).performTouchInput { longClick() }
+    mainClock.advanceTimeBy(1_000)
+    onNodeWithText("Show the clock").assertExists()
+}
+
+/** The menu's one item taken off, which leaves no clock on the screen at all. */
+private val putTheClockAway: ComposeContentTestRule.() -> Unit = {
+    holdTheClock()
+    onNodeWithText("Show the clock").performClick()
+    mainClock.advanceTimeBy(1_000)
+    waitForIdle()
+    onAllNodes(theClock).assertCountEquals(0)
+    onNodeWithText("Show the clock").assertDoesNotExist()
+}
 
 /** A question with two answers, as the playlists ask before deleting one, over Home. */
 @Composable

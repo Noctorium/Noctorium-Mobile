@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.settings.ThemeSkin
 import coil.compose.AsyncImage
@@ -508,6 +509,7 @@ private val GROUP_CONTENT_AT = 22.dp
  */
 @Composable
 internal fun SkinTaskbar(
+    state: AppState,
     current: Destination,
     labels: Boolean,
     tabs: List<Destination>,
@@ -548,7 +550,7 @@ internal fun SkinTaskbar(
                     }
                 }
             }
-            if (clock) Tray { ink -> TrayClock(ink) }
+            if (clock) Tray { ink -> TrayClock(ink, state) }
         }
     }
 }

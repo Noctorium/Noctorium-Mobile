@@ -11,6 +11,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -25,11 +27,16 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +45,7 @@ import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
@@ -66,11 +74,21 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import app.noctorium.settings.ThemeSkin
 
 /*
@@ -482,6 +500,142 @@ internal fun SkinnedAlertDialog(
         }
     }
 }
+
+/**
+ * Material's dropdown menu; Windows' own under the skins. 98's is the dialog grey, framed as a window was;
+ * XP's is white, edged in the beige-grey it greyed text with, with the soft shadow XP put to the right of and
+ * below its menus. Either opens below what it hangs from, or above it where there is no room below -- from a
+ * taskbar, that is always.
+ */
+@Composable
+internal fun SkinnedDropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    val skin = LocalSkin.current
+    if (skin == ThemeSkin.STANDARD) {
+        DropdownMenu(expanded, onDismissRequest, content = content)
+        return
+    }
+    if (!expanded) return
+    val xp = skin == ThemeSkin.WINDOWS_XP
+    Popup(popupPositionProvider = MenuPlacement, onDismissRequest = onDismissRequest, properties = PopupProperties(focusable = true)) {
+        Box(if (xp) Modifier.drawBehind { drawMenuShadow() }.padding(end = MENU_SHADOW, bottom = MENU_SHADOW) else Modifier) {
+            Column(
+                Modifier
+                    .widthIn(min = MENU_WIDTH)
+                    .width(IntrinsicSize.Max)
+                    .then(
+                        if (xp) {
+                            Modifier.background(Luna.Window).border(1.dp, Luna.GreyText)
+                        } else {
+                            Modifier.background(Win98.Face).drawWithContent {
+                                drawContent()
+                                drawEdge98(Edge98.WINDOW)
+                            }
+                        },
+                    )
+                    .padding(if (xp) 2.dp else 3.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+/**
+ * Material's menu item; under the skins one of Windows': lit -- 98's navy, XP's blue -- while the finger is on
+ * it, with a tick in the margin before the words for one that is [checked]. A null [checked] is an item that
+ * is neither ticked nor unticked, only done.
+ */
+@Composable
+internal fun SkinnedDropdownMenuItem(text: String, onClick: () -> Unit, checked: Boolean? = null) {
+    val skin = LocalSkin.current
+    val ticked = if (checked == null) Modifier else Modifier.semantics { toggleableState = ToggleableState(checked) }
+    if (skin == ThemeSkin.STANDARD) {
+        DropdownMenuItem(
+            text = { Text(text) },
+            onClick = onClick,
+            modifier = ticked,
+            leadingIcon = if (checked == true) ({ Icon(Icons.Default.Check, null) }) else null,
+        )
+        return
+    }
+    val xp = skin == ThemeSkin.WINDOWS_XP
+    val interaction = remember { MutableInteractionSource() }
+    val held by interaction.collectIsPressedAsState()
+    val ink = when {
+        held -> if (xp) Luna.SelectionText else Win98.SelectionText
+        xp -> Luna.Text
+        else -> Win98.Text
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(MENU_ITEM_HEIGHT)
+            .background(if (!held) Color.Transparent else if (xp) Luna.Selection else Win98.Selection)
+            .clickable(interaction, indication = null, onClick = onClick)
+            .then(ticked)
+            .padding(end = 26.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(MENU_MARGIN), contentAlignment = Alignment.Center) {
+            if (checked == true) {
+                // Windows' menu tick: short and heavy, its long stroke rising to the right.
+                Canvas(Modifier.size(9.dp)) {
+                    val tick = Path().apply {
+                        moveTo(0f, size.height * .55f)
+                        lineTo(size.width * .38f, size.height * .9f)
+                        lineTo(size.width, size.height * .1f)
+                    }
+                    drawPath(tick, ink, style = Stroke(size.width * .22f, cap = StrokeCap.Square, join = StrokeJoin.Miter))
+                }
+            }
+        }
+        Text(text, color = ink, fontSize = 14.sp, maxLines = 1)
+    }
+}
+
+/**
+ * Where a Windows menu opens: below what it hangs from, or above it where there is no room below; starting
+ * level with its leading edge, or ending level with its trailing one where it would run off the side.
+ */
+private object MenuPlacement : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val width = popupContentSize.width
+        val leading = if (layoutDirection == LayoutDirection.Ltr) anchorBounds.left else anchorBounds.right - width
+        val trailing = if (layoutDirection == LayoutDirection.Ltr) anchorBounds.right - width else anchorBounds.left
+        val x = (if (leading >= 0 && leading + width <= windowSize.width) leading else trailing)
+            .coerceIn(0, (windowSize.width - width).coerceAtLeast(0))
+        val y = if (anchorBounds.bottom + popupContentSize.height <= windowSize.height) {
+            anchorBounds.bottom
+        } else {
+            (anchorBounds.top - popupContentSize.height).coerceAtLeast(0)
+        }
+        return IntOffset(x, y)
+    }
+}
+
+/** XP's shadow under a menu: soft, and to the right and below, as if lit from the top left like everything else. */
+private fun DrawScope.drawMenuShadow() {
+    val reach = MENU_SHADOW.toPx()
+    val menu = Size(size.width - reach, size.height - reach)
+    for (step in 1..MENU_SHADOW_STEPS) {
+        val by = reach * step / MENU_SHADOW_STEPS
+        drawRect(Color.Black.copy(alpha = .07f), Offset(by, by), menu)
+    }
+}
+
+/**
+ * A menu's least width; its rows' height, a finger's where Windows' were a pointer's; the margin its ticks
+ * sit in; and how far XP's shadow reaches, in how many steps it fades.
+ */
+private val MENU_WIDTH = 168.dp
+private val MENU_ITEM_HEIGHT = 40.dp
+private val MENU_MARGIN = 30.dp
+private val MENU_SHADOW = 4.dp
+private const val MENU_SHADOW_STEPS = 4
 
 /** A checkbox's side, as Windows drew it at its own size: thirteen. */
 private val CHECKBOX = 13.dp

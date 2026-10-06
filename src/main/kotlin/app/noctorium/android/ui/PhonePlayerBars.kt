@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,8 +24,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,8 +37,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -258,7 +265,7 @@ internal fun TaskbarBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) { PlayPauseButton(playback, state, size = 18.dp) }
-            if (clock) TrayClock(MaterialTheme.colorScheme.onSurface)
+            if (clock) TrayClock(MaterialTheme.colorScheme.onSurface, state, onTap = open)
         }
     }
 }
@@ -301,18 +308,21 @@ private fun SkinTaskbarBar(
         Spacer(Modifier.width(6.dp))
         Tray { ink ->
             Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) { PlayPauseButton(playback, state, size = 18.dp) }
-            if (clock) TrayClock(ink)
+            if (clock) TrayClock(ink, state, onTap = open)
         }
     }
 }
 
 /**
  * The time as a taskbar's tray showed it, hours and minutes and nothing else -- on the twenty-four hour clock
- * when the phone is set to it -- changing on the minute. There unless it has been put away, as Windows let a
- * taskbar's clock go.
+ * when the phone is set to it -- changing on the minute.
+ *
+ * There unless it has been put away, which holding it down offers, as Windows let a taskbar's clock go: the
+ * skin's own menu, with "Show the clock" ticked. [onTap] is what a plain tap on it does where it is part of
+ * something that answers one -- the player bar's opens Now playing, as the rest of the bar does.
  */
 @Composable
-internal fun TrayClock(colour: Color, modifier: Modifier = Modifier) {
+internal fun TrayClock(colour: Color, state: AppState, modifier: Modifier = Modifier, onTap: (() -> Unit)? = null) {
     val context = LocalContext.current
     val format = remember(context) {
         SimpleDateFormat(if (android.text.format.DateFormat.is24HourFormat(context)) "H:mm" else "h:mm", Locale.getDefault())
@@ -323,8 +333,37 @@ internal fun TrayClock(colour: Color, modifier: Modifier = Modifier) {
             value = format.format(Date())
         }
     }
-    Text(time, color = colour, fontSize = TRAY_CLOCK_SIZE, maxLines = 1, softWrap = false, modifier = modifier)
+    val haptics = rememberHaptics(state)
+    var menu by remember { mutableStateOf(false) }
+    // The whole height of the tray is the clock to a finger, rather than the line of its figures.
+    Box(modifier.fillMaxHeight().heldDown(onTap) { haptics.tick(); menu = true }, contentAlignment = Alignment.Center) {
+        Text(time, color = colour, fontSize = TRAY_CLOCK_SIZE, maxLines = 1, softWrap = false)
+        SkinnedDropdownMenu(menu, onDismissRequest = { menu = false }) {
+            SkinnedDropdownMenuItem("Show the clock", checked = true, onClick = {
+                menu = false
+                state.setTaskbarClock(false)
+            })
+        }
+    }
 }
+
+/**
+ * A long press for [held] and, where there is one, a tap for [onTap]. Without one a tap does nothing, and is
+ * not offered to accessibility as a press that does.
+ */
+@Composable
+private fun Modifier.heldDown(onTap: (() -> Unit)?, held: () -> Unit): Modifier {
+    val tap by rememberUpdatedState(onTap)
+    val hold by rememberUpdatedState(held)
+    return pointerInput(Unit) { detectTapGestures(onTap = { tap?.invoke() }, onLongPress = { hold() }) }
+        .semantics(mergeDescendants = true) {
+            onTap?.let { tapped -> onClick { tapped(); true } }
+            onLongClick(CLOCK_MENU) { hold(); true }
+        }
+}
+
+/** What holding the clock down does, said to somebody listening rather than looking. */
+internal const val CLOCK_MENU = "Open the clock's menu"
 
 /** The size of the tray's clock, which the Windows taskbar measures to leave it room. */
 internal val TRAY_CLOCK_SIZE = 12.sp

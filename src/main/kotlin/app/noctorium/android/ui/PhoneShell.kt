@@ -341,6 +341,7 @@ fun NoctoriumPhone(state: AppState) {
                         // The Windows themes' tabs are their taskbar. A taskbar player bar right above it has the
                         // clock already, and one clock is enough; put away, neither has one.
                         SkinTaskbar(
+                            state,
                             ui.destination,
                             settings.preferences.phone.navigationLabels,
                             visibleTabs(settings.preferences.phone.hiddenDestinations),

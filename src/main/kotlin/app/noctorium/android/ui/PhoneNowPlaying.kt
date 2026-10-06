@@ -204,7 +204,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                     // The tray holds only the clock here, so it goes with it.
                     if (settings.preferences.taskbarClock) {
                         Spacer(Modifier.width(6.dp))
-                        Tray { ink -> TrayClock(ink) }
+                        Tray { ink -> TrayClock(ink, state) }
                     }
                 }
             }
