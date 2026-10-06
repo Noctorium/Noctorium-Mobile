@@ -3,6 +3,7 @@ package app.noctorium.android.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -159,8 +160,10 @@ internal fun HomeScreen(state: AppState) {
 
         LazyColumn(contentPadding = chromePadding(24.dp)) {
             item {
+                // Scrolls sideways rather than squeezing: with a fourth service the last chip was crushed
+                // into a tall empty pill on a narrow phone.
                 Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     ProviderFilter.entries.forEach { filter ->
