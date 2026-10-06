@@ -67,6 +67,8 @@ private fun ProviderType.badgeColour(): Color = when (this) {
     ProviderType.YOUTUBE_VIDEO -> Color(0xFFCC0000)
     ProviderType.SOUNDCLOUD -> Color(0xFFFF7300)
     ProviderType.SPOTIFY -> Color(0xFF1DB954)
+    ProviderType.BANDCAMP -> Color(0xFF408294)
+    ProviderType.VK -> Color(0xFF0077FF)
     ProviderType.LOCAL -> Color(0xFF5A5A6E)
 }
 
@@ -75,5 +77,7 @@ private fun ProviderType.badgeLabel(): String = when (this) {
     ProviderType.YOUTUBE_VIDEO -> "YT"
     ProviderType.SOUNDCLOUD -> "SC"
     ProviderType.SPOTIFY -> "SP"
+    ProviderType.BANDCAMP -> "BC"
+    ProviderType.VK -> "VK"
     ProviderType.LOCAL -> "FILE"
 }
