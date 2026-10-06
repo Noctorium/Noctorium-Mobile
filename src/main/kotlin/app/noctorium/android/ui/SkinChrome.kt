@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,10 +54,12 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -514,10 +517,18 @@ internal fun SkinTaskbar(
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
     val home = current == Destination.HOME || current == Destination.NOW_PLAYING
     val others = tabs.filter { it != Destination.HOME }
+    // The name and the clock are measured rather than guessed at, since both grow with the text size: a
+    // guess made at the ordinary size left the tabs a few points wide on a phone set to the largest.
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val base = LocalTextStyle.current
+    val name = with(density) { measurer.measure("Noctorium", base.merge(startNameStyle(xp))).size.width.toDp() }
+    val time = with(density) { measurer.measure("88:88", base.merge(TextStyle(fontSize = TRAY_CLOCK_SIZE))).size.width.toDp() }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val tray = if (clock) TRAY_ROOM else 0.dp
+        val tray = if (clock) time + TRAY_PADDING * 2 + 4.dp else 0.dp
         val gaps = TASKBAR_GAP * (others.size + 1) + 12.dp
-        val roomy = (maxWidth - (if (xp) START_FULL_XP else START_FULL_98) - tray - gaps) / others.size.coerceAtLeast(1) >= NARROWEST_BUTTON
+        val start = name + if (xp) START_AROUND_XP else START_AROUND_98
+        val roomy = (maxWidth - start - tray - gaps) / others.size.coerceAtLeast(1) >= NARROWEST_BUTTON
         TaskbarStrip {
             StartButton(pressed = home, named = roomy, description = "Home") { go(Destination.HOME) }
             Row(
@@ -582,14 +593,23 @@ private val TASKBAR_HEIGHT = 48.dp
 private val BELOW_THE_EDGE = 120.dp
 
 /**
- * The start button with its name, 98's and XP's, the tray with its clock, and the gap between buttons: what
- * must leave each of the others at least [NARROWEST_BUTTON] for the start button to keep its name.
+ * What the start button is beside its name -- its mark, and the room round both -- the tray's room either side
+ * of its clock, and the gap between buttons: what, with the name and the clock as measured, must leave each of
+ * the others at least [NARROWEST_BUTTON] for the start button to keep its name.
  */
-private val START_FULL_98 = 120.dp
-private val START_FULL_XP = 128.dp
-private val TRAY_ROOM = 48.dp
+private val START_AROUND_98 = 40.dp
+private val START_AROUND_XP = 50.dp
+private val TRAY_PADDING = 9.dp
 private val TASKBAR_GAP = 3.dp
 private val NARROWEST_BUTTON = 30.dp
+
+/** The start button's name, as each skin set it: 98's bold, XP's bold and italic. */
+private fun startNameStyle(xp: Boolean): TextStyle =
+    if (xp) {
+        TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, fontStyle = FontStyle.Italic)
+    } else {
+        TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold)
+    }
 
 /**
  * A start button: XP's green, rounded at its right end, with the name in white italic, or 98's grey slab with
@@ -633,12 +653,7 @@ internal fun StartButton(pressed: Boolean, named: Boolean, description: String, 
                 Text(
                     "Noctorium",
                     color = Color.White,
-                    style = TextStyle(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontStyle = FontStyle.Italic,
-                        shadow = Shadow(Color(0xFF1D5E1D), Offset(2f, 2f), 2f),
-                    ),
+                    style = startNameStyle(xp = true).copy(shadow = Shadow(Color(0xFF1D5E1D), Offset(2f, 2f), 2f)),
                     maxLines = 1,
                 )
             }
@@ -660,7 +675,7 @@ internal fun StartButton(pressed: Boolean, named: Boolean, description: String, 
             WindowIcon(20.dp)
             if (named) {
                 Spacer(Modifier.width(6.dp))
-                Text("Noctorium", color = Win98.Text, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text("Noctorium", color = Win98.Text, style = startNameStyle(xp = false), maxLines = 1)
             }
         }
     }
@@ -740,7 +755,7 @@ internal fun Tray(content: @Composable RowScope.(ink: Color) -> Unit) {
                             drawRect(Luna.TrayEdge, Offset.Zero, Size(1.dp.toPx(), size.height))
                             drawRect(Color(0xFF63BBFF), Offset(1.dp.toPx(), 0f), Size(1f, size.height))
                         }
-                        .padding(horizontal = 9.dp)
+                        .padding(horizontal = TRAY_PADDING)
                 } else {
                     Modifier
                         .padding(vertical = 2.dp)
@@ -748,7 +763,7 @@ internal fun Tray(content: @Composable RowScope.(ink: Color) -> Unit) {
                             drawContent()
                             drawEdge98(Edge98.SHALLOW)
                         }
-                        .padding(horizontal = 8.dp)
+                        .padding(horizontal = TRAY_PADDING)
                 },
             ),
         verticalAlignment = Alignment.CenterVertically,

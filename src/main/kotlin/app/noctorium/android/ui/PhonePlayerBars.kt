@@ -313,8 +313,11 @@ internal fun TrayClock(colour: Color, modifier: Modifier = Modifier) {
             value = format.format(Date())
         }
     }
-    Text(time, color = colour, fontSize = 12.sp, maxLines = 1, softWrap = false, modifier = modifier)
+    Text(time, color = colour, fontSize = TRAY_CLOCK_SIZE, maxLines = 1, softWrap = false, modifier = modifier)
 }
+
+/** The size of the tray's clock, which the Windows taskbar measures to leave it room. */
+internal val TRAY_CLOCK_SIZE = 12.sp
 
 /** Noctorium's N, the letter the launcher's themed icon is, filling [modifier]'s height. */
 @Composable

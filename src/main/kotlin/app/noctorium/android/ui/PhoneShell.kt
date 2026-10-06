@@ -89,6 +89,7 @@ import app.noctorium.settings.ThemeSkin
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -247,26 +248,35 @@ fun NoctoriumPhone(state: AppState) {
 
     // The Windows themes draw their own taskbar and bars, and glass is not a thing either of them had.
     val glass = settings.preferences.surfaceStyle.isGlass && LocalSkin.current == ThemeSkin.STANDARD
-    val screens: @Composable () -> Unit = {
-        // One tab giving way to the next with a short fade and rise, rather than the screen cutting.
-        MotionContent(ui.destination, Modifier.fillMaxSize()) { destination ->
-            when (destination) {
-                Destination.SEARCH -> SearchScreen(state)
-                Destination.LINK -> LinkScreen(state)
-                Destination.LIBRARY -> LibraryScreen(state)
-                Destination.DOWNLOADS -> DownloadsScreen(state)
-                // Only to a service with a sign-in page of its own: the page knows YouTube, SoundCloud and VK by
-                // name, and anything else -- Bandcamp, which needs only a name -- would fall through to Google's.
-                Destination.SETTINGS -> SettingsScreen(state, backEnabled = !overlaid && !nowPlayingOpen) { provider ->
-                    if (hasSignInPage(provider)) signingInTo = provider
+    /*
+     * The screens, movable: they sit in one place under glass and in another without it, and a change of
+     * surface -- or of theme, now the Windows ones draw no glass -- carries them from one to the other keeping
+     * where they were. Composed afresh instead, they forgot it: picking 98 on Customization went back to the
+     * top of Settings.
+     */
+    val movableScreens = remember(state) {
+        movableContentOf { destination: Destination, backEnabled: Boolean ->
+            // One tab giving way to the next with a short fade and rise, rather than the screen cutting.
+            MotionContent(destination, Modifier.fillMaxSize()) { shown ->
+                when (shown) {
+                    Destination.SEARCH -> SearchScreen(state)
+                    Destination.LINK -> LinkScreen(state)
+                    Destination.LIBRARY -> LibraryScreen(state)
+                    Destination.DOWNLOADS -> DownloadsScreen(state)
+                    // Only to a service with a sign-in page of its own: the page knows YouTube, SoundCloud and VK by
+                    // name, and anything else -- Bandcamp, which needs only a name -- would fall through to Google's.
+                    Destination.SETTINGS -> SettingsScreen(state, backEnabled = backEnabled) { provider ->
+                        if (hasSignInPage(provider)) signingInTo = provider
+                    }
+                    Destination.QUEUE -> QueueScreen(state)
+                    // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
+                    // Home with the sheet open instead of on an empty screen.
+                    Destination.HOME, Destination.NOW_PLAYING -> HomeScreen(state)
                 }
-                Destination.QUEUE -> QueueScreen(state)
-                // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
-                // Home with the sheet open instead of on an empty screen.
-                Destination.HOME, Destination.NOW_PLAYING -> HomeScreen(state)
             }
         }
     }
+    val screens: @Composable () -> Unit = { movableScreens(ui.destination, !overlaid && !nowPlayingOpen) }
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
             /*

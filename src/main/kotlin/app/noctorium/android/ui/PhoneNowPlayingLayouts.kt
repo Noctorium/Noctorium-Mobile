@@ -91,8 +91,10 @@ internal fun FullCoverNowPlaying(screen: NowPlaying) {
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    0f to page.copy(alpha = .62f),
-                    .14f to Color.Transparent,
+                    // Enough at the head that the bar along the top reads over a white sleeve too.
+                    0f to page.copy(alpha = .8f),
+                    .09f to page.copy(alpha = .5f),
+                    .19f to Color.Transparent,
                     .34f to Color.Transparent,
                     .58f to page.copy(alpha = .8f),
                     1f to page.copy(alpha = .97f),
