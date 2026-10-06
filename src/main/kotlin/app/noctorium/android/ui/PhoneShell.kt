@@ -629,7 +629,13 @@ private fun PlayerBar(
             ) {
                 if (!glass && line) PlaybackLine(playback, style)
                 when (layout) {
-                    PhonePlayerBarStyle.CLASSIC -> ClassicBar(track, playback, state, glass, onSpotify, hasNext)
+                    // The core's four newer bars are Classic here until the phone draws them.
+                    PhonePlayerBarStyle.CLASSIC,
+                    PhonePlayerBarStyle.FLOATING,
+                    PhonePlayerBarStyle.LINE,
+                    PhonePlayerBarStyle.RECORD,
+                    PhonePlayerBarStyle.TASKBAR,
+                    -> ClassicBar(track, playback, state, glass, onSpotify, hasNext)
                     PhonePlayerBarStyle.SLIM -> SlimBar(track, playback, state, glass, onSpotify = onSpotify)
                     PhonePlayerBarStyle.SLIM_LEFT -> SlimBar(track, playback, state, glass, controlsFirst = true, onSpotify = onSpotify)
                     PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass, onSpotify, hasNext)
@@ -817,6 +823,7 @@ private fun ControlsBar(
                 style,
                 playback.isPlaying,
                 state::seekTo,
+                seed = track.queueKey,
             )
         }
     }
@@ -958,6 +965,29 @@ internal fun PlayPauseIcon(playing: Boolean, size: Dp, tint: Color = LocalConten
  */
 @Composable
 internal fun PlaybackLine(playback: PlaybackState, style: ProgressBarStyle = ProgressBarStyle.MINIMAL) {
+    // Bars, Beads, Neon, Ruler and Luna come down to a few points as well: a row of bars, a string of beads,
+    // a lit tube, a ruler's minutes and XP's green blocks, each still the choice made for the seek bar.
+    if (style.hasOwnLine) {
+        val filled = MaterialTheme.colorScheme.primary
+        // The writing colour, faint, as the seek bar's own track is: the panel's colour, which the plain line
+        // uses, left the unplayed bars and beads all but invisible on a dark theme, and they are the shape.
+        val track = MaterialTheme.colorScheme.onSurface.copy(alpha = SeekBar.TRACK_ALPHA)
+        val pale = MaterialTheme.colorScheme.background.luminance() > .5f
+        val fraction = playbackFraction(playback.positionMs, playback.durationMs)
+        var width by remember { mutableIntStateOf(0) }
+        val shapes = rememberSeekBarShapes(
+            style,
+            playback.track?.queueKey.orEmpty(),
+            playback.durationMs,
+            width,
+            barPitch = LINE_BARS_PITCH,
+            tickRoom = LINE_TICK_ROOM,
+        )
+        Canvas(Modifier.fillMaxWidth().height(style.lineHeight()).onSizeChanged { width = it.width }) {
+            drawPlaybackLine(style, fraction, track, filled, shapes, pale)
+        }
+        return
+    }
     // Segments and Classic are the styles with a shape small enough to survive being two pixels tall --
     // both are blocks -- and it is what makes the mini bar recognisably the same choice as the one on the
     // now playing screen. The rest come down to a thickness here: this is a line under a title, not the

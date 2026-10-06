@@ -68,7 +68,6 @@ import app.noctorium.settings.SurfaceStyle
 import app.noctorium.settings.TextSize
 import app.noctorium.settings.PhonePlayerBarStyle
 import app.noctorium.settings.PlayerBarPosition
-import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.SettingsState
 import app.noctorium.settings.StartPage
@@ -375,21 +374,28 @@ internal fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
 }
 
 @Composable
-private fun PlayerBarCard(settings: SettingsState, state: AppState) {
+internal fun PlayerBarCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
+    val playback by state.playback.collectAsState()
     SettingsCardShell {
         CardHeading(Icons.Default.SmartDisplay, "Player bar")
         Spacer(Modifier.height(10.dp))
 
-        ChoiceRow("Progress bar") {
-            ProgressBarStyle.entries.forEach { style ->
-                FilterChip(
-                    selected = preferences.progressBarStyle == style,
-                    onClick = { state.setProgressBarStyle(style) },
-                    label = { Text(style.displayName, fontSize = 11.sp) },
-                )
-            }
-        }
+        // Each drawn as it will be, the Bars from the song that is playing, so the choice is made by eye.
+        Text("Seek bar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            "On the now playing screen, and as the thin line along the player bar.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        SeekBarPicker(preferences.progressBarStyle, playback.track?.queueKey ?: PREVIEW_SEED, state::setProgressBarStyle)
+        Text(
+            preferences.progressBarStyle.description,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(bottom = 10.dp),
+        )
 
         ChoiceRow("Where it sits") {
             PlayerBarPosition.entries.forEach { position ->
@@ -428,6 +434,9 @@ private fun PlayerBarCard(settings: SettingsState, state: AppState) {
         }
     }
 }
+
+/** What the Bars preview is made from while nothing is playing: any song's row is better than an even one. */
+private const val PREVIEW_SEED = "noctorium"
 
 /** How the full-screen player looks: the cover's shape, and whether its colours spill onto the page. */
 @Composable

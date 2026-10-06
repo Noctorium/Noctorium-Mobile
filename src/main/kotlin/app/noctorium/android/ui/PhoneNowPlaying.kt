@@ -1,5 +1,6 @@
 package app.noctorium.android.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -57,8 +58,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,6 +84,7 @@ import app.noctorium.settings.SeekBar
 import app.noctorium.settings.TimeDisplay
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import coil.compose.AsyncImage
@@ -225,6 +229,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 settings.preferences.progressBarStyle,
                 playback.isPlaying,
                 state::seekTo,
+                seed = track.queueKey,
             )
 
             // A hidden shuffle or repeat leaves its place empty rather than closing up, so play stays in the
@@ -446,6 +451,8 @@ internal fun Seekbar(
     style: ProgressBarStyle,
     playing: Boolean,
     seekTo: (Long) -> Unit,
+    /** The song's key, which its row of Bars is made from. Blank draws an even row. */
+    seed: String = "",
 ) {
     var dragging by remember { mutableStateOf<Float?>(null) }
     val fraction = dragging ?: playbackFraction(positionMs, durationMs)
@@ -457,6 +464,8 @@ internal fun Seekbar(
                 fraction = fraction,
                 canSeek = durationMs > 0,
                 moving = playing && dragging == null,
+                seed = seed,
+                durationMs = durationMs,
                 onScrub = { dragging = it },
                 onScrubFinished = {
                     dragging?.let { if (durationMs > 0) seekTo((it * durationMs).toLong()) }
@@ -503,12 +512,33 @@ private fun DrawnSeekbar(
     fraction: Float,
     canSeek: Boolean,
     moving: Boolean,
+    seed: String,
+    durationMs: Long,
     onScrub: (Float) -> Unit,
     onScrubFinished: () -> Unit,
 ) {
     var widthPx by remember { mutableIntStateOf(1) }
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = SeekBar.TRACK_ALPHA)
     val filled = MaterialTheme.colorScheme.primary
+    val pale = MaterialTheme.colorScheme.background.luminance() > .5f
+    val shapes = rememberSeekBarShapes(style, seed, durationMs, widthPx)
+
+    // The neon spark breathes while the music plays, and holds its breath while it is paused or while
+    // nothing is to move at all. Read in the drawing rather than here, so a breath redraws the bar and
+    // does not recompose it.
+    val pulse: State<Float> = if (style == ProgressBarStyle.NEON && moving && LocalMotion.current) {
+        rememberInfiniteTransition(label = "neon").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                tween(NEON_BREATH_MS, easing = FastOutSlowInEasing),
+                androidx.compose.animation.core.RepeatMode.Reverse,
+            ),
+            label = "neonPulse",
+        )
+    } else {
+        remember { mutableFloatStateOf(.5f) }
+    }
 
     // The wave travels one wavelength per cycle, and fades to flat rather than stopping when the music
     // does -- a wave frozen mid-crest looks like something broken rather than like a paused song.
@@ -553,11 +583,14 @@ private fun DrawnSeekbar(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.fillMaxWidth().height(24.dp)) {
-            drawSeekBar(style, fraction, canSeek, track, filled, phase, amplitude)
+        Canvas(Modifier.fillMaxWidth().height(style.drawnHeight())) {
+            drawSeekBar(style, fraction, canSeek, track, filled, phase, amplitude, shapes, pulse.value, pale)
         }
     }
 }
+
+/** One breath of the neon spark, in and out again. Slower than the wave: a glow, not a flicker. */
+private const val NEON_BREATH_MS = 1_300
 
 /**
  * The artwork, blurred and dimmed, behind the track it belongs to.

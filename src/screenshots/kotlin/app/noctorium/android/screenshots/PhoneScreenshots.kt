@@ -69,6 +69,7 @@ import app.noctorium.settings.PhonePreferences
 import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.SettingsState
 import app.noctorium.settings.ThemePreset
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -89,16 +90,16 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
 /** A phone of ordinary size: 411 by 891 points, drawn three pixels to the point. */
-private const val PHONE = "w411dp-h891dp-xxhdpi"
+internal const val PHONE = "w411dp-h891dp-xxhdpi"
 
 /** The narrowest phone still sold, or an ordinary one with its display size turned up. */
-private const val NARROW_PHONE = "w320dp-h1100dp-xxhdpi"
+internal const val NARROW_PHONE = "w320dp-h1100dp-xxhdpi"
 
 /** Tall enough for the longest card to be seen whole. */
-private const val TALL_PHONE = "w411dp-h1100dp-xxhdpi"
+internal const val TALL_PHONE = "w411dp-h1100dp-xxhdpi"
 
 /** For the Playback card, which autoplay's choices have made the longest of all. */
-private const val VERY_TALL_PHONE = "w411dp-h1400dp-xxhdpi"
+internal const val VERY_TALL_PHONE = "w411dp-h1400dp-xxhdpi"
 
 /** A curve somebody made by hand: a lot of bass, a dip in the middle, some air at the top. */
 private val HAND_MADE = listOf(7f, 5f, 2f, -1f, -4f, -3f, 0f, 3f, 5.5f, 2f)
@@ -121,7 +122,7 @@ class PhoneScreenshots {
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(EmptyActivityDeclared()).around(compose)
 
-    private val folder = File(System.getProperty("noctorium.screenshots.dir") ?: "build/outputs/screenshots")
+    private val folder = screenshotFolder
 
     // --- Sound ---
 
@@ -683,7 +684,6 @@ class PhoneScreenshots {
      * done rather than set -- a sleep timer started, say. [then] is done to the screen once it has settled,
      * such as opening a menu; the picture is then of the whole screen, so the menu's own window is in it.
      */
-    @OptIn(ExperimentalRoborazziApi::class)
     private fun shoot(
         name: String,
         preferences: NoctoriumPreferences = NoctoriumPreferences(),
@@ -693,33 +693,55 @@ class PhoneScreenshots {
         prepare: (AppState) -> Unit = {},
         then: (() -> Unit)? = null,
         content: @Composable (SettingsState, AppState) -> Unit,
-    ) {
-        val state = stillState(preferences, playing, kept = kept)
-        try {
-            prepare(state)
-            // Time moves only when told to. The full-screen seek bar's wave runs for as long as it is on
-            // screen, so a screen that waited to be still before its picture was taken would wait forever;
-            // two seconds in is long enough for everything that eases into place to have arrived.
-            compose.mainClock.autoAdvance = false
-            compose.setContent {
-                val settings by state.settings.collectAsState()
-                NoctoriumTheme(settings.preferences, equalizerAvailable) {
-                    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-                        content(settings, state)
-                    }
+    ) = compose.shootPhone(folder, name, preferences, playing, equalizerAvailable, kept, prepare, then, content)
+}
+
+/** Where the pictures go: the folder -PscreenshotDir named, or the build's own. */
+internal val screenshotFolder = File(System.getProperty("noctorium.screenshots.dir") ?: "build/outputs/screenshots")
+
+/**
+ * Draws [content] in the app's theme over its own background, from a still-life state made of [preferences],
+ * and saves it in [folder] as [name].png. [prepare] runs on the state first, for anything that is done rather
+ * than set -- a sleep timer started, say. [then] is done to the screen once it has settled, such as opening a
+ * menu; the picture is then of the whole screen, so the menu's own window is in it.
+ */
+@OptIn(ExperimentalRoborazziApi::class)
+internal fun ComposeContentTestRule.shootPhone(
+    folder: File,
+    name: String,
+    preferences: NoctoriumPreferences = NoctoriumPreferences(),
+    playing: Track? = null,
+    equalizerAvailable: Boolean = true,
+    kept: SavedQueue? = null,
+    prepare: (AppState) -> Unit = {},
+    then: (() -> Unit)? = null,
+    content: @Composable (SettingsState, AppState) -> Unit,
+) {
+    val state = stillState(preferences, playing, kept = kept)
+    try {
+        prepare(state)
+        // Time moves only when told to. The full-screen seek bar's wave runs for as long as it is on
+        // screen, so a screen that waited to be still before its picture was taken would wait forever;
+        // two seconds in is long enough for everything that eases into place to have arrived.
+        mainClock.autoAdvance = false
+        setContent {
+            val settings by state.settings.collectAsState()
+            NoctoriumTheme(settings.preferences, equalizerAvailable) {
+                Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+                    content(settings, state)
                 }
             }
-            compose.mainClock.advanceTimeBy(2_000)
-            if (then == null) {
-                compose.onRoot().captureRoboImage(File(folder, "$name.png").path)
-            } else {
-                then()
-                compose.mainClock.advanceTimeBy(1_000)
-                captureScreenRoboImage(File(folder, "$name.png").path)
-            }
-        } finally {
-            state.close()
         }
+        mainClock.advanceTimeBy(2_000)
+        if (then == null) {
+            onRoot().captureRoboImage(File(folder, "$name.png").path)
+        } else {
+            then()
+            mainClock.advanceTimeBy(1_000)
+            captureScreenRoboImage(File(folder, "$name.png").path)
+        }
+    } finally {
+        state.close()
     }
 }
 
@@ -730,7 +752,7 @@ class PhoneScreenshots {
  * into the debug manifest. That would put it in the APK for the sake of a screenshot, so it is told to
  * Robolectric's package manager here instead, and the APK stays as it is.
  */
-private class EmptyActivityDeclared : ExternalResource() {
+internal class EmptyActivityDeclared : ExternalResource() {
     override fun before() {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val activity = ComponentName(application, ComponentActivity::class.java)
@@ -745,6 +767,6 @@ private class EmptyActivityDeclared : ExternalResource() {
 
 /** A settings card on its own, where it would sit on its page. */
 @Composable
-private fun Card(content: @Composable ColumnScope.() -> Unit) {
+internal fun Card(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxSize().padding(top = 12.dp), content = content)
 }
