@@ -245,6 +245,7 @@ private fun SingAlongWithLyrics(settings: SettingsState, state: AppState) {
             onSpotify = false,
             showLyrics = true,
             toggleLyrics = {},
+            openQueue = {},
             close = {},
         ),
     )

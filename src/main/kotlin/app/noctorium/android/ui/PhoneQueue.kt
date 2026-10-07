@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.AllInclusive
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shuffle
@@ -38,6 +40,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,6 +54,7 @@ import app.noctorium.playback.PlaybackStatus
 import app.noctorium.playback.QueueState
 import app.noctorium.playback.RepeatMode
 import app.noctorium.settings.AutoplaySource
+import app.noctorium.settings.ThemeSkin
 
 /**
  * The queue: what is playing, what follows it, and what autoplay has lined up after that.
@@ -58,9 +63,16 @@ import app.noctorium.settings.AutoplaySource
  * Each can be played now, kept in the queue, or left out, and the queue the listener built stays as they
  * built it. Whatever autoplay is doing -- off, waiting for the end, or handing over to Spotify -- is said in
  * the same place, so the end of the queue is never a surprise.
+ *
+ * [overNowPlaying] when it is opened over the song from Now playing's queue button, which closes it again from a
+ * button of its own; as the Queue tab it is left by the tabs, and needs none.
  */
 @Composable
-internal fun QueueScreen(state: AppState) {
+internal fun QueueScreen(
+    state: AppState,
+    overNowPlaying: Boolean = false,
+    close: () -> Unit = { state.navigate(Destination.HOME) },
+) {
     val queue by state.queue.state.collectAsState()
     val settings by state.settings.collectAsState()
     var naming by remember { mutableStateOf(false) }
@@ -78,8 +90,12 @@ internal fun QueueScreen(state: AppState) {
     }
 
     ScreenScaffold {
-        ScreenTitle("Queue", "What is playing, and what follows", close = { state.navigate(Destination.HOME) }) {
+        ScreenTitle("Queue", "What is playing, and what follows", close = close) {
             if (queue.tracks.isNotEmpty()) QueueMenu(queue, state) { naming = true }
+            // The Windows skins put the close on the title bar; the others need it here.
+            if (overNowPlaying && LocalSkin.current == ThemeSkin.STANDARD) {
+                IconButton(close) { Icon(Icons.Default.ExpandMore, "Back to the song") }
+            }
         }
         saved?.let {
             Text(
@@ -94,7 +110,9 @@ internal fun QueueScreen(state: AppState) {
             return@ScreenScaffold
         }
         val upNext = upNext(queue, settings.preferences.autoplay)
-        LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
+        // Opened at the song playing rather than at the top: in a long queue that is where the next songs are.
+        val list = rememberLazyListState(initialFirstVisibleItemIndex = queue.currentIndex.coerceIn(0, queue.tracks.lastIndex))
+        LazyColumn(Modifier.skinList(), state = list, contentPadding = chromePadding(24.dp)) {
             items(queue.tracks.size) { index ->
                 val track = queue.tracks[index]
                 TrackRow(
@@ -108,8 +126,10 @@ internal fun QueueScreen(state: AppState) {
                     },
                 ) { state.jumpToQueueItem(index) }
             }
-            item(key = "autoplay") { AutoplayHeading(autoplayHeading(queue, upNext), refreshable = upNext == UpNext.LINED_UP, state) }
-            item(key = "autoplay-note") { AutoplayNote(upNext, state) }
+            item(key = "autoplay") {
+                AutoplayHeading(autoplayHeading(queue, upNext), refreshable = upNext == UpNext.LINED_UP, settings.preferences.autoplay, state)
+            }
+            item(key = "autoplay-note") { AutoplayNote(upNext) }
             if (upNext == UpNext.LINED_UP) {
                 itemsIndexed(queue.suggestions) { index, track -> SuggestionRow(track, index, state) }
             }
@@ -152,9 +172,13 @@ private fun QueueMenu(queue: QueueState, state: AppState, saveAs: () -> Unit) {
     }
 }
 
-/** The line that starts autoplay's part of the queue, with a way to ask for other songs once there are some. */
+/**
+ * The line that starts autoplay's part of the queue: a way to ask for other songs once there are some, and
+ * autoplay's own switch, on or off from here as from Settings -- where the songs it brings are is where somebody
+ * decides they would rather the music stopped.
+ */
 @Composable
-private fun AutoplayHeading(heading: String, refreshable: Boolean, state: AppState) {
+private fun AutoplayHeading(heading: String, refreshable: Boolean, autoplay: Boolean, state: AppState) {
     Row(
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -175,23 +199,21 @@ private fun AutoplayHeading(heading: String, refreshable: Boolean, state: AppSta
             IconButton(state::refreshSuggestions) {
                 Icon(Icons.Default.Refresh, "Other songs", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        } else {
-            // The heading keeps its height either way, so the list under it does not move as songs arrive.
-            Spacer(Modifier.size(48.dp))
         }
+        SkinnedSwitch(autoplay, onCheckedChange = state::setAutoplay, Modifier.semantics { contentDescription = "Autoplay" })
+        Spacer(Modifier.width(8.dp))
     }
 }
 
-/** What autoplay is doing, in a line, and the way to switch it on when it is off. */
+/** What autoplay is doing, in a line. */
 @Composable
-private fun AutoplayNote(upNext: UpNext, state: AppState) {
-    Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp)) {
-        Text(autoplayNote(upNext), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-        if (upNext == UpNext.OFF) {
-            // Moved back by its own padding, so its word lines up with the line above it.
-            SkinnedTextButton({ state.setAutoplay(true) }, Modifier.offset(x = (-12).dp)) { Text("Turn on") }
-        }
-    }
+private fun AutoplayNote(upNext: UpNext) {
+    Text(
+        autoplayNote(upNext),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 12.sp,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
+    )
 }
 
 /**

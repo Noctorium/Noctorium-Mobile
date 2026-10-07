@@ -12,15 +12,16 @@ import app.noctorium.settings.PlayerButton
 /**
  * The player buttons this phone has, in the order Settings lists them.
  *
- * Every [PlayerButton] but one. The queue has no button on the phone's player: it is a tab of its own along
- * the bottom, so there is nothing on the player to take away. Play, pause, next and previous are not
- * PlayerButtons at all, and always stay.
+ * Every [PlayerButton]. The queue's opens it over Now playing, beside the lyrics: it is a tab along the
+ * bottom too, but from the song's own screen that tab is two steps away and the song is lost on the way.
+ * Play, pause, next and previous are not PlayerButtons at all, and always stay.
  */
 internal val PHONE_PLAYER_BUTTONS: List<PlayerButton> = listOf(
     PlayerButton.SHUFFLE,
     PlayerButton.REPEAT,
     PlayerButton.LIKE,
     PlayerButton.LYRICS,
+    PlayerButton.QUEUE,
     PlayerButton.SLEEP_TIMER,
     PlayerButton.DEVICES,
     PlayerButton.VOLUME,

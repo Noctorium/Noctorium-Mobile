@@ -1,5 +1,9 @@
 package app.noctorium.android.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -7,6 +11,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -31,6 +37,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
@@ -130,6 +137,9 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
     val lyricsButton = showsPlayerButton(hidden, PlayerButton.LYRICS)
     val showLyrics = if (layout == PhoneNowPlayingLayout.SING_ALONG) !(lyricsAsked && lyricsButton) else lyricsAsked && lyricsButton
     val haptics = rememberHaptics(state)
+    // The queue, opened over the song from its button and closed again by back or its own close, so a look
+    // at what is next never costs the screen it was looked at from.
+    var queueOpen by remember { mutableStateOf(false) }
 
     // Lyrics are fetched only when asked for. Eight providers get queried, and doing that for a track
     // nobody is reading along to is somebody's data spent on nothing.
@@ -149,6 +159,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
         onSpotify = playsOnSpotify(track, settings.spotify),
         showLyrics = showLyrics,
         toggleLyrics = { lyricsAsked = !lyricsAsked },
+        openQueue = { queueOpen = true },
         close = close,
     )
     val laidOut: @Composable () -> Unit = {
@@ -209,7 +220,33 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
                 }
             }
         }
+        QueueOverNowPlaying(queueOpen, state) { queueOpen = false }
       }
+    }
+}
+
+/**
+ * The queue over the song, from the queue button: the Queue tab's own screen, sliding up over Now playing and
+ * back down again, so what is next can be looked at and changed without losing the song's screen. Back closes
+ * it before it closes Now playing.
+ */
+@Composable
+private fun QueueOverNowPlaying(open: Boolean, state: AppState, close: () -> Unit) {
+    BackHandler(enabled = open, onBack = close)
+    val moving = LocalMotion.current
+    AnimatedVisibility(
+        visible = open,
+        enter = if (moving) slideInVertically(tween(MotionTiming.STANDARD, easing = FastOutSlowInEasing)) { it } else EnterTransition.None,
+        exit = if (moving) slideOutVertically(tween(MotionTiming.STANDARD, easing = FastOutSlowInEasing)) { it } else ExitTransition.None,
+    ) {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            // Nothing floats over it here -- no player bar, no tabs -- so the list needs no room kept for them.
+            CompositionLocalProvider(LocalChromeInsets provides ChromeInsets()) {
+                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
+                    QueueScreen(state, overNowPlaying = true, close = close)
+                }
+            }
+        }
     }
 }
 
@@ -245,6 +282,9 @@ private fun NowPlayingToolbar(screen: NowPlaying) {
                 Text(if (screen.showLyrics) "♪" else "Aa", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
+        if (showsPlayerButton(hidden, PlayerButton.QUEUE)) {
+            IconButton(screen.openQueue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue") }
+        }
     }
 }
 
@@ -266,6 +306,8 @@ internal class NowPlaying(
     val onSpotify: Boolean,
     val showLyrics: Boolean,
     val toggleLyrics: () -> Unit,
+    /** Opens the queue over the song. */
+    val openQueue: () -> Unit,
     val close: () -> Unit,
 ) {
     /** Back or forward by the double tap's step, from where the song is now, and never past either end. */
@@ -360,6 +402,9 @@ internal fun NowPlayingTopBar(screen: NowPlaying) {
             IconButton(screen.toggleLyrics) {
                 Text(if (screen.showLyrics) "♪" else "Aa", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
+        }
+        if (showsPlayerButton(hidden, PlayerButton.QUEUE)) {
+            IconButton(screen.openQueue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue") }
         }
     }
 }

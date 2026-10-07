@@ -150,7 +150,7 @@ private fun playerButtonWhere(button: PlayerButton): String = when (button) {
     PlayerButton.SLEEP_TIMER -> "The moon at the top of the full screen."
     PlayerButton.DEVICES -> "Noctorium Connect, at the top of the full screen."
     PlayerButton.VOLUME -> "Volume, mute and the boost, beside the heart on the full screen."
-    PlayerButton.QUEUE -> "The queue is a tab on the phone."
+    PlayerButton.QUEUE -> "Beside the Aa at the top of the full screen; it opens the queue over the song."
 }
 
 /** What Noctorium calls you, on the home screen's greeting. */

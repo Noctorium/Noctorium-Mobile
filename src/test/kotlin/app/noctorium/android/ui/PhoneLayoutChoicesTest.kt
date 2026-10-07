@@ -16,8 +16,8 @@ import kotlin.test.assertTrue
 class PhoneLayoutChoicesTest {
 
     @Test
-    fun `every player button but the queue is offered on the phone`() {
-        assertEquals(PlayerButton.entries.toSet() - PlayerButton.QUEUE, PHONE_PLAYER_BUTTONS.toSet())
+    fun `every player button is offered on the phone`() {
+        assertEquals(PlayerButton.entries.toSet(), PHONE_PLAYER_BUTTONS.toSet())
     }
 
     @Test
@@ -35,9 +35,9 @@ class PhoneLayoutChoicesTest {
     }
 
     @Test
-    fun `the queue has no button on the phone's player whatever the settings say`() {
-        assertFalse(showsPlayerButton(emptySet(), PlayerButton.QUEUE))
-        assertFalse(showsPlayerButton(emptySet(), PlayerButton.QUEUE, inUse = true))
+    fun `the queue's button on Now playing can be put away like the others`() {
+        assertTrue(showsPlayerButton(emptySet(), PlayerButton.QUEUE))
+        assertFalse(showsPlayerButton(setOf(PlayerButton.QUEUE), PlayerButton.QUEUE))
     }
 
     /** A sleep timer about to stop the music, or music sent to another device, can always be reached. */
