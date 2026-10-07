@@ -3,7 +3,9 @@ package app.noctorium.android
 import androidx.media3.common.PlaybackException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Which ways a stream can fail are worth fetching a fresh address for, and when.
@@ -40,5 +42,28 @@ class RecoveryTest {
     @Test
     fun `recovery is bounded`() {
         assertEquals(2, MAX_RECOVERIES)
+    }
+
+    /**
+     * The other way a song stops: no error at all, only a player told to play that does not -- buffering for ever
+     * after hours with the phone locked, or idle with nothing loaded. That is the stall watch's, and only that.
+     */
+    @Test
+    fun `a player told to play that is not playing is stalled, and nothing else is`() {
+        assertTrue(stalled(hasTrack = true, finding = false, wantsToPlay = true, playing = false, ended = false))
+        // Playing, paused, at the song's end, still finding its address, or with no song: none of them.
+        assertFalse(stalled(hasTrack = true, finding = false, wantsToPlay = true, playing = true, ended = false))
+        assertFalse(stalled(hasTrack = true, finding = false, wantsToPlay = false, playing = false, ended = false))
+        assertFalse(stalled(hasTrack = true, finding = false, wantsToPlay = true, playing = false, ended = true))
+        assertFalse(stalled(hasTrack = true, finding = true, wantsToPlay = true, playing = false, ended = false))
+        assertFalse(stalled(hasTrack = false, finding = false, wantsToPlay = true, playing = false, ended = false))
+    }
+
+    /** Long enough that a slow start is not taken for a stall; bounded, so a song that will not play is said. */
+    @Test
+    fun `a stall is given time, and restarts are bounded`() {
+        assertTrue(STALL_MS in 10_000L..30_000L)
+        assertTrue(IDLE_STALL_MS < STALL_MS)
+        assertEquals(2, MAX_STALL_RESTARTS)
     }
 }

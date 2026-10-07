@@ -56,6 +56,25 @@ internal const val MAX_RECOVERIES = 2
 /** The longest a recovery waits for the network to come back before giving up and saying so. */
 private const val NETWORK_WAIT_MS = 30_000L
 
+/** How long the player may be told to play and not move before the song is started again. See [stalled]. */
+internal const val STALL_MS = 15_000L
+
+/**
+ * How long a player told to play with nothing loaded at all is given first: long enough for a prepare that is
+ * already on its way -- the lock screen's play does one -- and no longer, since nothing else will happen.
+ */
+internal const val IDLE_STALL_MS = 3_000L
+
+/** How many times one stall is answered by starting the song again before the listener is told. */
+internal const val MAX_STALL_RESTARTS = 2
+
+/**
+ * Whether the player is stuck: told to play, with a song to play, not playing, and not at the song's end --
+ * which is the queue's business -- while nothing of ours is still finding the song's address.
+ */
+internal fun stalled(hasTrack: Boolean, finding: Boolean, wantsToPlay: Boolean, playing: Boolean, ended: Boolean): Boolean =
+    hasTrack && !finding && wantsToPlay && !playing && !ended
+
 /** How a failed stream is brought back: straight away, or once there is a network to bring it back over. */
 internal enum class Recovery { NOW, AFTER_NETWORK }
 
@@ -160,6 +179,19 @@ class Media3PlaybackEngine(
      */
     private var recoveries = 0
 
+    /**
+     * How many starts are finding the song's address, [start] itself or a recovery on its way to one. The
+     * player is not the thing being waited on then, so the stall watch leaves it alone. A count rather than a
+     * flag: a start called off by the next song finishes after that song's has begun.
+     */
+    private val finding = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Armed while the player has been told to play and is not playing; see [watchForStall]. */
+    private var stallWatch: Job? = null
+
+    /** Times the stall now being watched has been answered by starting the song again. */
+    private var stallRestarts = 0
+
     private val connectivity: ConnectivityManager? = context.getSystemService(ConnectivityManager::class.java)
 
     /**
@@ -254,10 +286,27 @@ class Media3PlaybackEngine(
                 }
             })
             addListener(object : Player.Listener {
-                override fun onPlaybackStateChanged(playbackState: Int) = publish()
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    publish()
+                    watchForStall()
+                }
+
+                /**
+                 * Play pressed -- here, on the lock screen, in the notification or on headphones -- is a fresh
+                 * go at the song, with tries of its own to recover it: whatever an hour-old dropped connection
+                 * or last night's stall used up does not leave this one with none.
+                 */
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    if (playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
+                        recoveries = 0
+                        stallRestarts = 0
+                    }
+                    watchForStall()
+                }
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     publish()
+                    watchForStall()
                     // Re-arm here, not only at play(). The ticker below stops when nothing is playing,
                     // and "nothing is playing" is also true for the second after prepare() while the
                     // first packets arrive — so starting it once left it dead before the track began.
@@ -295,13 +344,26 @@ class Media3PlaybackEngine(
                         // The spinner rather than an error while it works: from the listener's side this
                         // is buffering, and it usually ends in the music carrying on.
                         mutableState.update { it.copy(status = PlaybackStatus.RESOLVING, errorMessage = null) }
+                        // Paused stays paused: a song that failed while it sat paused gets its new address
+                        // and waits, rather than starting by itself in somebody's pocket.
+                        val playing = player.playWhenReady
+                        finding.incrementAndGet()
                         scope.launch {
-                            if (recovery == Recovery.AFTER_NETWORK) awaitNetwork()
-                            backend.forgetAudio(track.sourceUrl)
-                            start(track, resumeAt)
+                            try {
+                                if (recovery == Recovery.AFTER_NETWORK) awaitNetwork()
+                                backend.forgetAudio(track.sourceUrl)
+                                start(track, resumeAt, play = playing)
+                            } finally {
+                                finding.decrementAndGet()
+                            }
                         }
                         return
                     }
+                    // Paused as well as failed. Left wanting to play, the player took the next press of play -- on
+                    // the lock screen above all -- as nothing new: it prepared the same refused address again and
+                    // failed the same way, with no tries left, until another song was played and this one chosen
+                    // again. Paused, the next press is a fresh go with fresh tries, and a new address with them.
+                    player.playWhenReady = false
                     mutableState.update { it.copy(status = PlaybackStatus.ERROR, errorMessage = describePlayerError(error)) }
                 }
             })
@@ -315,6 +377,7 @@ class Media3PlaybackEngine(
      */
     override suspend fun play(track: Track) {
         recoveries = 0
+        stallRestarts = 0
         start(track, startAtMs = 0)
     }
 
@@ -339,9 +402,21 @@ class Media3PlaybackEngine(
 
     /**
      * Resolves the audio and starts it at [startAtMs], which is zero for a fresh play and wherever the
-     * music stopped when a refused address is being replaced.
+     * music stopped when a refused address is being replaced. [play] false leaves it ready and paused.
      */
-    private suspend fun start(track: Track, startAtMs: Long) {
+    private suspend fun start(track: Track, startAtMs: Long, play: Boolean = true) {
+        finding.incrementAndGet()
+        try {
+            startFinding(track, startAtMs, play)
+        } finally {
+            finding.decrementAndGet()
+            // Checked once the address is in hand, on the player's own thread: a launch, not a wait, since this
+            // also runs when the start was called off.
+            scope.launch { watchForStall() }
+        }
+    }
+
+    private suspend fun startFinding(track: Track, startAtMs: Long, play: Boolean) {
         mutableState.update { it.copy(
             status = PlaybackStatus.RESOLVING,
             track = track,
@@ -376,7 +451,7 @@ class Media3PlaybackEngine(
                 // saying it again costs nothing and leaves nothing to chance.
                 player.playbackParameters = PlaybackParameters(speedWanted)
                 player.prepare()
-                player.play()
+                player.playWhenReady = play
             }
         }
         started.onFailure { error ->
@@ -417,8 +492,93 @@ class Media3PlaybackEngine(
     override suspend fun pause() = withContext(Dispatchers.Main) { player.pause() }
 
     override suspend fun resume() = withContext(Dispatchers.Main) {
+        // A fresh go, with tries of its own to recover: see onPlayWhenReadyChanged.
+        recoveries = 0
+        stallRestarts = 0
+        val track = mutableState.value.track
+        if (track != null && player.playbackState == Player.STATE_IDLE && finding.get() == 0) {
+            // Nothing loaded to resume -- an error left the player empty -- and play() alone would do nothing at
+            // all. The song is started again where it was, from a fresh address.
+            android.util.Log.i(PLAYER_LOG_TAG, "Resume with nothing loaded; starting ${track.queueKey} again at ${mutableState.value.positionMs}ms")
+            backend.forgetAudio(track.sourceUrl)
+            start(track, mutableState.value.positionMs)
+            return@withContext
+        }
         player.play()
         startTicking()
+    }
+
+    /**
+     * The song not playing when it was asked to, caught and started again.
+     *
+     * After hours with the phone locked, a paused song can come back with nothing to play from: the address it
+     * was loading from has expired, the connection under it went with the network the phone slept on, or an
+     * error left the player empty. When that is an error, [onPlayerError] answers it. When it is only a player
+     * that has been told to play and does not -- buffering for ever, or idle with nothing loaded -- the only way
+     * out used to be playing another song and coming back to this one. This does that for the listener: once
+     * the player has wanted to play for [STALL_MS] without the music moving, the song starts again where it
+     * was, from a fresh address. [MAX_STALL_RESTARTS] times; after that it says so, since by then it is not the
+     * address.
+     *
+     * Armed and disarmed by the player's own events rather than a timer running all the time, so a paused
+     * phone is not woken to check on music nobody asked for.
+     */
+    private fun watchForStall() {
+        val stuck = stalled(
+            hasTrack = mutableState.value.track != null,
+            finding = finding.get() > 0,
+            wantsToPlay = player.playWhenReady,
+            playing = player.isPlaying,
+            ended = player.playbackState == Player.STATE_ENDED,
+        )
+        if (!stuck) {
+            stallWatch?.cancel()
+            stallWatch = null
+            // Music moving again ends the stall, and with it the count of restarts made for it.
+            if (player.isPlaying) stallRestarts = 0
+            return
+        }
+        if (stallWatch?.isActive == true) return
+        val from = player.currentPosition
+        val wait = if (player.playbackState == Player.STATE_IDLE) IDLE_STALL_MS else STALL_MS
+        stallWatch = scope.launch {
+            delay(wait)
+            stallWatch = null
+            val track = mutableState.value.track
+            if (track == null || finding.get() > 0 || !player.playWhenReady || player.isPlaying) return@launch
+            // Moving, only slowly: a phone on a poor connection buffering in fits and starts. Watched again.
+            if (player.playbackState == Player.STATE_BUFFERING && player.currentPosition > from + 1_000) {
+                watchForStall()
+                return@launch
+            }
+            if (stallRestarts >= MAX_STALL_RESTARTS) {
+                android.util.Log.w(PLAYER_LOG_TAG, "${track.queueKey} still stalled after $stallRestarts restarts; giving up")
+                player.playWhenReady = false
+                mutableState.update { it.copy(
+                    status = PlaybackStatus.ERROR,
+                    errorMessage = "This song stopped loading, and starting it again did not help. Press play to try once more.",
+                ) }
+                return@launch
+            }
+            stallRestarts++
+            val at = player.currentPosition.takeIf { player.playbackState != Player.STATE_IDLE && it > 0 }
+                ?: mutableState.value.positionMs
+            android.util.Log.i(
+                PLAYER_LOG_TAG,
+                "${track.queueKey} told to play and not playing (state ${player.playbackState}) for ${wait}ms; " +
+                    "starting it again at ${at}ms, restart $stallRestarts of $MAX_STALL_RESTARTS",
+            )
+            if (!networkUp()) awaitNetwork()
+            backend.forgetAudio(track.sourceUrl)
+            start(track, at)
+        }
+    }
+
+    /** Whether the phone is on a network Android has checked reaches the internet. */
+    private fun networkUp(): Boolean {
+        val manager = connectivity ?: return true
+        val capabilities = runCatching { manager.getNetworkCapabilities(manager.activeNetwork) }.getOrNull()
+        return capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
     }
 
     override suspend fun setVolume(value: Float) = withContext(Dispatchers.Main) {
@@ -639,6 +799,8 @@ class Media3PlaybackEngine(
 
     override suspend fun stop() = withContext(Dispatchers.Main) {
         ticker?.cancel()
+        stallWatch?.cancel()
+        stallWatch = null
         player.stop()
         player.clearMediaItems()
         mutableState.value = PlaybackState(volume = mutableState.value.volume)
@@ -657,6 +819,7 @@ class Media3PlaybackEngine(
 
     override fun close() {
         ticker?.cancel()
+        stallWatch?.cancel()
         runCatching { connectivity?.unregisterNetworkCallback(networkWatch) }
         // Release has to happen on the thread the player was built on, and the process may be going away,
         // so this does not wait for a coroutine to be scheduled.
