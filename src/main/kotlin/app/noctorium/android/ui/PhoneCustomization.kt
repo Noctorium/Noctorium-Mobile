@@ -150,6 +150,7 @@ private fun playerButtonWhere(button: PlayerButton): String = when (button) {
     PlayerButton.SLEEP_TIMER -> "The moon at the top of the full screen."
     PlayerButton.DEVICES -> "Noctorium Connect, at the top of the full screen."
     PlayerButton.VOLUME -> "Volume, mute and the boost, beside the heart on the full screen."
+    PlayerButton.SPEED -> "The dial under the seek bar on the full screen. It stays while the speed is not normal."
     PlayerButton.QUEUE -> "Beside the Aa at the top of the full screen; it opens the queue over the song."
 }
 

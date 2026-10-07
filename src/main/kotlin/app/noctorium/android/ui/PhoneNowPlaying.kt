@@ -538,8 +538,10 @@ internal fun ToolsRow(screen: NowPlaying) {
     // kind; out at the edge, under the end of the seek bar, it is plainly its own. The speed is not
     // about the track either, and takes the other edge.
     Box(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-        // Not for a song Spotify is playing, which plays at Spotify's own speed whatever is set here.
-        if (!screen.onSpotify) {
+        // Not for a song Spotify is playing, which plays at Spotify's own speed whatever is set here; and put away
+        // only while the speed is normal, so a song is never quietly playing fast with no button to say so.
+        val speed = screen.settings.preferences.playbackSpeed
+        if (!screen.onSpotify && showsPlayerButton(hidden, PlayerButton.SPEED, inUse = speed != 1f)) {
             SpeedButton(screen.settings.preferences.playbackSpeed, state, Modifier.align(Alignment.CenterStart))
         }
         Row(

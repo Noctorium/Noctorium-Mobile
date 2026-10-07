@@ -25,6 +25,7 @@ internal val PHONE_PLAYER_BUTTONS: List<PlayerButton> = listOf(
     PlayerButton.SLEEP_TIMER,
     PlayerButton.DEVICES,
     PlayerButton.VOLUME,
+    PlayerButton.SPEED,
 )
 
 /**
