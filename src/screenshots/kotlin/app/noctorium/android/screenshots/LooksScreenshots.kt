@@ -12,11 +12,13 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import app.noctorium.android.ui.CLOCK_MENU
+import app.noctorium.android.ui.LibraryScreen
 import app.noctorium.android.ui.NoctoriumPhone
 import app.noctorium.android.ui.NowPlaying
 import app.noctorium.android.ui.NowPlayingLookCard
@@ -40,6 +42,8 @@ import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.SettingsState
 import app.noctorium.settings.SurfaceStyle
 import app.noctorium.settings.ThemePreset
+import app.noctorium.settings.ThemeSkin
+import app.noctorium.settings.themeSkin
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
@@ -129,6 +133,8 @@ class Look(
     private val preferences: NoctoriumPreferences,
     private val playing: () -> Track? = { Covers.on(Still.nowPlaying) },
     private val kept: () -> SavedQueue? = { null },
+    /** Done to the state before the screen is drawn, for what is done rather than set, such as opening an album. */
+    private val prepare: (AppState) -> Unit = {},
     /** Whether to take the whole screen rather than the content: a dialog is a window of its own. */
     private val whole: Boolean = false,
     /** Done to the screen once it has settled, such as holding something down; the whole screen is taken after. */
@@ -142,7 +148,7 @@ class Look(
             whole -> { {} }
             else -> null
         }
-        compose.shootPhone(screenshotFolder, name, preferences, playing(), kept = kept(), then = then, content = screen)
+        compose.shootPhone(screenshotFolder, name, preferences, playing(), kept = kept(), prepare = prepare, then = then, content = screen)
     }
 
     override fun toString() = name
@@ -267,11 +273,16 @@ private fun pickerLooks(): List<Look> = THEMES.flatMap { (theme, preferences) ->
     )
 }
 
-/** The two Windows themes, by the name each picture carries. */
+/** The Windows themes, by the name each picture carries: 98, 98 in Noctorium's night, and XP. */
 private val SKINS = listOf(
     "98" to NoctoriumPreferences(theme = ThemePreset.WINDOWS_98),
+    "noctorium-98" to NoctoriumPreferences(theme = ThemePreset.WINDOWS_98_NOCTORIUM),
     "xp" to NoctoriumPreferences(theme = ThemePreset.WINDOWS_XP),
 )
+
+/** The seek bar each Windows theme was made for: 98's progress bar, in either of its palettes, or Luna's. */
+private fun windowsSeekBar(preferences: NoctoriumPreferences): ProgressBarStyle =
+    if (preferences.themeSkin == ThemeSkin.WINDOWS_XP) ProgressBarStyle.LUNA else ProgressBarStyle.CLASSIC
 
 /**
  * The Windows skins on the screens they dress: Home with its taskbar, a list, Settings, Now playing on the
@@ -287,7 +298,7 @@ private fun skinLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
         ) { _, state -> NoctoriumPhone(state) },
         Look(
             "skin-$skin-home-floating-bar",
-            preferences.copy(progressBarStyle = if (skin == "98") ProgressBarStyle.CLASSIC else ProgressBarStyle.LUNA, phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.FLOATING)),
+            preferences.copy(progressBarStyle = windowsSeekBar(preferences), phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.FLOATING)),
         ) { _, state -> NoctoriumPhone(state) },
         Look(
             "skin-$skin-queue",
@@ -300,7 +311,7 @@ private fun skinLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
         Look("skin-$skin-now-playing-wash", preferences.copy(progressBarStyle = ProgressBarStyle.MATERIAL)) { _, state -> NowPlayingScreen(state) {} },
         Look(
             "skin-$skin-now-playing-seek",
-            plain.copy(progressBarStyle = if (skin == "98") ProgressBarStyle.CLASSIC else ProgressBarStyle.LUNA),
+            plain.copy(progressBarStyle = windowsSeekBar(preferences)),
         ) { _, state -> NowPlayingScreen(state) {} },
         Look(
             "skin-$skin-cover-flow",
@@ -309,6 +320,18 @@ private fun skinLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
             kept = { SavedQueue(Covers.on(Still.queue), 2, 83_000) },
         ) { _, state -> NowPlayingScreen(state) {} },
         Look("skin-$skin-dialog", preferences, whole = true) { _, _ -> DeleteDialogShown() },
+        Look("skin-$skin-library", preferences) { _, state -> LibraryScreen(state) },
+        // An album's list, with a song's menu open over it.
+        Look(
+            "skin-$skin-album-menu",
+            preferences,
+            prepare = { it.openAndWait(Still.bandcampAlbum) },
+            act = {
+                onAllNodesWithContentDescription("Track actions")[0].performClick()
+                mainClock.advanceTimeBy(1_000)
+                waitForIdle()
+            },
+        ) { _, state -> LibraryScreen(state) },
     )
 }
 
@@ -318,11 +341,24 @@ private fun skinPageLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
         Look("skin-$skin-playback", preferences.copy(playbackSpeed = 1.25f)) { _, state ->
             SettingsPageScreen(SettingsPage.PLAYBACK, state, signIn = {}, back = {})
         },
-        Look("skin-$skin-player-bar-card", preferences.copy(progressBarStyle = if (skin == "98") ProgressBarStyle.CLASSIC else ProgressBarStyle.LUNA)) { settings, state ->
+        Look("skin-$skin-player-bar-card", preferences.copy(progressBarStyle = windowsSeekBar(preferences))) { settings, state ->
             Card { PlayerBarCard(settings, state) }
         },
+        // Customization, with the themes to choose from at the top of it.
+        Look("skin-$skin-customization", preferences) { _, state ->
+            SettingsPageScreen(SettingsPage.CUSTOMIZATION, state, signIn = {}, back = {})
+        },
     )
-}
+} + Look(
+    // Noctorium 98 chosen on Customization while 98 is the theme: the page turns to night there and then.
+    "skin-98-choosing-noctorium-98",
+    NoctoriumPreferences(theme = ThemePreset.WINDOWS_98),
+    act = {
+        onNodeWithText("Noctorium 98").performClick()
+        mainClock.advanceTimeBy(1_000)
+        waitForIdle()
+    },
+) { _, state -> SettingsPageScreen(SettingsPage.CUSTOMIZATION, state, signIn = {}, back = {}) }
 
 /**
  * The taskbars' clock: put away under each Windows theme, from the tabs' taskbar, the Taskbar bar's and the one
