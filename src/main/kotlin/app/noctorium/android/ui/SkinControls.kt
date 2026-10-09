@@ -178,13 +178,14 @@ internal fun PushButton(
     content: @Composable RowScope.() -> Unit,
 ) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     val interaction = remember { MutableInteractionSource() }
     val held by interaction.collectIsPressedAsState()
     val down = held || latched
     val ink = when {
-        !enabled -> if (xp) Luna.GreyText else Win98.GreyText
+        !enabled -> if (xp) Luna.GreyText else win98.GreyText
         xp -> Luna.Text
-        else -> Win98.Text
+        else -> win98.Text
     }
     val shape = RoundedCornerShape(3.dp)
     Row(
@@ -207,10 +208,10 @@ internal fun PushButton(
                         )
                 } else {
                     Modifier
-                        .background(if (latched) Win98.Dither else Brush.linearGradient(listOf(Win98.Face, Win98.Face)))
+                        .background(if (latched) win98.Dither else Brush.linearGradient(listOf(win98.Face, win98.Face)))
                         .drawWithContent {
                             drawContent()
-                            drawEdge98(if (down) Edge98.PRESSED else Edge98.RAISED)
+                            drawEdge98(if (down) Edge98.PRESSED else Edge98.RAISED, win98)
                         }
                 },
             )
@@ -259,13 +260,14 @@ internal fun SkinnedSwitch(
 @Composable
 internal fun Checkbox(checked: Boolean, enabled: Boolean = true) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     Canvas(Modifier.size(CHECKBOX)) {
         if (xp) {
             drawRect(Brush.linearGradient(listOf(Color(0xFFDCDCD7), Color.White), start = Offset(size.width, size.height), end = Offset.Zero))
             drawRect(if (enabled) XP_CHECK_EDGE else Luna.GreyText, style = Stroke(1.dp.toPx()))
         } else {
-            drawRect(if (enabled) Win98.Window else Win98.Face)
-            drawEdge98(Edge98.SUNKEN)
+            drawRect(if (enabled) win98.Window else win98.Face)
+            drawEdge98(Edge98.SUNKEN, win98)
         }
         if (checked) {
             val tick = Path().apply {
@@ -274,9 +276,9 @@ internal fun Checkbox(checked: Boolean, enabled: Boolean = true) {
                 lineTo(size.width * .77f, size.height * .3f)
             }
             val colour = when {
-                !enabled -> if (xp) Luna.GreyText else Win98.GreyText
+                !enabled -> if (xp) Luna.GreyText else win98.GreyText
                 xp -> XP_TICK
-                else -> Win98.Text
+                else -> win98.Text
             }
             drawPath(tick, colour, style = Stroke(size.width * .16f, cap = StrokeCap.Square, join = StrokeJoin.Miter))
         }
@@ -291,6 +293,7 @@ internal fun SkinnedRadioButton(selected: Boolean, onClick: (() -> Unit)?, modif
         return
     }
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     Box(
         modifier
             .minimumInteractiveComponentSize()
@@ -306,13 +309,13 @@ internal fun SkinnedRadioButton(selected: Boolean, onClick: (() -> Unit)?, modif
                     drawCircle(Brush.radialGradient(listOf(Color(0xFF7DD87D), XP_TICK), center = center - Offset(radius * .15f, radius * .15f), radius = radius * .45f), radius * .38f)
                 }
             } else {
-                drawCircle(if (enabled) Win98.Window else Win98.Face, radius)
+                drawCircle(if (enabled) win98.Window else win98.Face, radius)
                 // Lit from the top left like every 98 edge: the upper left half of the ring dark, the rest light.
-                drawArc(Win98.Shadow, 135f, 180f, false, style = Stroke(1f), topLeft = Offset(.5f, .5f), size = Size(size.width - 1f, size.height - 1f))
-                drawArc(Win98.DarkShadow, 135f, 180f, false, style = Stroke(1f), topLeft = Offset(1.5f, 1.5f), size = Size(size.width - 3f, size.height - 3f))
-                drawArc(Win98.Highlight, 315f, 180f, false, style = Stroke(1f), topLeft = Offset(.5f, .5f), size = Size(size.width - 1f, size.height - 1f))
-                drawArc(Win98.Light, 315f, 180f, false, style = Stroke(1f), topLeft = Offset(1.5f, 1.5f), size = Size(size.width - 3f, size.height - 3f))
-                if (selected) drawCircle(if (enabled) Win98.Text else Win98.GreyText, radius * .32f)
+                drawArc(win98.Shadow, 135f, 180f, false, style = Stroke(1f), topLeft = Offset(.5f, .5f), size = Size(size.width - 1f, size.height - 1f))
+                drawArc(win98.DarkShadow, 135f, 180f, false, style = Stroke(1f), topLeft = Offset(1.5f, 1.5f), size = Size(size.width - 3f, size.height - 3f))
+                drawArc(win98.Highlight, 315f, 180f, false, style = Stroke(1f), topLeft = Offset(.5f, .5f), size = Size(size.width - 1f, size.height - 1f))
+                drawArc(win98.Light, 315f, 180f, false, style = Stroke(1f), topLeft = Offset(1.5f, 1.5f), size = Size(size.width - 3f, size.height - 3f))
+                if (selected) drawCircle(if (enabled) win98.Text else win98.GreyText, radius * .32f)
             }
         }
     }
@@ -333,6 +336,7 @@ internal fun SkinnedSlider(
         Slider(value, onValueChange, modifier, enabled, valueRange, onValueChangeFinished = onValueChangeFinished)
         return
     }
+    val win98 = Win98
     val change by rememberUpdatedState(onValueChange)
     val finish by rememberUpdatedState(onValueChangeFinished)
     var width by remember { mutableIntStateOf(1) }
@@ -366,17 +370,17 @@ internal fun SkinnedSlider(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.fillMaxWidth().height(24.dp)) { drawTrackbar(skin == ThemeSkin.WINDOWS_XP, fraction, showHead = true) }
+        Canvas(Modifier.fillMaxWidth().height(24.dp)) { drawTrackbar(skin == ThemeSkin.WINDOWS_XP, win98, fraction, showHead = true) }
     }
 }
 
 /**
  * A trackbar: a narrow groove along the middle and a thumb that points down at its place in it. 98's groove
- * is sunk into the page and its thumb is a raised grey slab with a pointed foot; XP's groove is a pale channel
- * and its thumb is Luna's. Also the Material seek bar's look under the skins, which would otherwise be the
- * one modern thing on a 98 screen.
+ * is sunk into the page and its thumb is a raised slab of [win98]'s face with a pointed foot; XP's groove is a
+ * pale channel and its thumb is Luna's. Also the Material seek bar's look under the skins, which would
+ * otherwise be the one modern thing on a 98 screen.
  */
-internal fun DrawScope.drawTrackbar(xp: Boolean, fraction: Float, showHead: Boolean) {
+internal fun DrawScope.drawTrackbar(xp: Boolean, win98: Win98Paint, fraction: Float, showHead: Boolean) {
     val centreY = size.height / 2f
     val thumbWidth = 11.dp.toPx()
     val thumbHeight = 21.dp.toPx().coerceAtMost(size.height)
@@ -389,13 +393,13 @@ internal fun DrawScope.drawTrackbar(xp: Boolean, fraction: Float, showHead: Bool
         if (showHead) drawLunaThumb(head, centreY, thumbWidth, thumbHeight)
     } else {
         val groove = 4f
-        drawEdge98(Edge98.SUNKEN, Offset(0f, centreY - groove / 2f), Size(size.width, groove))
-        if (showHead) drawThumb98(head, centreY, thumbWidth, thumbHeight)
+        drawEdge98(Edge98.SUNKEN, win98, Offset(0f, centreY - groove / 2f), Size(size.width, groove))
+        if (showHead) drawThumb98(win98, head, centreY, thumbWidth, thumbHeight)
     }
 }
 
-/** 98's trackbar thumb: a grey slab with a pointed foot, lit from the top left like every other edge there. */
-private fun DrawScope.drawThumb98(centreX: Float, centreY: Float, width: Float, tall: Float) {
+/** 98's trackbar thumb: a slab of the face with a pointed foot, lit from the top left like every other edge there. */
+private fun DrawScope.drawThumb98(win98: Win98Paint, centreX: Float, centreY: Float, width: Float, tall: Float) {
     val x = (centreX - width / 2f).let { kotlin.math.round(it) }
     val y = (centreY - tall / 2f).let { kotlin.math.round(it) }
     val w = kotlin.math.round(width)
@@ -408,7 +412,7 @@ private fun DrawScope.drawThumb98(centreX: Float, centreY: Float, width: Float, 
         lineTo(x, y + tall - point)
         close()
     }
-    drawPath(body, Win98.Face)
+    drawPath(body, win98.Face)
     fun stroke(colour: Color, points: List<Offset>) {
         val path = Path().apply {
             moveTo(points[0].x, points[0].y)
@@ -416,13 +420,14 @@ private fun DrawScope.drawThumb98(centreX: Float, centreY: Float, width: Float, 
         }
         drawPath(path, colour, style = Stroke(1f))
     }
-    // White outermost along the top, the left and the left of the point; grey inside it.
-    stroke(Win98.Highlight, listOf(Offset(x + .5f, y + tall - point), Offset(x + .5f, y + .5f), Offset(x + w - .5f, y + .5f)))
-    stroke(Win98.Highlight, listOf(Offset(x + .5f, y + tall - point), Offset(x + w / 2f, y + tall - .5f)))
-    stroke(Win98.Light, listOf(Offset(x + 1.5f, y + tall - point), Offset(x + 1.5f, y + 1.5f), Offset(x + w - 1.5f, y + 1.5f)))
-    // Black outermost down the right and the right of the point; grey inside it.
-    stroke(Win98.DarkShadow, listOf(Offset(x + w - .5f, y + .5f), Offset(x + w - .5f, y + tall - point), Offset(x + w / 2f, y + tall - .5f)))
-    stroke(Win98.Shadow, listOf(Offset(x + w - 1.5f, y + 1.5f), Offset(x + w - 1.5f, y + tall - point), Offset(x + w / 2f, y + tall - 1.5f)))
+    // The highlight outermost along the top, the left and the left of the point -- white, in 98's own scheme --
+    // and the light inside it.
+    stroke(win98.Highlight, listOf(Offset(x + .5f, y + tall - point), Offset(x + .5f, y + .5f), Offset(x + w - .5f, y + .5f)))
+    stroke(win98.Highlight, listOf(Offset(x + .5f, y + tall - point), Offset(x + w / 2f, y + tall - .5f)))
+    stroke(win98.Light, listOf(Offset(x + 1.5f, y + tall - point), Offset(x + 1.5f, y + 1.5f), Offset(x + w - 1.5f, y + 1.5f)))
+    // The dark shadow outermost down the right and the right of the point, and the shadow inside it.
+    stroke(win98.DarkShadow, listOf(Offset(x + w - .5f, y + .5f), Offset(x + w - .5f, y + tall - point), Offset(x + w / 2f, y + tall - .5f)))
+    stroke(win98.Shadow, listOf(Offset(x + w - 1.5f, y + 1.5f), Offset(x + w - 1.5f, y + tall - point), Offset(x + w / 2f, y + tall - 1.5f)))
 }
 
 /** Material's filter chip; a button that latches down while chosen, under the Windows skins. */
@@ -526,9 +531,10 @@ internal fun SkinnedDropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit
                         if (xp) {
                             Modifier.background(Luna.Window).border(1.dp, Luna.GreyText)
                         } else {
-                            Modifier.background(Win98.Face).drawWithContent {
+                            val win98 = Win98
+                            Modifier.background(win98.Face).drawWithContent {
                                 drawContent()
-                                drawEdge98(Edge98.WINDOW)
+                                drawEdge98(Edge98.WINDOW, win98)
                             }
                         },
                     )

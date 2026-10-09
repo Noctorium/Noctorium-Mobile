@@ -2,6 +2,9 @@ package app.noctorium.android.ui
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -15,46 +18,53 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.dp
 import app.noctorium.settings.ThemeSkin
-import app.noctorium.settings.Windows98Colours
+import app.noctorium.settings.Windows98Palette
 import app.noctorium.settings.WindowsXpColours
 
 /*
  * The Windows themes' skins: what they are drawn with beyond their six colours.
  *
- * Every theme but two is a palette, and those draw exactly as they always have -- every part here asks
+ * Every theme but three is a palette, and those draw exactly as they always have -- every part here asks
  * [LocalSkin] first and, for the ordinary themes, hands straight back to Material's own control with the
- * same arguments it was always given. 98 and XP are not palettes. 98 is bevelled grey slabs lit from the top
- * left, navy title bars and a teal desktop; XP is Luna's rounded blue, its beige dialogs and its green start
- * button. Those are drawn here, from the system colours the core keeps in [Windows98Colours] and
- * [WindowsXpColours] so that the desktop draws the same grey and the same blue.
+ * same arguments it was always given. 98, Noctorium 98 and XP are not palettes. 98 is bevelled grey slabs lit
+ * from the top left, navy title bars and a teal desktop, and Noctorium 98 is the same at night; XP is Luna's
+ * rounded blue, its beige dialogs and its green start button. Those are drawn here, from the system colours
+ * the core keeps in [Windows98Palette] and [WindowsXpColours] so that the desktop draws the same grey, the
+ * same violet and the same blue.
  */
 
 /** The skin in force: provided once at the root, from the theme. */
 val LocalSkin = staticCompositionLocalOf { ThemeSkin.STANDARD }
 
-/** Windows 98's system colours, ready to paint with. */
-internal object Win98 {
-    val Face = Color(Windows98Colours.FACE)
-    val Highlight = Color(Windows98Colours.HIGHLIGHT)
-    val Light = Color(Windows98Colours.LIGHT)
-    val Shadow = Color(Windows98Colours.SHADOW)
-    val DarkShadow = Color(Windows98Colours.DARK_SHADOW)
-    val Window = Color(Windows98Colours.WINDOW)
-    val Text = Color(Windows98Colours.TEXT)
-    val GreyText = Color(Windows98Colours.GREY_TEXT)
-    val Selection = Color(Windows98Colours.SELECTION)
-    val SelectionText = Color(Windows98Colours.SELECTION_TEXT)
-    val Title = Color(Windows98Colours.TITLE)
-    val TitleEnd = Color(Windows98Colours.TITLE_END)
-    val InactiveTitle = Color(Windows98Colours.INACTIVE_TITLE)
-    val InactiveTitleEnd = Color(Windows98Colours.INACTIVE_TITLE_END)
-    val TitleText = Color(Windows98Colours.TITLE_TEXT)
-    val Tooltip = Color(Windows98Colours.TOOLTIP)
-    val Desktop = Color(Windows98Colours.DESKTOP)
+/**
+ * A 98 scheme's system colours, ready to paint with: 98's own grey, or Noctorium 98's night. Every part of the
+ * 98 skin takes its colours from here and none from a grey of its own, as every part of 98 took them from the
+ * scheme chosen in Display Properties.
+ */
+@Immutable
+internal class Win98Paint private constructor(palette: Windows98Palette) {
+    val Face = Color(palette.face)
+    val Highlight = Color(palette.highlight)
+    val Light = Color(palette.light)
+    val Shadow = Color(palette.shadow)
+    val DarkShadow = Color(palette.darkShadow)
+    val Window = Color(palette.window)
+    val Text = Color(palette.text)
+    val GreyText = Color(palette.greyText)
+    val Selection = Color(palette.selection)
+    val SelectionText = Color(palette.selectionText)
+    val Title = Color(palette.title)
+    val TitleEnd = Color(palette.titleEnd)
+    val InactiveTitle = Color(palette.inactiveTitle)
+    val InactiveTitleEnd = Color(palette.inactiveTitleEnd)
+    val TitleText = Color(palette.titleText)
+    val Tooltip = Color(palette.tooltip)
+    val Desktop = Color(palette.desktop)
 
     /**
      * The face of a button held down for good -- the taskbar button of the window in use, a toggle that is
-     * on -- which 98 drew as a checkerboard of white and grey, one pixel to a square.
+     * on -- which 98 drew as a checkerboard of its face and its highlight, one pixel to a square: white and
+     * grey in 98's own scheme. Made the first time it is wanted, once for each scheme.
      */
     val Dither: Brush by lazy {
         val tile = ImageBitmap(2, 2)
@@ -67,7 +77,42 @@ internal object Win98 {
         canvas.drawRect(1f, 1f, 2f, 2f, paint)
         ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated))
     }
+
+    companion object {
+        val STANDARD = Win98Paint(Windows98Palette.STANDARD)
+        val NOCTORIUM = Win98Paint(Windows98Palette.NOCTORIUM)
+
+        /** The paint for [palette]: the same one each time for the two the themes use, so each dithers once. */
+        fun of(palette: Windows98Palette): Win98Paint = when (palette) {
+            Windows98Palette.STANDARD -> STANDARD
+            Windows98Palette.NOCTORIUM -> NOCTORIUM
+            else -> Win98Paint(palette)
+        }
+    }
 }
+
+/**
+ * The 98 scheme in force: provided once at the root from the theme, beside [LocalSkin].
+ *
+ * A composition local rather than a global the theme sets, so the scheme changes the way everything else in
+ * the look does -- the root recomposes with the new theme and the whole tree follows -- and a part of the
+ * screen can be drawn in another scheme by providing it there. The ordinary themes get 98's own, which is
+ * what the Classic seek bar draws its thumb in under them.
+ */
+internal val LocalWin98 = staticCompositionLocalOf { Win98Paint.STANDARD }
+
+/**
+ * The 98 colours in force, for anything being composed: `Win98.Face` reads as it did when 98 had only the one
+ * scheme.
+ *
+ * Drawing cannot read it. A `drawBehind`, a `drawWithContent` or a Canvas runs after composition, outside
+ * it, where a composition local is not there to be read -- so the composable round a drawing reads the paint
+ * here, once, and hands it in, which is why [drawEdge98], [drawTrackbar] and the rest take one. The compiler
+ * holds to this: a drawing that reached for `Win98` itself would not build.
+ */
+internal val Win98: Win98Paint
+    @Composable @ReadOnlyComposable
+    get() = LocalWin98.current
 
 /** Luna's colours, ready to paint with. */
 internal object Luna {
@@ -131,8 +176,8 @@ internal object Luna {
  */
 internal enum class Edge98 { RAISED, WINDOW, PRESSED, SUNKEN, SHALLOW, ETCHED }
 
-/** Draws [edge] round [size] at [topLeft], over whatever is already there. */
-internal fun DrawScope.drawEdge98(edge: Edge98, topLeft: Offset = Offset.Zero, size: Size = this.size) {
+/** Draws [edge] round [size] at [topLeft] in [win98]'s colours, over whatever is already there. */
+internal fun DrawScope.drawEdge98(edge: Edge98, win98: Win98Paint, topLeft: Offset = Offset.Zero, size: Size = this.size) {
     val l = topLeft.x
     val t = topLeft.y
     val w = size.width
@@ -142,27 +187,27 @@ internal fun DrawScope.drawEdge98(edge: Edge98, topLeft: Offset = Offset.Zero, s
     }
     when (edge) {
         Edge98.SHALLOW -> {
-            line(Win98.Shadow, l, t, w - PIXEL, PIXEL)
-            line(Win98.Shadow, l, t, PIXEL, h - PIXEL)
-            line(Win98.Highlight, l, t + h - PIXEL, w, PIXEL)
-            line(Win98.Highlight, l + w - PIXEL, t, PIXEL, h)
+            line(win98.Shadow, l, t, w - PIXEL, PIXEL)
+            line(win98.Shadow, l, t, PIXEL, h - PIXEL)
+            line(win98.Highlight, l, t + h - PIXEL, w, PIXEL)
+            line(win98.Highlight, l + w - PIXEL, t, PIXEL, h)
         }
         Edge98.ETCHED -> {
-            line(Win98.Shadow, l, t, w - PIXEL, PIXEL)
-            line(Win98.Shadow, l, t, PIXEL, h - PIXEL)
-            line(Win98.Shadow, l, t + h - PIXEL * 2, w - PIXEL, PIXEL)
-            line(Win98.Shadow, l + w - PIXEL * 2, t, PIXEL, h - PIXEL)
-            line(Win98.Highlight, l + PIXEL, t + PIXEL, w - PIXEL * 3, PIXEL)
-            line(Win98.Highlight, l + PIXEL, t + PIXEL, PIXEL, h - PIXEL * 3)
-            line(Win98.Highlight, l, t + h - PIXEL, w, PIXEL)
-            line(Win98.Highlight, l + w - PIXEL, t, PIXEL, h)
+            line(win98.Shadow, l, t, w - PIXEL, PIXEL)
+            line(win98.Shadow, l, t, PIXEL, h - PIXEL)
+            line(win98.Shadow, l, t + h - PIXEL * 2, w - PIXEL, PIXEL)
+            line(win98.Shadow, l + w - PIXEL * 2, t, PIXEL, h - PIXEL)
+            line(win98.Highlight, l + PIXEL, t + PIXEL, w - PIXEL * 3, PIXEL)
+            line(win98.Highlight, l + PIXEL, t + PIXEL, PIXEL, h - PIXEL * 3)
+            line(win98.Highlight, l, t + h - PIXEL, w, PIXEL)
+            line(win98.Highlight, l + w - PIXEL, t, PIXEL, h)
         }
         else -> {
             val (outerLit, outerDark, innerLit, innerDark) = when (edge) {
-                Edge98.RAISED -> listOf(Win98.Highlight, Win98.DarkShadow, Win98.Light, Win98.Shadow)
-                Edge98.WINDOW -> listOf(Win98.Light, Win98.DarkShadow, Win98.Highlight, Win98.Shadow)
-                Edge98.PRESSED -> listOf(Win98.DarkShadow, Win98.Highlight, Win98.Shadow, Win98.Light)
-                else -> listOf(Win98.Shadow, Win98.Highlight, Win98.DarkShadow, Win98.Light)
+                Edge98.RAISED -> listOf(win98.Highlight, win98.DarkShadow, win98.Light, win98.Shadow)
+                Edge98.WINDOW -> listOf(win98.Light, win98.DarkShadow, win98.Highlight, win98.Shadow)
+                Edge98.PRESSED -> listOf(win98.DarkShadow, win98.Highlight, win98.Shadow, win98.Light)
+                else -> listOf(win98.Shadow, win98.Highlight, win98.DarkShadow, win98.Light)
             }
             line(outerLit, l, t, w - PIXEL, PIXEL)
             line(outerLit, l, t, PIXEL, h - PIXEL)

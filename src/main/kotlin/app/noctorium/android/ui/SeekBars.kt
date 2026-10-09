@@ -51,6 +51,11 @@ internal fun DrawScope.drawSeekBar(
     pulse: Float = .5f,
     /** A pale page, which the neon brightens less against and Luna's well is white on. */
     pale: Boolean = false,
+    /**
+     * The 98 scheme Classic is drawn in: Noctorium 98's under that theme, and 98's own under every other,
+     * which is the grey the bar's thumb has always been.
+     */
+    win98: Win98Paint,
 ) {
     val centreY = size.height / 2f
     val head = (size.width * fraction.coerceIn(0f, 1f))
@@ -289,15 +294,17 @@ internal fun DrawScope.drawSeekBar(
             /*
              * Windows 98's progress bar with its trackbar's thumb on top. The well is sunk into the page --
              * dark edge above and to the left, light below and to the right, the way that desktop lit every
-             * control from the top left -- and fills from the left with square blocks. Black and white for
-             * the bevel rather than the theme's own colours, because that is what the bevels were, and they
-             * read on a dark page as well as on the grey one they were made for.
+             * control from the top left -- and fills from the left with square blocks. The bevel is the 98
+             * scheme's rather than the theme's own colours: black and white in 98's own, which every theme
+             * but Noctorium 98 draws it in, because that is what the bevels were, and they read on a dark page
+             * as well as on the grey one they were made for. Noctorium 98 lights it in its violet, as it does
+             * every other edge round it.
              */
             val height = SeekBar.CLASSIC_WELL_DP.dp.toPx()
             val top = centreY - height / 2f
             val edge = 1.dp.toPx().coerceAtLeast(1f)
-            val shadow = Color.Black.copy(alpha = .55f)
-            val light = Color.White.copy(alpha = .85f)
+            val shadow = win98.DarkShadow.copy(alpha = .55f)
+            val light = win98.Highlight.copy(alpha = .85f)
             drawRect(track, Offset(0f, top), Size(size.width, height))
             drawRect(shadow, Offset(0f, top), Size(size.width, edge))
             drawRect(shadow, Offset(0f, top), Size(edge, height))
@@ -320,12 +327,14 @@ internal fun DrawScope.drawSeekBar(
                 val tall = SeekBar.CLASSIC_THUMB_HEIGHT_DP.dp.toPx().coerceAtMost(size.height)
                 val x = (head - width / 2f).coerceIn(0f, (size.width - width).coerceAtLeast(0f))
                 val y = centreY - tall / 2f
-                // Raised rather than sunk: the same two edges, the other way round.
-                drawRect(Color(SeekBar.CLASSIC_FACE), Offset(x, y), Size(width, tall))
+                // Raised rather than sunk: the same two edges, the other way round, on the scheme's face --
+                // 98's grey, the core's CLASSIC_FACE, under every theme but Noctorium 98.
+                val dark = win98.DarkShadow.copy(alpha = .7f)
+                drawRect(win98.Face, Offset(x, y), Size(width, tall))
                 drawRect(light, Offset(x, y), Size(width, edge))
                 drawRect(light, Offset(x, y), Size(edge, tall))
-                drawRect(Color.Black.copy(alpha = .7f), Offset(x, y + tall - edge), Size(width, edge))
-                drawRect(Color.Black.copy(alpha = .7f), Offset(x + width - edge, y), Size(edge, tall))
+                drawRect(dark, Offset(x, y + tall - edge), Size(width, edge))
+                drawRect(dark, Offset(x + width - edge, y), Size(edge, tall))
             }
         }
 

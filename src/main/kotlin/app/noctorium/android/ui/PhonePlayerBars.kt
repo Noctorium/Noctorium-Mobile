@@ -94,12 +94,15 @@ internal fun FloatingBar(
             .shadow(10.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = .45f), spotColor = Color.Black.copy(alpha = .55f))
             .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-        ThemeSkin.WINDOWS_98 -> Modifier
-            .background(Win98.Face)
-            .drawWithContent {
-                drawContent()
-                drawEdge98(Edge98.WINDOW)
-            }
+        ThemeSkin.WINDOWS_98 -> {
+            val win98 = Win98
+            Modifier
+                .background(win98.Face)
+                .drawWithContent {
+                    drawContent()
+                    drawEdge98(Edge98.WINDOW, win98)
+                }
+        }
         ThemeSkin.WINDOWS_XP -> Modifier
             .shadow(4.dp, shape, clip = false)
             .clip(shape)

@@ -207,17 +207,18 @@ private fun CaptionButtonFrame(description: String, onClick: () -> Unit, red: Bo
                 contentAlignment = Alignment.Center,
             ) { glyph(Color.White) }
         } else {
+            val win98 = Win98
             Box(
                 Modifier
                     .size(width = 24.dp, height = 21.dp)
-                    .background(Win98.Face)
+                    .background(win98.Face)
                     .drawWithContent {
                         drawContent()
-                        drawEdge98(if (pressed) Edge98.PRESSED else Edge98.RAISED)
+                        drawEdge98(if (pressed) Edge98.PRESSED else Edge98.RAISED, win98)
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Box(if (pressed) Modifier.offset(1.dp, 1.dp) else Modifier) { glyph(Win98.Text) }
+                Box(if (pressed) Modifier.offset(1.dp, 1.dp) else Modifier) { glyph(win98.Text) }
             }
         }
     }
@@ -250,7 +251,8 @@ internal fun SkinWindow(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
-    val face = if (xp) Luna.Face else Win98.Face
+    val win98 = Win98
+    val face = if (xp) Luna.Face else win98.Face
     Column(
         if (xp) {
             modifier
@@ -259,10 +261,10 @@ internal fun SkinWindow(
                 .padding(start = 3.dp, end = 3.dp, bottom = 3.dp)
         } else {
             modifier
-                .background(Win98.Face)
+                .background(win98.Face)
                 .drawWithContent {
                     drawContent()
-                    drawEdge98(Edge98.WINDOW)
+                    drawEdge98(Edge98.WINDOW, win98)
                 }
                 .padding(3.dp)
         },
@@ -292,9 +294,10 @@ internal fun Modifier.skinPanel(): Modifier = if (LocalSkin.current == ThemeSkin
     background(Brush.verticalGradient(listOf(Color(0xFFFDFDFB), Luna.Face)))
         .drawBehind { drawRect(Luna.TabEdge.copy(alpha = .7f), Offset.Zero, Size(size.width, 1f)) }
 } else {
-    background(Win98.Face).drawWithContent {
+    val win98 = Win98
+    background(win98.Face).drawWithContent {
         drawContent()
-        drawEdge98(Edge98.RAISED)
+        drawEdge98(Edge98.RAISED, win98)
     }
 }
 
@@ -302,26 +305,28 @@ internal fun Modifier.skinPanel(): Modifier = if (LocalSkin.current == ThemeSkin
 @Composable
 internal fun SkinSeparator(modifier: Modifier = Modifier) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     Canvas(modifier.fillMaxWidth().height(2.dp)) {
         if (xp) {
             drawRect(Luna.GroupEdge, Offset(0f, size.height / 2f - .5f), Size(size.width, 1f))
         } else {
-            drawRect(Win98.Shadow, Offset(0f, size.height / 2f - 1f), Size(size.width, 1f))
-            drawRect(Win98.Highlight, Offset(0f, size.height / 2f), Size(size.width, 1f))
+            drawRect(win98.Shadow, Offset(0f, size.height / 2f - 1f), Size(size.width, 1f))
+            drawRect(win98.Highlight, Offset(0f, size.height / 2f), Size(size.width, 1f))
         }
     }
 }
 
 /**
  * The desktop, for behind the now playing window when there is no wash of the cover: 98's teal, as it was
- * installed, or XP's blue sky over a green hill -- drawn here from Luna's colours, a hill of its own rather
- * than a copy of the photograph XP shipped.
+ * installed, or Noctorium 98's night sky, flat as a 98 scheme's desktop was; or XP's blue sky over a green
+ * hill -- drawn here from Luna's colours, a hill of its own rather than a copy of the photograph XP shipped.
  */
 @Composable
 internal fun SkinDesktop(modifier: Modifier = Modifier) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val desktop = Win98.Desktop
     Canvas(modifier.fillMaxSize()) {
-        if (xp) drawXpDesktop() else drawRect(Win98.Desktop)
+        if (xp) drawXpDesktop() else drawRect(desktop)
     }
 }
 
@@ -385,6 +390,7 @@ internal fun SkinSectionLabel(text: String) {
 @Composable
 internal fun SkinTile(icon: ImageVector, title: String, subtitle: String, tint: Color?, active: Boolean, open: () -> Unit) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     val interaction = remember { MutableInteractionSource() }
     val held by interaction.collectIsPressedAsState()
     val shape = RoundedCornerShape(3.dp)
@@ -400,10 +406,10 @@ internal fun SkinTile(icon: ImageVector, title: String, subtitle: String, tint: 
                         .border(1.dp, Luna.ButtonEdge.copy(alpha = .55f), shape)
                 } else {
                     Modifier
-                        .background(Win98.Face)
+                        .background(win98.Face)
                         .drawWithContent {
                             drawContent()
-                            drawEdge98(if (held) Edge98.PRESSED else Edge98.RAISED)
+                            drawEdge98(if (held) Edge98.PRESSED else Edge98.RAISED, win98)
                         }
                 },
             )
@@ -437,6 +443,7 @@ internal val LocalInGroupBox = staticCompositionLocalOf { false }
 @Composable
 internal fun GroupBox(content: @Composable ColumnScope.() -> Unit) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Column(
             Modifier
@@ -452,7 +459,7 @@ internal fun GroupBox(content: @Composable ColumnScope.() -> Unit) {
                             style = Stroke(1f),
                         )
                     } else {
-                        drawEdge98(Edge98.ETCHED, Offset(0f, top), Size(size.width, size.height - top))
+                        drawEdge98(Edge98.ETCHED, win98, Offset(0f, top), Size(size.width, size.height - top))
                     }
                 }
                 .padding(start = 12.dp, end = 12.dp, top = GROUP_CONTENT_AT, bottom = 12.dp),
@@ -563,6 +570,7 @@ internal fun SkinTaskbar(
 @Composable
 internal fun TaskbarStrip(modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     Row(
         modifier
             .fillMaxWidth()
@@ -573,9 +581,9 @@ internal fun TaskbarStrip(modifier: Modifier = Modifier, content: @Composable Ro
                         .drawBehind { drawRect(Luna.TaskbarFoot, Offset(0f, size.height - 1f), Size(size.width, BELOW_THE_EDGE.toPx())) }
                         .background(Brush.verticalGradient(0f to Color(0xFF3F8CF3), .06f to Luna.TaskbarTop, .4f to Luna.Taskbar, 1f to Luna.TaskbarFoot))
                 } else {
-                    Modifier.background(Win98.Face).drawBehind {
-                        drawRect(Win98.Light, Offset.Zero, Size(size.width, 1f))
-                        drawRect(Win98.Highlight, Offset(0f, 1f), Size(size.width, 1f))
+                    Modifier.background(win98.Face).drawBehind {
+                        drawRect(win98.Light, Offset.Zero, Size(size.width, 1f))
+                        drawRect(win98.Highlight, Offset(0f, 1f), Size(size.width, 1f))
                     }
                 },
             )
@@ -662,13 +670,14 @@ internal fun StartButton(pressed: Boolean, named: Boolean, description: String, 
             }
         }
     } else {
+        val win98 = Win98
         Row(
             Modifier
                 .fillMaxHeight()
-                .background(if (down) Win98.Dither else Brush.linearGradient(listOf(Win98.Face, Win98.Face)))
+                .background(if (down) win98.Dither else Brush.linearGradient(listOf(win98.Face, win98.Face)))
                 .drawWithContent {
                     drawContent()
-                    drawEdge98(if (down) Edge98.PRESSED else Edge98.RAISED)
+                    drawEdge98(if (down) Edge98.PRESSED else Edge98.RAISED, win98)
                 }
                 .then(click)
                 .padding(start = 6.dp, end = if (named) 8.dp else 6.dp)
@@ -678,7 +687,7 @@ internal fun StartButton(pressed: Boolean, named: Boolean, description: String, 
             WindowIcon(20.dp)
             if (named) {
                 Spacer(Modifier.width(6.dp))
-                Text("Noctorium", color = Win98.Text, style = startNameStyle(xp = false), maxLines = 1)
+                Text("Noctorium", color = win98.Text, style = startNameStyle(xp = false), maxLines = 1)
             }
         }
     }
@@ -699,10 +708,11 @@ internal fun TaskbarButton(
     content: @Composable RowScope.(ink: Color) -> Unit,
 ) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     val interaction = remember { MutableInteractionSource() }
     val held by interaction.collectIsPressedAsState()
     val down = chosen || held
-    val ink = if (xp) Color.White else Win98.Text
+    val ink = if (xp) Color.White else win98.Text
     Box(
         modifier
             .fillMaxHeight()
@@ -724,10 +734,10 @@ internal fun TaskbarButton(
                         .border(1.dp, if (down) Color(0xFF15398C) else Color(0xFF6AA5FF), shape)
                 } else {
                     Modifier
-                        .background(if (down) Win98.Dither else Brush.linearGradient(listOf(Win98.Face, Win98.Face)))
+                        .background(if (down) win98.Dither else Brush.linearGradient(listOf(win98.Face, win98.Face)))
                         .drawWithContent {
                             drawContent()
-                            drawEdge98(if (down) Edge98.PRESSED else Edge98.RAISED)
+                            drawEdge98(if (down) Edge98.PRESSED else Edge98.RAISED, win98)
                         }
                 },
             )
@@ -747,6 +757,7 @@ internal fun TaskbarButton(
 @Composable
 internal fun Tray(content: @Composable RowScope.(ink: Color) -> Unit) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     Row(
         Modifier
             .fillMaxHeight()
@@ -764,14 +775,14 @@ internal fun Tray(content: @Composable RowScope.(ink: Color) -> Unit) {
                         .padding(vertical = 2.dp)
                         .drawWithContent {
                             drawContent()
-                            drawEdge98(Edge98.SHALLOW)
+                            drawEdge98(Edge98.SHALLOW, win98)
                         }
                         .padding(horizontal = TRAY_PADDING)
                 },
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val ink = if (xp) Color.White else Win98.Text
+        val ink = if (xp) Color.White else win98.Text
         CompositionLocalProvider(LocalContentColor provides ink) { content(ink) }
     }
 }
@@ -784,15 +795,18 @@ internal fun Tray(content: @Composable RowScope.(ink: Color) -> Unit) {
 @Composable
 internal fun Modifier.skinList(): Modifier = when (LocalSkin.current) {
     ThemeSkin.STANDARD -> this
-    ThemeSkin.WINDOWS_98 -> this
-        .fillMaxSize()
-        .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 6.dp)
-        .background(Win98.Window)
-        .drawWithContent {
-            drawContent()
-            drawEdge98(Edge98.SUNKEN)
-        }
-        .padding(2.dp)
+    ThemeSkin.WINDOWS_98 -> {
+        val win98 = Win98
+        this
+            .fillMaxSize()
+            .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 6.dp)
+            .background(win98.Window)
+            .drawWithContent {
+                drawContent()
+                drawEdge98(Edge98.SUNKEN, win98)
+            }
+            .padding(2.dp)
+    }
     ThemeSkin.WINDOWS_XP -> this
         .fillMaxSize()
         .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 6.dp)
@@ -825,6 +839,7 @@ internal fun SkinSelected(content: @Composable () -> Unit) {
 @Composable
 internal fun SkinArtwork(url: String?, size: Dp, corner: Dp) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
     val round = corner * 2 >= size
     val shape = when {
         round -> RoundedCornerShape(50)
@@ -835,25 +850,27 @@ internal fun SkinArtwork(url: String?, size: Dp, corner: Dp) {
         Modifier
             .size(size)
             .clip(shape)
-            .background(if (xp) Luna.Face else Win98.Face)
+            .background(if (xp) Luna.Face else win98.Face)
             .then(
                 when {
                     round -> Modifier
                     xp -> Modifier.border(1.dp, Luna.FieldEdge, shape)
                     else -> Modifier.drawWithContent {
                         drawContent()
-                        drawEdge98(Edge98.SUNKEN)
+                        drawEdge98(Edge98.SUNKEN, win98)
                     }
                 },
             ),
         contentAlignment = Alignment.Center,
     ) {
         if (url == null) {
+            // The note in the scheme's greyed writing: 98's own grey, which was its shadow's too, and on Noctorium
+            // 98's dark face a violet that still shows, where the shadow there is all but black.
             Icon(
                 Icons.Default.MusicNote,
                 null,
                 Modifier.size(size / 2),
-                tint = if (xp) Luna.GreyText else Win98.Shadow,
+                tint = if (xp) Luna.GreyText else win98.GreyText,
             )
         } else {
             AsyncImage(

@@ -180,11 +180,11 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
             laidOut()
         } else {
             /*
-             * The Windows themes put Now playing in a window, standing on the desktop -- 98's teal or XP's
-             * hill -- or on the wash of the cover when the backdrop is on, with the desktop's taskbar under
-             * it. The window's close button and its minimise both send it back down to the bar, which is where
-             * a minimised window went, and so does its button on the taskbar; the start button goes Home. The
-             * buttons the bar along the top had are on the window's toolbar.
+             * The Windows themes put Now playing in a window, standing on the desktop -- 98's teal, Noctorium
+             * 98's night sky or XP's hill -- or on the wash of the cover when the backdrop is on, with the
+             * desktop's taskbar under it. The window's close button and its minimise both send it back down
+             * to the bar, which is where a minimised window went, and so does its button on the taskbar; the
+             * start button goes Home. The buttons the bar along the top had are on the window's toolbar.
              */
             if (settings.preferences.ambientBackdrop) AmbientBackdrop(track.artworkUrl) else SkinDesktop()
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.navigationBars))) {
@@ -779,6 +779,7 @@ private fun DrawnSeekbar(
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = SeekBar.TRACK_ALPHA)
     val filled = MaterialTheme.colorScheme.primary
     val pale = MaterialTheme.colorScheme.background.luminance() > .5f
+    val win98 = Win98
     val shapes = rememberSeekBarShapes(style, seed, durationMs, widthPx)
 
     // The neon spark breathes while the music plays, and holds its breath while it is paused or while
@@ -842,7 +843,7 @@ private fun DrawnSeekbar(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.fillMaxWidth().height(style.drawnHeight())) {
-            drawSeekBar(style, fraction, canSeek, track, filled, phase, amplitude, shapes, pulse.value, pale)
+            drawSeekBar(style, fraction, canSeek, track, filled, phase, amplitude, shapes, pulse.value, pale, win98)
         }
     }
 }

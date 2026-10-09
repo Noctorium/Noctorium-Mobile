@@ -133,15 +133,16 @@ private fun SeekBarPreview(style: ProgressBarStyle, seed: String) {
     val inactive = MaterialTheme.colorScheme.secondaryContainer
     val skin = LocalSkin.current
     val pale = MaterialTheme.colorScheme.background.luminance() > .5f
+    val win98 = Win98
     var width by remember { mutableIntStateOf(0) }
     val shapes = rememberSeekBarShapes(style, seed, PREVIEW_LENGTH_MS, width)
     Box(Modifier.fillMaxWidth().height(36.dp).onSizeChanged { width = it.width }, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxWidth().height(style.drawnHeight())) {
             if (style == ProgressBarStyle.MATERIAL) {
                 // The Windows skins have Material's slider as a trackbar, so that is what they preview.
-                if (skin == ThemeSkin.STANDARD) drawMaterialSlider(PREVIEW_FRACTION, filled, inactive) else drawTrackbar(skin == ThemeSkin.WINDOWS_XP, PREVIEW_FRACTION, showHead = true)
+                if (skin == ThemeSkin.STANDARD) drawMaterialSlider(PREVIEW_FRACTION, filled, inactive) else drawTrackbar(skin == ThemeSkin.WINDOWS_XP, win98, PREVIEW_FRACTION, showHead = true)
             } else {
-                drawSeekBar(style, PREVIEW_FRACTION, true, track, filled, phase = .2f, amplitude = 1f, shapes = shapes, pale = pale)
+                drawSeekBar(style, PREVIEW_FRACTION, true, track, filled, phase = .2f, amplitude = 1f, shapes = shapes, pale = pale, win98 = win98)
             }
         }
     }

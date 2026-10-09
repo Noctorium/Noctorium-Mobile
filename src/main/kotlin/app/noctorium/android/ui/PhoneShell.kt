@@ -246,7 +246,7 @@ fun NoctoriumPhone(state: AppState) {
             ui.destination != Destination.HOME,
     ) { state.navigate(Destination.HOME) }
 
-    // The Windows themes draw their own taskbar and bars, and glass is not a thing either of them had.
+    // The Windows themes draw their own taskbar and bars, and glass is not a thing any of them had.
     val glass = settings.preferences.surfaceStyle.isGlass && LocalSkin.current == ThemeSkin.STANDARD
     /*
      * The screens, movable: they sit in one place under glass and in another without it, and a change of
