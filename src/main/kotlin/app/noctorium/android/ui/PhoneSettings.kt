@@ -123,6 +123,18 @@ internal enum class SettingsPage(val title: String) {
 }
 
 /**
+ * A theme's whole name, for the Customization tile: a one-word name with its family in front -- "Catppuccin
+ * Mocha", "Windows 98" -- since "Mocha" alone means nothing; a family's only theme by the family's name; and a
+ * name of two words or more as it is, being whole already: "Noctorium 98" rather than "Windows Noctorium 98",
+ * "Solarized Dark" rather than "Solarized Solarized Dark".
+ */
+internal fun themeName(theme: ThemePreset): String = when {
+    theme == ThemePreset.CUSTOM -> "Your own colours"
+    theme.displayName == theme.family || ' ' in theme.displayName -> theme.displayName
+    else -> "${theme.family} ${theme.displayName}"
+}
+
+/**
  * Settings, as much of them as mean anything on a phone.
  *
  * Deliberately shorter than the desktop's. Discord Rich Presence needs its desktop app over a named pipe
@@ -228,15 +240,10 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
 
         item { SectionLabel("Look and feel") }
         item {
-            val theme = preferences.theme
             SettingsTile(
                 Icons.Default.Palette,
                 "Customization",
-                when {
-                    theme == ThemePreset.CUSTOM -> "Your own colours · ${preferences.phone.playerBarStyle.displayName} player bar"
-                    theme.family == theme.displayName -> "${theme.displayName} · ${preferences.phone.playerBarStyle.displayName} player bar"
-                    else -> "${theme.family} ${theme.displayName} · ${preferences.phone.playerBarStyle.displayName} player bar"
-                },
+                "${themeName(preferences.theme)} · ${preferences.phone.playerBarStyle.displayName} player bar",
             ) { open(SettingsPage.CUSTOMIZATION) }
         }
         item {
