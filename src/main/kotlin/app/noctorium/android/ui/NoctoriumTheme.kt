@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.ThemeSkin
 import app.noctorium.settings.resolvedAccent
 import app.noctorium.settings.themeSkin
 import app.noctorium.settings.themeColours
@@ -58,3 +59,26 @@ internal fun NoctoriumTheme(
         )
     }
 }
+
+/**
+ * Which way round the phone's own bars are drawn over the theme: whether the status bar's icons, and then the
+ * navigation bar's, should be the dark ones for a pale page behind them.
+ *
+ * The page behind them is the theme's own, except under the Windows skins. Under 98 it is the scheme's face,
+ * which is grey in 98's own and dark violet in Noctorium 98's, so the icons stay dark on the one and turn light
+ * on the other. Under XP the taskbar's blue runs on beneath the navigation, which wants light icons on a light
+ * theme too. Got wrong, a light theme has white icons on a white bar, or a dark one black on black.
+ */
+internal fun systemBarIcons(preferences: NoctoriumPreferences): SystemBarIcons {
+    val pale = when (preferences.themeSkin) {
+        ThemeSkin.WINDOWS_98 -> !preferences.windows98Palette.dark
+        else -> preferences.themeColours().light
+    }
+    return SystemBarIcons(
+        darkStatusBar = pale,
+        darkNavigationBar = pale && preferences.themeSkin != ThemeSkin.WINDOWS_XP,
+    )
+}
+
+/** What [systemBarIcons] decided: true where that bar's icons are drawn dark, for a pale page behind them. */
+internal data class SystemBarIcons(val darkStatusBar: Boolean, val darkNavigationBar: Boolean)

@@ -14,14 +14,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import app.noctorium.settings.ThemeSkin
-import app.noctorium.settings.themeColours
-import app.noctorium.settings.themeSkin
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import app.noctorium.android.ui.NoctoriumPhone
 import app.noctorium.android.ui.NoctoriumTheme
+import app.noctorium.android.ui.systemBarIcons
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import com.google.common.util.concurrent.ListenableFuture
@@ -109,14 +107,14 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(settings.preferences.phone.skipSilence) {
                 (application as NoctoriumApplication).player.setSkipSilence(settings.preferences.phone.skipSilence)
             }
-            // The status bar's icons have to be told which way round the theme is, or a light theme gets
-            // white icons on a white bar. XP's taskbar runs on under the navigation in its blue, which wants white.
-            val theme = settings.preferences.themeColours()
+            // The system bars' icons have to be told which way round the page behind them is, or a light theme
+            // gets white icons on a white bar; see systemBarIcons for XP's taskbar and Noctorium 98's night.
+            val icons = systemBarIcons(settings.preferences)
             val view = LocalView.current
             SideEffect {
                 WindowCompat.getInsetsController(window, view).apply {
-                    isAppearanceLightStatusBars = theme.light
-                    isAppearanceLightNavigationBars = theme.light && settings.preferences.themeSkin != ThemeSkin.WINDOWS_XP
+                    isAppearanceLightStatusBars = icons.darkStatusBar
+                    isAppearanceLightNavigationBars = icons.darkNavigationBar
                 }
             }
             val equalizerAvailable by (application as NoctoriumApplication).player.equalizerAvailable.collectAsState()
