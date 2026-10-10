@@ -168,6 +168,30 @@ private fun DrawScope.drawPlayerBarPlan(layout: PhonePlayerBarStyle, c: PlanColo
             planPlay(c, 80.5f * u, top + 6.5f * u, 2 * u)
             drawRoundRect(c.ink, Offset(85 * u, top + 5.6f * u), Size(10 * u, 1.9f * u), CornerRadius(u, u))
         }
+        PhonePlayerBarStyle.TOOLBAR -> {
+            // The song and its time, a thin slider with a round handle, then a row of flat buttons.
+            val top = bar(30f)
+            planCover(c, 4 * u, top + 2.5f * u, 8 * u)
+            planText(c, 15 * u, top + 3.2f * u, 30 * u, 19 * u, u, thin = true)
+            drawRoundRect(c.faint, Offset(78 * u, top + 5 * u), Size(18 * u, 1.8f * u), CornerRadius(u, u))
+            val groove = top + 14.5f * u
+            drawRoundRect(c.faint, Offset(5 * u, groove - .55f * u), Size(90 * u, 1.1f * u), CornerRadius(u, u))
+            drawRoundRect(c.accent, Offset(5 * u, groove - .55f * u), Size(90 * u * .38f, 1.1f * u), CornerRadius(u, u))
+            val handle = Offset((5 + 90 * .38f) * u, groove)
+            drawCircle(c.panel, 2.1f * u, handle)
+            drawCircle(c.accent, 1.8f * u, handle, style = Stroke(.6f * u))
+            val row = top + 23.5f * u
+            drawRect(c.ink, Offset(7.2f * u, row - .35f * u), Size(3.6f * u, .7f * u))
+            drawRect(c.ink, Offset(8.65f * u, row - 1.8f * u), Size(.7f * u, 3.6f * u))
+            planPrevious(c, 20 * u, row, 2.3f * u)
+            planPlay(c, 31 * u, row, 2.3f * u)
+            drawRect(c.ink, Offset(40.3f * u, row - 2 * u), Size(1.2f * u, 4 * u))
+            drawRect(c.ink, Offset(42.5f * u, row - 2 * u), Size(1.2f * u, 4 * u))
+            drawRect(c.ink, Offset(51.2f * u, row - 1.8f * u), Size(3.6f * u, 3.6f * u))
+            planNext(c, 64 * u, row, 2.3f * u)
+            drawCircle(c.faint, 1.3f * u, Offset(82 * u, row))
+            drawCircle(c.faint, 1.3f * u, Offset(91 * u, row))
+        }
     }
 }
 
@@ -286,6 +310,10 @@ private fun DrawScope.drawNowPlayingPlan(layout: PhoneNowPlayingLayout, c: PlanC
             }
             drawRoundRect(c.faint, Offset(7 * u, 83 * u), Size(40 * u, 3 * u), CornerRadius(u, u))
         }
+        PhoneNowPlayingLayout.PLAYLIST -> {
+            titleLines = false
+            planPlaylist(c, u)
+        }
     }
     if (titleLines) {
         // Under a cover in the middle, the track is centred under it too.
@@ -303,6 +331,39 @@ private fun DrawScope.drawNowPlayingPlan(layout: PhoneNowPlayingLayout, c: PlanC
     planNext(c, 69 * u, 136 * u, 3.4f * u, colour = ink)
     drawCircle(c.faint, 1.5f * u, Offset(87 * u, 136 * u))
     listOf(12f, 50f, 88f).forEach { x -> drawCircle(c.faint, 1.4f * u, Offset(x * u, 150 * u)) }
+}
+
+/**
+ * The Playlist layout: an info bar with a small cover, the title large and a visualiser's bars, the queue as a
+ * table under a tab with the song playing marked and lit, and the status bar's two ends along the very foot.
+ */
+private fun DrawScope.planPlaylist(c: PlanColours, u: Float) {
+    planCover(c, 7 * u, 16 * u, 15 * u, corner = 2 * u)
+    drawRoundRect(c.ink, Offset(26 * u, 17.5f * u), Size(36 * u, 3.4f * u), CornerRadius(u, u))
+    drawRoundRect(c.faint, Offset(26 * u, 24 * u), Size(24 * u, 2.2f * u), CornerRadius(u, u))
+    drawRoundRect(c.faint, Offset(26 * u, 28 * u), Size(18 * u, 2.2f * u), CornerRadius(u, u))
+    listOf(.45f, .8f, .62f, .95f, .7f, .5f, .66f, .4f, .3f, .22f).forEachIndexed { i, tall ->
+        val height = 13 * u * tall
+        drawRect(c.accent, Offset((68 + i * 2.6f) * u, 30 * u - height), Size(1.8f * u, height))
+    }
+    // The tab, and the table under it: its headings, then the rows, the song playing lit and marked.
+    drawRoundRect(c.panel, Offset(7 * u, 36 * u), Size(24 * u, 6 * u), CornerRadius(1.2f * u, 1.2f * u))
+    drawRoundRect(c.ink, Offset(10 * u, 38.2f * u), Size(15 * u, 1.6f * u), CornerRadius(u, u))
+    drawRect(c.panel, Offset(7 * u, 42 * u), Size(86 * u, 5 * u))
+    listOf(9f to 3f, 16f to 18f, 46f to 14f, 82f to 8f).forEach { (x, w) ->
+        drawRoundRect(c.faint, Offset(x * u, 43.8f * u), Size(w * u, 1.4f * u), CornerRadius(u, u))
+    }
+    repeat(8) { row ->
+        val y = (49 + row * 7.5f) * u
+        val playing = row == 2
+        if (playing) drawRect(c.accent.copy(alpha = .22f), Offset(7 * u, y - 1.5f * u), Size(86 * u, 6 * u))
+        if (playing) planPlay(c, 10.5f * u, y + 1.5f * u, 1.5f * u, colour = c.accent) else drawRoundRect(c.faint, Offset(9 * u, y + .8f * u), Size(3 * u, 1.4f * u), CornerRadius(u, u))
+        drawRoundRect(if (playing) c.accent else c.ink, Offset(16 * u, y + .7f * u), Size((14 + row * 7 % 13) * u, 1.6f * u), CornerRadius(u, u))
+        drawRoundRect(c.faint, Offset(46 * u, y + .8f * u), Size((10 + row * 5 % 9) * u, 1.4f * u), CornerRadius(u, u))
+        drawRoundRect(c.faint, Offset(83 * u, y + .8f * u), Size(7 * u, 1.4f * u), CornerRadius(u, u))
+    }
+    drawRoundRect(c.faint, Offset(7 * u, 157.5f * u), Size(34 * u, 1.4f * u), CornerRadius(u, u))
+    drawRoundRect(c.faint, Offset(73 * u, 157.5f * u), Size(20 * u, 1.4f * u), CornerRadius(u, u))
 }
 
 /** The queue's covers in a row, the one playing large and the others turned away, each over its reflection. */

@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.SeekBar
+import app.noctorium.settings.ThemeSkin
 import app.noctorium.settings.WindowsXpColours
 import kotlin.math.min
 import kotlin.math.sin
@@ -56,6 +57,10 @@ internal fun DrawScope.drawSeekBar(
      * which is the grey the bar's thumb has always been.
      */
     win98: Win98Paint,
+    /** The skin in force, which the Slider is drawn in the manner of: a trackbar under 98 and XP. */
+    skin: ThemeSkin = ThemeSkin.STANDARD,
+    /** What the Slider's round handle is filled with: the panel it sits on, so the accent rings it. */
+    face: Color = Color.White,
 ) {
     val centreY = size.height / 2f
     val head = (size.width * fraction.coerceIn(0f, 1f))
@@ -373,6 +378,72 @@ internal fun DrawScope.drawSeekBar(
                     tall = SeekBar.LUNA_THUMB_HEIGHT_DP.dp.toPx().coerceAtMost(size.height),
                 )
             }
+        }
+
+        ProgressBarStyle.SLIDER -> drawSlider(fraction, showHead, track, filled, face, skin, win98)
+    }
+}
+
+/**
+ * The Slider: a desktop music player's seek bar. A thin rounded groove, the accent along it as far as the song
+ * has played, and a small round handle -- the panel's own colour, ringed in the accent and lifted off the groove
+ * by a soft shadow, as a desktop's slider handle is.
+ *
+ * Under the Windows skins it is their trackbar, as their media players had it: 98's groove sunk into the face,
+ * filled with the scheme's selection as far as the song has played, and its pointed thumb; XP's pale channel,
+ * filling with Luna's blue, and Luna's thumb.
+ */
+private fun DrawScope.drawSlider(
+    fraction: Float,
+    showHead: Boolean,
+    track: Color,
+    filled: Color,
+    face: Color,
+    skin: ThemeSkin,
+    win98: Win98Paint,
+) {
+    val centreY = size.height / 2f
+    when (skin) {
+        ThemeSkin.STANDARD -> {
+            val groove = SeekBar.SLIDER_GROOVE_DP.dp.toPx()
+            val radius = SeekBar.SLIDER_HANDLE_RADIUS_DP.dp.toPx()
+            // The handle stays whole at either end rather than being cut by the edge it stands on.
+            val head = radius + (size.width - radius * 2f) * fraction.coerceIn(0f, 1f)
+            val corner = CornerRadius(groove / 2f, groove / 2f)
+            drawRoundRect(track, Offset(0f, centreY - groove / 2f), Size(size.width, groove), corner)
+            drawRoundRect(filled, Offset(0f, centreY - groove / 2f), Size(head.coerceAtLeast(groove), groove), corner)
+            if (showHead) {
+                val at = Offset(head, centreY)
+                drawCircle(
+                    Brush.radialGradient(0f to Color.Black.copy(alpha = .28f), 1f to Color.Transparent, center = at + Offset(0f, 1.dp.toPx()), radius = radius * 1.45f),
+                    radius * 1.45f,
+                    at + Offset(0f, 1.dp.toPx()),
+                )
+                drawCircle(face, radius, at)
+                drawCircle(filled, radius - 1.dp.toPx(), at, style = Stroke(2.dp.toPx()))
+            }
+        }
+        ThemeSkin.WINDOWS_98 -> {
+            val thumbWidth = 11.dp.toPx()
+            val head = thumbWidth / 2f + (size.width - thumbWidth) * fraction.coerceIn(0f, 1f)
+            val groove = 4.dp.toPx().coerceAtLeast(4f)
+            val top = centreY - groove / 2f
+            drawRect(win98.Window, Offset(0f, top), Size(size.width, groove))
+            val edge = 2f
+            if (head > edge) drawRect(win98.Selection, Offset(edge, top + edge), Size(head - edge, groove - edge * 2f))
+            drawEdge98(Edge98.SUNKEN, win98, Offset(0f, top), Size(size.width, groove))
+            if (showHead) drawThumb98(win98, head, centreY, thumbWidth, 21.dp.toPx().coerceAtMost(size.height))
+        }
+        ThemeSkin.WINDOWS_XP -> {
+            val thumbWidth = 11.dp.toPx()
+            val head = thumbWidth / 2f + (size.width - thumbWidth) * fraction.coerceIn(0f, 1f)
+            val groove = 4.dp.toPx()
+            val top = centreY - groove / 2f
+            val corner = CornerRadius(groove / 2f)
+            drawRoundRect(Color(0xFFF3F3EF), Offset(0f, top), Size(size.width, groove), corner)
+            drawRoundRect(Color(WindowsXpColours.SELECTION), Offset(0f, top), Size(head.coerceAtLeast(groove), groove), corner)
+            drawRoundRect(Color(0xFF9D9C99), Offset(.5f, top + .5f), Size(size.width - 1f, groove - 1f), corner, style = Stroke(1f))
+            if (showHead) drawLunaThumb(head, centreY, thumbWidth, SeekBar.LUNA_THUMB_HEIGHT_DP.dp.toPx().coerceAtMost(size.height))
         }
     }
 }

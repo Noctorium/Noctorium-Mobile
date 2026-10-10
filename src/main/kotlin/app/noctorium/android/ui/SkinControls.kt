@@ -27,8 +27,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Button
@@ -399,7 +397,7 @@ internal fun DrawScope.drawTrackbar(xp: Boolean, win98: Win98Paint, fraction: Fl
 }
 
 /** 98's trackbar thumb: a slab of the face with a pointed foot, lit from the top left like every other edge there. */
-private fun DrawScope.drawThumb98(win98: Win98Paint, centreX: Float, centreY: Float, width: Float, tall: Float) {
+internal fun DrawScope.drawThumb98(win98: Win98Paint, centreX: Float, centreY: Float, width: Float, tall: Float) {
     val x = (centreX - width / 2f).let { kotlin.math.round(it) }
     val y = (centreY - tall / 2f).let { kotlin.math.round(it) }
     val w = kotlin.math.round(width)
@@ -559,7 +557,7 @@ internal fun SkinnedDropdownMenuItem(text: String, onClick: () -> Unit, checked:
             text = { Text(text) },
             onClick = onClick,
             modifier = ticked,
-            leadingIcon = if (checked == true) ({ Icon(Icons.Default.Check, null) }) else null,
+            leadingIcon = if (checked == true) ({ Icon(Glyph.CHECK.image, null) }) else null,
         )
         return
     }

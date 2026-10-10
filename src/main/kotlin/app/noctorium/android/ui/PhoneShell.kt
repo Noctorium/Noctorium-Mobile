@@ -28,9 +28,6 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.animateContentSize
 import app.noctorium.playback.RepeatMode
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.Shuffle
 import app.noctorium.settings.PhonePlayerBarStyle
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.AnnotatedString
@@ -38,7 +35,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.draw.blur
 import androidx.compose.material3.FilledIconButton
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,18 +53,6 @@ import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.DownloadForOffline
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -446,7 +430,7 @@ private fun BoxScope.GlassChrome(
                 .onSizeChanged { topCover = it.height }
                 .padding(horizontal = inset, vertical = 6.dp),
         ) {
-            GlassPane(backdrop) {
+            GlassPane(backdrop, cornerRadius = barPaneCorner(settings.preferences.phone.playerBarStyle)) {
                 PlayerBar(
                     playback,
                     state,
@@ -470,7 +454,7 @@ private fun BoxScope.GlassChrome(
             .padding(start = inset, end = inset, bottom = inset / 2),
     ) {
         if (playback.track != null && !barAtTop) {
-            GlassPane(backdrop) {
+            GlassPane(backdrop, cornerRadius = barPaneCorner(settings.preferences.phone.playerBarStyle)) {
                 PlayerBar(
                     playback,
                     state,
@@ -495,17 +479,23 @@ private fun BoxScope.GlassChrome(
 }
 
 /**
+ * The corners of the glass pane the player bar floats in: a pill's for the bars of a row or two, and plain rounded
+ * corners for the Toolbar's three rows, which a pill's ends would cut into at either side of its buttons.
+ */
+private fun barPaneCorner(layout: PhonePlayerBarStyle): Dp? = if (layout == PhonePlayerBarStyle.TOOLBAR) 28.dp else null
+
+/**
  * Each place's icon, shared by the ordinary tab bar and the glass one so they cannot drift apart. Which
  * places are on the bar, and in what order, is [visibleTabs]; what each is called is [tabName].
  */
-private fun Destination.tabIcon(): ImageVector = when (this) {
-    Destination.HOME, Destination.NOW_PLAYING -> Icons.Default.Home
-    Destination.SEARCH -> Icons.Default.Search
-    Destination.LINK -> Icons.Default.Link
-    Destination.LIBRARY -> Icons.Default.LibraryMusic
-    Destination.DOWNLOADS -> Icons.Default.DownloadForOffline
-    Destination.QUEUE -> Icons.AutoMirrored.Filled.QueueMusic
-    Destination.SETTINGS -> Icons.Default.Settings
+private fun Destination.tabIcon(): Glyph = when (this) {
+    Destination.HOME, Destination.NOW_PLAYING -> Glyph.HOME
+    Destination.SEARCH -> Glyph.SEARCH
+    Destination.LINK -> Glyph.LINK
+    Destination.LIBRARY -> Glyph.LIBRARY_MUSIC
+    Destination.DOWNLOADS -> Glyph.DOWNLOAD_FOR_OFFLINE
+    Destination.QUEUE -> Glyph.QUEUE_MUSIC
+    Destination.SETTINGS -> Glyph.SETTINGS
 }
 
 /**
@@ -532,7 +522,7 @@ private fun GlassNavigation(current: Destination, labels: Boolean, tabs: List<De
         verticalAlignment = Alignment.CenterVertically,
     ) {
         tabs.forEach { destination ->
-            val icon = destination.tabIcon()
+            val icon = destination.tabIcon().image
             val label = tabName(destination)
             // Now playing is a sheet, so Home stays lit underneath it rather than nothing being lit.
             val selected = current == destination ||
@@ -575,7 +565,7 @@ private fun PhoneNavigation(current: Destination, labels: Boolean, tabs: List<De
     val crowded = crowded(tabs)
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         tabs.forEach { destination ->
-            val icon = destination.tabIcon()
+            val icon = destination.tabIcon().image
             val label = tabName(destination)
             NavigationBarItem(
                 // Now playing is a sheet, so Home stays lit underneath it rather than nothing being lit.
@@ -633,10 +623,11 @@ private fun PlayerBar(
     // A song the account's own Spotify app is playing says so, or the bar would read as this phone playing it.
     val onSpotify = playsOnSpotify(track, settings.spotify)
     // The line along the edge, for the bars without one of their own: Controls carries a seek bar, and a
-    // line under a seek bar is the same thing twice; Line is little more than its line, Taskbar keeps it in
-    // the song's button, and Floating along the foot of its card -- which under glass is the pane's foot.
+    // line under a seek bar is the same thing twice -- and so does the Toolbar, with its slider; Line is little
+    // more than its line, Taskbar keeps it in the song's button, and Floating along the foot of its card --
+    // which under glass is the pane's foot.
     val line = when (layout) {
-        PhonePlayerBarStyle.CONTROLS, PhonePlayerBarStyle.LINE, PhonePlayerBarStyle.TASKBAR -> false
+        PhonePlayerBarStyle.CONTROLS, PhonePlayerBarStyle.LINE, PhonePlayerBarStyle.TASKBAR, PhonePlayerBarStyle.TOOLBAR -> false
         PhonePlayerBarStyle.FLOATING -> glass
         else -> true
     }
@@ -682,6 +673,7 @@ private fun PlayerBar(
                     PhonePlayerBarStyle.LINE -> LineBar(track, playback, state, style, glass, onSpotify)
                     PhonePlayerBarStyle.RECORD -> RecordBar(track, playback, state, glass, onSpotify, hasNext)
                     PhonePlayerBarStyle.TASKBAR -> TaskbarBar(track, playback, state, style, glass, settings.preferences.taskbarClock, open)
+                    PhonePlayerBarStyle.TOOLBAR -> ToolbarBar(track, playback, state, glass, onSpotify, hasNext)
                 }
                 // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
                 // rounded ends would be cut off at an angle, which reads as a mistake.
@@ -708,7 +700,7 @@ internal fun ClassicBar(track: Track, playback: PlaybackState, state: AppState, 
         TrackLines(track, playback, onSpotify, Modifier.weight(1f))
         PlayPauseButton(playback, state)
         IconButton({ haptics.tick(); state.next() }, enabled = hasNext) {
-            Icon(Icons.Default.SkipNext, "Next track")
+            Icon(Glyph.SKIP_NEXT.image, "Next track")
         }
     }
 }
@@ -796,20 +788,20 @@ private fun SlimControls(playback: PlaybackState, state: AppState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (showsPlayerButton(hidden, PlayerButton.SHUFFLE)) {
             IconButton({ haptics.tick(); state.toggleShuffle() }, Modifier.size(SLIM_BUTTON)) {
-                Icon(Icons.Default.Shuffle, "Shuffle", Modifier.size(19.dp), tint = if (queue.shuffleEnabled) lit else quiet)
+                Icon(Glyph.SHUFFLE.image, "Shuffle", Modifier.size(19.dp), tint = if (queue.shuffleEnabled) lit else quiet)
             }
         }
         IconButton({ haptics.tick(); state.previous() }, Modifier.size(SLIM_BUTTON)) {
-            Icon(Icons.Default.SkipPrevious, "Previous track", Modifier.size(22.dp))
+            Icon(Glyph.SKIP_PREVIOUS.image, "Previous track", Modifier.size(22.dp))
         }
         Box(Modifier.size(SLIM_BUTTON), contentAlignment = Alignment.Center) { PlayPauseButton(playback, state, size = 24.dp) }
         IconButton({ haptics.tick(); state.next() }, Modifier.size(SLIM_BUTTON), enabled = queue.hasNext) {
-            Icon(Icons.Default.SkipNext, "Next track", Modifier.size(22.dp))
+            Icon(Glyph.SKIP_NEXT.image, "Next track", Modifier.size(22.dp))
         }
         if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
             IconButton({ haptics.tick(); state.cycleRepeat() }, Modifier.size(SLIM_BUTTON)) {
                 Icon(
-                    if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                    if (queue.repeatMode == RepeatMode.ONE) Glyph.REPEAT_ONE.image else Glyph.REPEAT.image,
                     when (queue.repeatMode) {
                         RepeatMode.OFF -> "Repeat off"
                         RepeatMode.ALL -> "Repeat all"
@@ -850,11 +842,11 @@ private fun ControlsBar(
             Spacer(Modifier.width(11.dp))
             TrackLines(track, playback, onSpotify, Modifier.weight(1f))
             IconButton({ haptics.tick(); state.previous() }) {
-                Icon(Icons.Default.SkipPrevious, "Previous track")
+                Icon(Glyph.SKIP_PREVIOUS.image, "Previous track")
             }
             PlayPauseButton(playback, state)
             IconButton({ haptics.tick(); state.next() }, enabled = hasNext) {
-                Icon(Icons.Default.SkipNext, "Next track")
+                Icon(Glyph.SKIP_NEXT.image, "Next track")
             }
         }
         Box(Modifier.padding(horizontal = if (glass) 14.dp else 4.dp)) {
@@ -902,7 +894,7 @@ private fun SpotlightBar(track: Track, playback: PlaybackState, state: AppState,
             }
         }
         IconButton({ haptics.tick(); state.next() }, enabled = hasNext) {
-            Icon(Icons.Default.SkipNext, "Next track")
+            Icon(Glyph.SKIP_NEXT.image, "Next track")
         }
     }
 }
@@ -991,7 +983,7 @@ internal fun PlayPauseButton(playback: PlaybackState, state: AppState, size: Dp 
 internal fun PlayPauseIcon(playing: Boolean, size: Dp, tint: Color = LocalContentColor.current) {
     MotionContent(playing, kind = MotionKind.ICON, contentAlignment = Alignment.Center) { isPlaying ->
         Icon(
-            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+            if (isPlaying) Glyph.PAUSE.image else Glyph.PLAY_ARROW.image,
             if (isPlaying) "Pause" else "Play",
             Modifier.size(size),
             tint = tint,
@@ -1106,7 +1098,7 @@ internal fun Artwork(url: String?, size: Dp, corner: Dp = 8.dp) {
     ) {
         if (url == null) {
             Icon(
-                Icons.Default.MusicNote,
+                Glyph.MUSIC_NOTE.image,
                 null,
                 Modifier.size(size / 2),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
