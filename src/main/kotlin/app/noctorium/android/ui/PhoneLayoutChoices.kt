@@ -1,6 +1,7 @@
 package app.noctorium.android.ui
 
 import app.noctorium.core.Destination
+import app.noctorium.settings.PhonePreferences
 import app.noctorium.settings.PlayerButton
 
 /*
@@ -14,7 +15,8 @@ import app.noctorium.settings.PlayerButton
  *
  * Every [PlayerButton]. The queue's opens it over Now playing, beside the lyrics: it is a tab along the
  * bottom too, but from the song's own screen that tab is two steps away and the song is lost on the way.
- * Play, pause, next and previous are not PlayerButtons at all, and always stay.
+ * Play, pause, next and previous are not PlayerButtons at all, and always stay. Stop is offered rather than
+ * shown ([PlayerButton.optIn]): it is there once asked for, and on the Toolbar bar, which is built around it.
  */
 internal val PHONE_PLAYER_BUTTONS: List<PlayerButton> = listOf(
     PlayerButton.SHUFFLE,
@@ -26,6 +28,7 @@ internal val PHONE_PLAYER_BUTTONS: List<PlayerButton> = listOf(
     PlayerButton.DEVICES,
     PlayerButton.VOLUME,
     PlayerButton.SPEED,
+    PlayerButton.STOP,
 )
 
 /**
@@ -34,9 +37,33 @@ internal val PHONE_PLAYER_BUTTONS: List<PlayerButton> = listOf(
  * [inUse] brings a hidden button back while the thing it controls is doing something: a sleep timer that
  * is counting down, or music sent to another device. Hiding the button was a wish not to see it, not a
  * wish to be unable to stop a timer that is about to silence the music, or to fetch the music back.
+ *
+ * An opt-in button ([PlayerButton.optIn], Stop) shows only once it is among the [shown] ones asked for, except
+ * on a bar built around it ([partOfLayout]), where it is there as any other button is; see [PlayerButton.isShown].
  */
-internal fun showsPlayerButton(hidden: Set<PlayerButton>, button: PlayerButton, inUse: Boolean = false): Boolean =
-    button in PHONE_PLAYER_BUTTONS && (inUse || button !in hidden)
+internal fun showsPlayerButton(
+    hidden: Set<PlayerButton>,
+    button: PlayerButton,
+    inUse: Boolean = false,
+    shown: Set<PlayerButton> = emptySet(),
+    partOfLayout: Boolean = false,
+): Boolean = button in PHONE_PLAYER_BUTTONS && (inUse || button.isShown(hidden, shown, partOfLayout))
+
+/**
+ * The phone's player with [button] switched on or off from Customization.
+ *
+ * An ordinary button is put away or brought back. An opt-in one is asked for or not, and nothing more: switching
+ * Stop off again takes it off the full screen and leaves it on the Toolbar bar, which is built around it, rather
+ * than putting it away there as well -- a bar of play, pause and next with a gap where stop was is not a toolbar.
+ */
+internal fun PhonePreferences.choosingPlayerButton(button: PlayerButton, shown: Boolean): PhonePreferences = if (button.optIn) {
+    copy(
+        shownPlayerButtons = if (shown) shownPlayerButtons + button else shownPlayerButtons - button,
+        hiddenPlayerButtons = hiddenPlayerButtons - button,
+    )
+} else {
+    copy(hiddenPlayerButtons = if (shown) hiddenPlayerButtons - button else hiddenPlayerButtons + button)
+}
 
 /** The tabs along the bottom, in the order they sit. */
 internal val PHONE_TAB_ORDER: List<Destination> = listOf(

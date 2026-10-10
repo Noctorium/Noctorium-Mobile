@@ -1,6 +1,7 @@
 package app.noctorium.android.ui
 
 import app.noctorium.core.Destination
+import app.noctorium.settings.PhonePreferences
 import app.noctorium.settings.PlayerButton
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,8 +22,40 @@ class PhoneLayoutChoicesTest {
     }
 
     @Test
-    fun `with nothing hidden the player shows every button it has, as it always did`() {
-        PHONE_PLAYER_BUTTONS.forEach { assertTrue(showsPlayerButton(emptySet(), it), "$it should show") }
+    fun `with nothing hidden the player shows every button it always had`() {
+        PHONE_PLAYER_BUTTONS.filterNot { it.optIn }.forEach { assertTrue(showsPlayerButton(emptySet(), it), "$it should show") }
+    }
+
+    /** A bar somebody already has does not grow a button overnight: Stop waits to be asked for. */
+    @Test
+    fun `Stop is offered, not shown, until it is asked for`() {
+        assertTrue(PlayerButton.STOP in PHONE_PLAYER_BUTTONS)
+        assertFalse(showsPlayerButton(emptySet(), PlayerButton.STOP))
+        assertTrue(showsPlayerButton(emptySet(), PlayerButton.STOP, shown = setOf(PlayerButton.STOP)))
+    }
+
+    @Test
+    fun `the Toolbar bar, built around Stop, has it unless it is put away`() {
+        assertTrue(showsPlayerButton(emptySet(), PlayerButton.STOP, partOfLayout = true))
+        assertFalse(showsPlayerButton(setOf(PlayerButton.STOP), PlayerButton.STOP, partOfLayout = true))
+    }
+
+    @Test
+    fun `switching Stop on and off again in Customization leaves the Toolbar's alone`() {
+        val on = PhonePreferences().choosingPlayerButton(PlayerButton.STOP, shown = true)
+        assertEquals(setOf(PlayerButton.STOP), on.shownPlayerButtons)
+        val off = on.choosingPlayerButton(PlayerButton.STOP, shown = false)
+        assertTrue(off.shownPlayerButtons.isEmpty())
+        assertTrue(off.hiddenPlayerButtons.isEmpty())
+        assertTrue(showsPlayerButton(off.hiddenPlayerButtons, PlayerButton.STOP, shown = off.shownPlayerButtons, partOfLayout = true))
+        assertFalse(showsPlayerButton(off.hiddenPlayerButtons, PlayerButton.STOP, shown = off.shownPlayerButtons))
+    }
+
+    @Test
+    fun `an ordinary button is put away and brought back as it always was`() {
+        val off = PhonePreferences().choosingPlayerButton(PlayerButton.SHUFFLE, shown = false)
+        assertEquals(setOf(PlayerButton.SHUFFLE), off.hiddenPlayerButtons)
+        assertTrue(off.choosingPlayerButton(PlayerButton.SHUFFLE, shown = true).hiddenPlayerButtons.isEmpty())
     }
 
     @Test

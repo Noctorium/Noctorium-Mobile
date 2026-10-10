@@ -36,23 +36,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.automirrored.filled.VolumeDown
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Speaker
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -84,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.Dp
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.domain.Track
@@ -155,6 +139,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
         settings = settings,
         lyrics = lyrics,
         hidden = hidden,
+        shown = settings.preferences.phone.shownPlayerButtons,
         haptics = haptics,
         onSpotify = playsOnSpotify(track, settings.spotify),
         showLyrics = showLyrics,
@@ -170,6 +155,7 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
             PhoneNowPlayingLayout.COVER_FLOW -> CoverFlowNowPlaying(screen)
             PhoneNowPlayingLayout.SING_ALONG -> SingAlongNowPlaying(screen)
             PhoneNowPlayingLayout.BIG_TYPE -> BigTypeNowPlaying(screen)
+            PhoneNowPlayingLayout.PLAYLIST -> PlaylistNowPlaying(screen)
         }
     }
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
@@ -283,7 +269,7 @@ private fun NowPlayingToolbar(screen: NowPlaying) {
             }
         }
         if (showsPlayerButton(hidden, PlayerButton.QUEUE)) {
-            IconButton(screen.openQueue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue") }
+            IconButton(screen.openQueue) { Icon(Glyph.QUEUE_MUSIC.image, "Queue") }
         }
     }
 }
@@ -309,6 +295,8 @@ internal class NowPlaying(
     /** Opens the queue over the song. */
     val openQueue: () -> Unit,
     val close: () -> Unit,
+    /** The opt-in buttons asked for, such as Stop: see [PlayerButton.optIn]. */
+    val shown: Set<PlayerButton> = emptySet(),
 ) {
     /** Back or forward by the double tap's step, from where the song is now, and never past either end. */
     fun jump(forward: Boolean) {
@@ -384,7 +372,7 @@ internal fun NowPlayingTopBar(screen: NowPlaying) {
     val sleepTimer by screen.state.sleepTimer.collectAsState()
     val hidden = screen.hidden
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(screen.close) { Icon(Icons.Default.ExpandMore, "Close") }
+        IconButton(screen.close) { Icon(Glyph.EXPAND_MORE.image, "Close") }
         Spacer(Modifier.weight(1f))
         Text(
             if (screen.showLyrics) "Lyrics" else "Now playing",
@@ -404,7 +392,7 @@ internal fun NowPlayingTopBar(screen: NowPlaying) {
             }
         }
         if (showsPlayerButton(hidden, PlayerButton.QUEUE)) {
-            IconButton(screen.openQueue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue") }
+            IconButton(screen.openQueue) { Icon(Glyph.QUEUE_MUSIC.image, "Queue") }
         }
     }
 }
@@ -493,7 +481,7 @@ internal fun TransportRow(screen: NowPlaying) {
         if (showsPlayerButton(hidden, PlayerButton.SHUFFLE)) {
             IconButton(state::toggleShuffle) {
                 Icon(
-                    Icons.Default.Shuffle,
+                    Glyph.SHUFFLE.image,
                     "Shuffle",
                     tint = if (queue.shuffleEnabled) {
                         MaterialTheme.colorScheme.primary
@@ -505,13 +493,15 @@ internal fun TransportRow(screen: NowPlaying) {
         } else {
             Spacer(Modifier.size(48.dp))
         }
-        IconButton(state::previous) { Icon(Icons.Default.SkipPrevious, "Previous", Modifier.size(34.dp)) }
+        IconButton(state::previous) { Icon(Glyph.SKIP_PREVIOUS.image, "Previous", Modifier.size(34.dp)) }
         PlayPauseButton(screen.playback, state, size = 44.dp)
-        IconButton(state::next, enabled = queue.hasNext) { Icon(Icons.Default.SkipNext, "Next", Modifier.size(34.dp)) }
+        // Stop, once it has been asked for: beside play, which it is the other half of.
+        if (showsPlayerButton(hidden, PlayerButton.STOP, shown = screen.shown)) StopButton(state, size = 30.dp)
+        IconButton(state::next, enabled = queue.hasNext) { Icon(Glyph.SKIP_NEXT.image, "Next", Modifier.size(34.dp)) }
         if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
             IconButton(state::cycleRepeat) {
                 Icon(
-                    if (queue.repeatMode == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                    if (queue.repeatMode == RepeatMode.ONE) Glyph.REPEAT_ONE.image else Glyph.REPEAT.image,
                     "Repeat",
                     tint = if (queue.repeatMode == RepeatMode.OFF) {
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -553,7 +543,7 @@ internal fun ToolsRow(screen: NowPlaying) {
                 // The heart pops as it fills, so a like is seen to land and not only to change colour.
                 IconButton({ state.toggleLike(track) }, Modifier.popOn(liked, pop = liked), enabled = !likes.isBusy(track)) {
                     Icon(
-                        if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        if (liked) Glyph.FAVORITE.image else Glyph.FAVORITE_BORDER.image,
                         if (liked) "Remove from likes" else "Like",
                         tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -576,7 +566,7 @@ internal fun ToolsRow(screen: NowPlaying) {
 internal fun OnSpotifyLine(device: String?, modifier: Modifier = Modifier) {
     val green = app.noctorium.domain.ProviderType.SPOTIFY.badgeColour()
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Default.Speaker, null, Modifier.size(15.dp), tint = green)
+        Icon(Glyph.SPEAKER.image, null, Modifier.size(15.dp), tint = green)
         Spacer(Modifier.width(5.dp))
         Text(
             listOfNotNull("On Spotify", device).joinToString(" · "),
@@ -599,7 +589,7 @@ private fun SpeedButton(speed: Float, state: AppState, modifier: Modifier = Modi
     Box(modifier) {
         IconButton({ open = true }) {
             if (speed == 1f) {
-                Icon(Icons.Default.Speed, "Speed: normal", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Glyph.SPEED.image, "Speed: normal", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 Text(speedLabel(speed), color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -609,87 +599,10 @@ private fun SpeedButton(speed: Float, state: AppState, modifier: Modifier = Modi
                 DropdownMenuItem(
                     text = { Text(speedLabel(step)) },
                     trailingIcon = {
-                        if (abs(step - speed) < 0.001f) Icon(Icons.Default.Check, "Chosen", tint = MaterialTheme.colorScheme.primary)
+                        if (abs(step - speed) < 0.001f) Icon(Glyph.CHECK.image, "Chosen", tint = MaterialTheme.colorScheme.primary)
                     },
                     onClick = { state.setPlaybackSpeed(step); open = false },
                 )
-            }
-        }
-    }
-}
-
-/**
- * Volume, mute and the boost behind one icon, the way the desktop's player bar does it.
- *
- * The phone has volume keys already, and for a long time that was the argument for not having this at
- * all: they set the stream, which is the loudest the phone can be. What they cannot do is set Noctorium
- * relative to everything else -- turning a podcast down without turning the next notification down with
- * it -- and they cannot reach the boost.
- *
- * Behind a button rather than spread across a row of its own, which is what it was first: that cost a
- * line of a screen with less of it to spare, and left a slider directly under the transport buttons for
- * a thumb reaching for pause to catch. Closed, the icon still says which of muted, quiet or loud it is.
- *
- * The boost is the same bargain as the desktop's: not more gain past unity, which only clips, but
- * Android's `LoudnessEnhancer` lifting the quiet parts. Off when the platform will not give it, and the
- * chip follows what actually happened rather than what was asked for.
- */
-@Composable
-private fun VolumeButton(playback: PlaybackState, state: AppState, modifier: Modifier = Modifier) {
-    var open by remember { mutableStateOf(false) }
-    Box(modifier) {
-        IconButton({ open = true }) {
-            Icon(
-                when {
-                    playback.isMuted || playback.volume <= 0f -> Icons.AutoMirrored.Filled.VolumeOff
-                    playback.volume < .5f -> Icons.AutoMirrored.Filled.VolumeDown
-                    else -> Icons.AutoMirrored.Filled.VolumeUp
-                },
-                "Volume",
-                tint = if (playback.isMuted || playback.volumeBoostEnabled) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-        }
-        DropdownMenu(open, { open = false }) {
-            Column(Modifier.width(260.dp).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Volume", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text(
-                        "${(playback.volume * 100).roundToInt()}%",
-                        color = if (playback.volumeBoostEnabled) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                SkinnedSlider(
-                    value = playback.volume.coerceIn(0f, 1f),
-                    onValueChange = state::setVolume,
-                    valueRange = 0f..1f,
-                )
-                // Taller than the same two chips on the desktop. Thirty density-independent pixels is a
-                // comfortable click and an awkward tap; this is what a thumb wants.
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SkinnedFilterChip(
-                        selected = playback.isMuted,
-                        onClick = state::toggleMute,
-                        label = { Text(if (playback.isMuted) "Muted" else "Mute", fontSize = 12.sp) },
-                        modifier = Modifier.height(38.dp),
-                    )
-                    SkinnedFilterChip(
-                        selected = playback.volumeBoostEnabled,
-                        onClick = state::toggleVolumeBoost,
-                        label = { Text("Boost", fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Bolt, null, Modifier.size(16.dp)) },
-                        modifier = Modifier.height(38.dp),
-                    )
-                }
             }
         }
     }
@@ -765,7 +678,7 @@ internal fun Seekbar(
  * height. Tapping seeks straight there, which is what everybody tries first on a phone.
  */
 @Composable
-private fun DrawnSeekbar(
+internal fun DrawnSeekbar(
     style: ProgressBarStyle,
     fraction: Float,
     canSeek: Boolean,
@@ -774,12 +687,16 @@ private fun DrawnSeekbar(
     durationMs: Long,
     onScrub: (Float) -> Unit,
     onScrubFinished: () -> Unit,
+    /** How tall it is to a finger. Less only where a bar has no room, as the Toolbar's slider has not. */
+    touchHeight: Dp = 36.dp,
 ) {
     var widthPx by remember { mutableIntStateOf(1) }
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = SeekBar.TRACK_ALPHA)
     val filled = MaterialTheme.colorScheme.primary
     val pale = MaterialTheme.colorScheme.background.luminance() > .5f
     val win98 = Win98
+    val skin = LocalSkin.current
+    val face = MaterialTheme.colorScheme.surfaceContainerHighest
     val shapes = rememberSeekBarShapes(style, seed, durationMs, widthPx)
 
     // The neon spark breathes while the music plays, and holds its breath while it is paused or while
@@ -819,7 +736,7 @@ private fun DrawnSeekbar(
     Box(
         Modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(touchHeight)
             .onSizeChanged { widthPx = it.width.coerceAtLeast(1) }
             .pointerInput(canSeek, widthPx) {
                 if (!canSeek) return@pointerInput
@@ -843,7 +760,7 @@ private fun DrawnSeekbar(
         contentAlignment = Alignment.Center,
     ) {
         Canvas(Modifier.fillMaxWidth().height(style.drawnHeight())) {
-            drawSeekBar(style, fraction, canSeek, track, filled, phase, amplitude, shapes, pulse.value, pale, win98)
+            drawSeekBar(style, fraction, canSeek, track, filled, phase, amplitude, shapes, pulse.value, pale, win98, skin, face)
         }
     }
 }
