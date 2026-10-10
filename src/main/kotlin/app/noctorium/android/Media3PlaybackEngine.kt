@@ -19,18 +19,29 @@ import androidx.media3.common.util.Util
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.TransferListener
+import androidx.media3.common.Format
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.TeeAudioProcessor
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import app.noctorium.domain.Track
 import app.noctorium.net.networkFailureMessage
+import app.noctorium.playback.AudioAnalysis
+import app.noctorium.playback.AudioAnalysisKind
 import app.noctorium.playback.MAX_SPEED
 import app.noctorium.playback.MIN_SPEED
 import app.noctorium.playback.MusicBackend
 import app.noctorium.playback.PlaybackEngine
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.PlaybackStatus
+import app.noctorium.playback.Visualiser
+import app.noctorium.playback.VolumeBoost
 import app.noctorium.settings.EqualizerSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -39,13 +50,19 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.roundToInt
 
 /** The logcat tag playback failures are written under. */
 private const val PLAYER_LOG_TAG = "NoctoriumPlayer"
@@ -131,11 +148,43 @@ private fun ensureAudioSession(player: ExoPlayer, context: Context) {
  * and every other service is left on the agent it already answers.
  */
 @OptIn(UnstableApi::class)
-private fun mediaRequests(context: Context, vkAgent: () -> String?): DataSource.Factory =
-    ResolvingDataSource.Factory(DefaultDataSource.Factory(context)) { spec ->
+private fun mediaRequests(context: Context, vkAgent: () -> String?, opened: TransferListener): DataSource.Factory =
+    ResolvingDataSource.Factory(DefaultDataSource.Factory(context).setTransferListener(opened)) { spec ->
         val headers = mediaRequestHeaders(spec.uri.host, vkAgent())
         if (headers.isEmpty()) spec else spec.withAdditionalHeaders(headers)
     }
+
+/**
+ * Media3's renderers as they always were, with one thing added to the sound's way out: a tee that shows each
+ * buffer to [tee]'s sink and passes it on untouched, for the visualiser. Everything else about the sink -- its
+ * float output, its playback parameters, silence skipping and the speed after the tee -- is Media3's default.
+ */
+@OptIn(UnstableApi::class)
+private class TeedRenderersFactory(context: Context, private val tee: TeeAudioProcessor) : DefaultRenderersFactory(context) {
+    override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
+        DefaultAudioSink.Builder(context)
+            .setEnableFloatOutput(enableFloatOutput)
+            .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+            .setAudioProcessors(arrayOf(tee))
+            .build()
+}
+
+/** Media3's word for how samples are written, as the meter reads them; null for one it does not read. */
+@OptIn(UnstableApi::class)
+private fun pcmEncoding(encoding: Int): PcmEncoding? = when (encoding) {
+    C.ENCODING_PCM_16BIT -> PcmEncoding.PCM_16
+    C.ENCODING_PCM_24BIT -> PcmEncoding.PCM_24
+    C.ENCODING_PCM_32BIT -> PcmEncoding.PCM_32
+    C.ENCODING_PCM_FLOAT -> PcmEncoding.FLOAT
+    else -> null
+}
+
+/**
+ * The booster's level as Android's loudness enhancer takes it: its gain in millibels, a hundredth of a decibel.
+ * 100% is none, 200% about 602, and 1000% -- ten times the amplitude -- 2000, the twenty decibels the booster
+ * goes to everywhere.
+ */
+internal fun boostMillibels(percent: Int): Int = (VolumeBoost.gainDb(percent) * 100).roundToInt()
 
 /**
  * Playing on Android, through Media3.
@@ -227,8 +276,46 @@ class Media3PlaybackEngine(
      */
     internal val mediaPlayer: ExoPlayer get() = player
 
+    /** The sound as it goes by, for the visualiser; see [AudioMeter]. Keeps nothing until something watches. */
+    private val meter = AudioMeter()
+
+    /** The tee the sound passes through on its way out, showing each buffer to [meter] and changing none of it. */
     @OptIn(UnstableApi::class)
-    private val player: ExoPlayer = ExoPlayer.Builder(context)
+    private val tee = TeeAudioProcessor(object : TeeAudioProcessor.AudioBufferSink {
+        @Volatile private var encoding: PcmEncoding? = null
+
+        override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
+            this.encoding = pcmEncoding(encoding)
+            meter.begin(sampleRateHz, channelCount)
+        }
+
+        override fun handleBuffer(buffer: ByteBuffer) {
+            encoding?.let { meter.write(buffer, it) }
+        }
+    })
+
+    /**
+     * How long each file is, by its address, as the server said when it was opened: what a stream's bitrate is
+     * worked out from when the stream does not declare one. See [refreshFormat].
+     */
+    private val streamSizes = ConcurrentHashMap<String, Long>()
+
+    @OptIn(UnstableApi::class)
+    private val opened = object : TransferListener {
+        override fun onTransferInitializing(source: DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = Unit
+        override fun onTransferStart(source: DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) {
+            if (!isNetwork) return
+            val total = runCatching { totalBytesFrom(source.responseHeaders, dataSpec.position) }.getOrNull() ?: return
+            // A handful at most: one a song, and the next one's, looked up ahead.
+            if (streamSizes.size > 32) streamSizes.clear()
+            streamSizes[dataSpec.uri.toString()] = total
+        }
+        override fun onBytesTransferred(source: DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean, bytesTransferred: Int) = Unit
+        override fun onTransferEnd(source: DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = Unit
+    }
+
+    @OptIn(UnstableApi::class)
+    private val player: ExoPlayer = ExoPlayer.Builder(context, TeedRenderersFactory(context, tee))
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
@@ -260,7 +347,7 @@ class Media3PlaybackEngine(
                 )
                 .build(),
         )
-        .setMediaSourceFactory(DefaultMediaSourceFactory(mediaRequests(context, vkAgent)))
+        .setMediaSourceFactory(DefaultMediaSourceFactory(mediaRequests(context, vkAgent, opened)))
         .build()
         .apply {
             // Start where the state says, not where ExoPlayer's own default is.
@@ -283,6 +370,16 @@ class Media3PlaybackEngine(
                 override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
                     applyBoost(audioSessionId)
                     applyEqualizer(audioSessionId)
+                }
+
+                /** What the song turned out to be once its sound began to arrive: the status bar's line. */
+                override fun onAudioInputFormatChanged(
+                    eventTime: AnalyticsListener.EventTime,
+                    format: Format,
+                    decoderReuseEvaluation: DecoderReuseEvaluation?,
+                ) {
+                    heardFormat = format
+                    refreshFormat()
                 }
             })
             addListener(object : Player.Listener {
@@ -417,6 +514,8 @@ class Media3PlaybackEngine(
     }
 
     private suspend fun startFinding(track: Track, startAtMs: Long, play: Boolean) {
+        // A new song says nothing of its format until its sound arrives, rather than the last one's.
+        heardFormat = null
         mutableState.update { it.copy(
             status = PlaybackStatus.RESOLVING,
             track = track,
@@ -424,6 +523,7 @@ class Media3PlaybackEngine(
             positionMs = startAtMs,
             durationMs = track.durationMs ?: 0,
             loops = 0,
+            format = null,
         ) }
 
         val source = downloadedFile(track)?.toUri()?.toString()
@@ -588,51 +688,81 @@ class Media3PlaybackEngine(
     }
 
     /**
-     * Android's own loudness enhancer, attached to this player's audio session.
-     *
-     * ExoPlayer's `volume` stops at unity and multiplying past it would only clip, which is why this used
-     * to say no. `LoudnessEnhancer` is the part of the platform meant for exactly this: it sits in the
-     * effect chain on the session and applies a target gain in millibels, compressing rather than simply
-     * scaling, so a quiet track gets louder instead of squarer. The same trade the desktop's compressor
-     * makes, done by the phone's own audio framework.
-     *
-     * Best-effort throughout. The effect needs a real audio session, some devices refuse to allocate one,
-     * and a phone with nothing playing has no session at all -- so a failure leaves the toggle off rather
-     * than pretending.
+     * The booster as the switch it was before it had levels: on is the last level used above 100%, 200% the
+     * first time. Core now sets a level ([setVolumeBoostPercent]); this is kept for anything still asking the
+     * old way.
      */
-    override suspend fun setVolumeBoost(enabled: Boolean) = withContext(Dispatchers.Main) {
-        boostWanted = enabled
+    override suspend fun setVolumeBoost(enabled: Boolean) =
+        setVolumeBoostPercent(if (enabled) lastBoostPercent else VolumeBoost.OFF_PERCENT)
+
+    /**
+     * The volume booster, from 100% (off) to 1000%: Android's own loudness enhancer on this player's audio
+     * session, set to the level's gain -- twenty decibels at 1000%, ten times the amplitude.
+     *
+     * ExoPlayer's `volume` stops at unity and multiplying past it would only clip. `LoudnessEnhancer` is the
+     * part of the platform meant for this: it sits in the effect chain on the session and applies a target gain
+     * in millibels behind a limiter of its own, so a quiet song gets louder instead of squarer and a loud one
+     * is held at full scale rather than broken. The same trade the desktop's gain and limiter make, done by the
+     * phone's own audio framework.
+     *
+     * It lives on the session rather than on a song, so it carries from one song to the next, through a stop
+     * and a new start, and is put on again whenever the session itself changes. Best-effort throughout: a phone
+     * that will not build one says so through [PlaybackState.volumeBoostAvailable], rather than the slider
+     * moving and nothing changing.
+     */
+    override suspend fun setVolumeBoostPercent(percent: Int) = withContext(Dispatchers.Main) {
+        boostPercent = VolumeBoost.clamp(percent)
+        if (VolumeBoost.isOn(boostPercent)) lastBoostPercent = boostPercent
         applyBoost()
     }
 
     /**
      * Put the wanted boost on whatever session the player has right now.
      *
-     * Kept apart from the toggle because the answer changes underneath it. A player that has not opened
-     * its audio sink yet has no session to attach an effect to, and one that reopens it -- a headset
-     * arriving, a phone call ending -- gets a different one. Asking again every time the session changes
-     * is what stops a boost switched on during a buffering track from quietly doing nothing.
+     * Kept apart from the level because the answer changes underneath it. A player that has not opened its
+     * audio sink yet may have no session to attach an effect to, and one that reopens it -- a headset
+     * arriving, a phone call ending -- gets a different one. Asking again every time the session changes is
+     * what stops a boost switched on during a buffering track from quietly doing nothing.
      */
     private fun applyBoost(session: Int = player.audioSessionId) {
+        val level = boostPercent
+        var refused = false
         val applied = runCatching {
-            if (!boostWanted || session == C.AUDIO_SESSION_ID_UNSET) {
+            if (!VolumeBoost.isOn(level) || session == C.AUDIO_SESSION_ID_UNSET) {
                 loudness?.enabled = false
                 return@runCatching false
             }
-            if (loudnessSession != session) {
-                loudness?.release()
-                loudness = LoudnessEnhancer(session)
+            if (loudness == null || loudnessSession != session) {
+                runCatching { loudness?.release() }
+                loudness = null
+                loudnessSession = C.AUDIO_SESSION_ID_UNSET
+                loudness = runCatching { LoudnessEnhancer(session) }.getOrElse { error ->
+                    android.util.Log.w(PLAYER_LOG_TAG, "This phone would not give Noctorium a loudness enhancer", error)
+                    refused = true
+                    return@runCatching false
+                }
                 loudnessSession = session
             }
-            loudness?.setTargetGain(BOOST_GAIN_MILLIBELS)
+            loudness?.setTargetGain(boostMillibels(level))
             loudness?.enabled = true
+            // What the effect itself now holds, read back from it, for whoever is checking a phone over adb.
+            loudness?.let {
+                android.util.Log.i(PLAYER_LOG_TAG, "Volume boost $level% on session $session: ${it.targetGain.roundToInt()} mB, enabled ${it.enabled}")
+            }
             true
         }.getOrDefault(false)
-        mutableState.update { it.copy(volumeBoostEnabled = applied) }
+        mutableState.update { it.copy(
+            volumeBoostEnabled = applied,
+            volumeBoostPercent = if (applied) level else VolumeBoost.OFF_PERCENT,
+            volumeBoostAvailable = !refused,
+        ) }
     }
 
-    /** What the listener asked for, as opposed to what the audio session currently has on it. */
-    private var boostWanted = false
+    /** The level the listener asked for, as opposed to what the audio session currently has on it. */
+    private var boostPercent = VolumeBoost.OFF_PERCENT
+
+    /** The last level above 100%, for the old switch to go back to. */
+    private var lastBoostPercent = VolumeBoost.FIRST_PERCENT
 
     /** Released with the player; an effect outlives its session otherwise and leaks the native object. */
     private var loudness: LoudnessEnhancer? = null
@@ -640,16 +770,112 @@ class Media3PlaybackEngine(
     /** The session [loudness] was built for, so a replacement is noticed instead of boosting nothing. */
     private var loudnessSession = C.AUDIO_SESSION_ID_UNSET
 
-    private companion object {
-        /**
-         * Nine decibels, in the hundredths Android counts them in.
-         *
-         * Enough to be plainly louder on a phone speaker and short of where a loudness enhancer starts
-         * sounding pumped and flat. It is a fixed amount rather than a second slider because the one
-         * question somebody has here is whether this is loud enough, not by how many decibels.
-         */
-        const val BOOST_GAIN_MILLIBELS = 900
+    // --- The visualiser's feed ---
 
+    private val mutableAnalysis = MutableStateFlow<AudioAnalysis?>(null)
+
+    /**
+     * What the sound is doing, measured from the sound itself as it leaves for the speaker: the ten bands and
+     * each channel's levels, [Visualiser.FRAMES_PER_SECOND] times a second while a song plays, and null while
+     * none does. Measured only while something collects this -- a visualiser on screen -- and as much as
+     * [setAnalysis] asks for; with neither, the tee keeps nothing and nothing is worked out.
+     */
+    override val analysis: StateFlow<AudioAnalysis?> = mutableAnalysis.asStateFlow()
+
+    /** Every frame of the phone's own sound can be seen whole, so a spectrum, for every stream it plays. */
+    override val analysisKind: AudioAnalysisKind get() = AudioAnalysisKind.SPECTRUM
+
+    /** As much as the listener's visualiser wants, from core: nothing until it says. */
+    private var analysisWanted = AudioAnalysisKind.NONE
+
+    /** Whether anything is collecting [analysis] just now. */
+    private var analysisWatched = false
+
+    private var meterJob: Job? = null
+    private val meterClock = MeterClock()
+
+    override suspend fun setAnalysis(wanted: AudioAnalysisKind) = withContext(Dispatchers.Main) {
+        analysisWanted = wanted
+        runMeter()
+    }
+
+    /** Starts measuring while something watches and something is wanted, and stops the moment either is not. */
+    private fun runMeter() {
+        val wanted = if (analysisWatched) analysisWanted else AudioAnalysisKind.NONE
+        meterJob?.cancel()
+        meterJob = null
+        meter.listening = wanted != AudioAnalysisKind.NONE
+        if (wanted == AudioAnalysisKind.NONE) {
+            mutableAnalysis.value = null
+            return
+        }
+        meterClock.restart()
+        meterJob = scope.launch {
+            while (isActive) {
+                mutableAnalysis.value = if (player.isPlaying) measure(wanted) else null
+                delay(Visualiser.FRAME_MS)
+            }
+        }
+    }
+
+    /** One frame: the sound at the place the speaker is at, worked out away from the main thread. */
+    private suspend fun measure(wanted: AudioAnalysisKind): AudioAnalysis? {
+        val heard = meterClock.heard(
+            positionMs = player.currentPosition,
+            stretches = meter.stretches,
+            stretchStart = meter.stretchStart,
+            written = meter.written,
+            sampleRate = meter.sampleRate,
+            ringSize = AudioMeter.RING_FRAMES,
+        )
+        return withContext(Dispatchers.Default) { meter.analyse(heard, spectrum = wanted == AudioAnalysisKind.SPECTRUM) }
+    }
+
+    // --- What is playing, for the status bar ---
+
+    /** The format Media3 found the current song's sound in, once it began to arrive. */
+    @Volatile private var heardFormat: Format? = null
+
+    /**
+     * The status bar's description of the song, from [heardFormat]: its codec, rate and channels, and its
+     * bitrate -- the stream's own where it declares one, or worked out from the file's size and the song's
+     * length where a plain file does not (see [streamSizes]). Only ever about the song this state describes.
+     */
+    @OptIn(UnstableApi::class)
+    private fun refreshFormat() {
+        val format = heardFormat ?: return
+        val held = player.currentMediaItem
+        val shown = mutableState.value.track?.queueKey
+        if (held?.mediaId != null && shown != null && held.mediaId != shown) return
+        val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: mutableState.value.durationMs
+        val address = held?.localConfiguration?.uri
+        val bytes = when (address?.scheme) {
+            "file" -> address.path?.let { runCatching { java.io.File(it).length() }.getOrNull() }
+            null -> null
+            else -> streamSizes[address.toString()]
+        }
+        val described = streamFormatOf(
+            mimeType = format.sampleMimeType,
+            codecs = format.codecs,
+            sampleRateHz = format.sampleRate,
+            channels = format.channelCount,
+            bitrate = format.averageBitrate.takeIf { it > 0 } ?: format.bitrate,
+            estimatedBitrate = estimatedBitrate(bytes, duration),
+        )
+        if (described != mutableState.value.format) mutableState.update { it.copy(format = described) }
+    }
+
+    init {
+        // Watched or not, as the visualisers on screen come and go.
+        scope.launch {
+            mutableAnalysis.subscriptionCount.map { it > 0 }.distinctUntilChanged().collect { watched ->
+                analysisWatched = watched
+                runMeter()
+            }
+        }
+    }
+
+    private companion object {
         /**
          * The ordinary priority, not a raised one. Priority only matters when two apps reach for the same
          * session's equaliser, and an app built for that -- a system-wide equaliser somebody installed --
@@ -803,7 +1029,19 @@ class Media3PlaybackEngine(
         stallWatch = null
         player.stop()
         player.clearMediaItems()
-        mutableState.value = PlaybackState(volume = mutableState.value.volume)
+        // Back to no song, and nothing else back to its default: the volume, the mute and the booster are the
+        // listener's and outlast the song. Built afresh, the booster read 100% here while the session went on
+        // boosting, and the button forgot the boost that was still in force -- and a mute went quiet about itself
+        // while the player stayed silent.
+        mutableState.update { current ->
+            PlaybackState(
+                volume = current.volume,
+                isMuted = current.isMuted,
+                volumeBoostEnabled = current.volumeBoostEnabled,
+                volumeBoostPercent = current.volumeBoostPercent,
+                volumeBoostAvailable = current.volumeBoostAvailable,
+            )
+        }
     }
 
     /**
@@ -820,6 +1058,8 @@ class Media3PlaybackEngine(
     override fun close() {
         ticker?.cancel()
         stallWatch?.cancel()
+        meterJob?.cancel()
+        meter.listening = false
         runCatching { connectivity?.unregisterNetworkCallback(networkWatch) }
         // Release has to happen on the thread the player was built on, and the process may be going away,
         // so this does not wait for a coroutine to be scheduled.
@@ -886,6 +1126,8 @@ class Media3PlaybackEngine(
             // The player's own length once it knows one, since that is what the bar is drawn against.
             durationMs = duration ?: mutableState.value.durationMs,
         ) }
+        // The bitrate of a plain file is worked out from its length, which arrives after its format does.
+        if (mutableState.value.format?.bitsPerSecond == null) refreshFormat()
     }
 
 }
