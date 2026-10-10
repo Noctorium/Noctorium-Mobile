@@ -7,8 +7,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -31,30 +29,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.DownloadDone
-import androidx.compose.material.icons.filled.Downloading
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.PushPin
 import app.noctorium.library.TrackEdit
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.SaveAlt
-import androidx.compose.material.icons.filled.Search
 import app.noctorium.core.ProviderFilter
 import app.noctorium.core.SearchMode
 import androidx.compose.material3.CircularProgressIndicator
@@ -163,11 +138,11 @@ internal fun HomeScreen(state: AppState) {
         // title rather than losing the row.
         if (HomePart.GREETING in hidden) {
             ScreenTitle("Home") {
-                IconButton({ state.refreshHome() }) { Icon(Icons.Default.Refresh, "Reload") }
+                IconButton({ state.refreshHome() }) { Icon(Glyph.REFRESH.image, "Reload") }
             }
         } else {
             ScreenTitle(greeting(), "What is on, and what you were listening to") {
-                IconButton({ state.refreshHome() }) { Icon(Icons.Default.Refresh, "Reload") }
+                IconButton({ state.refreshHome() }) { Icon(Glyph.REFRESH.image, "Reload") }
             }
         }
 
@@ -283,7 +258,8 @@ private fun TrackCarousel(
                 Column(
                     Modifier
                         .width(width)
-                        .clickable { state.play(track, sourceQueue = tracks) },
+                        // As the listener chose: a radio from the song, or the rest of the shelf after it.
+                        .clickable { state.playFromHome(track, tracks) },
                 ) {
                     Box {
                         Artwork(track.artworkUrl, width, corner = 10.dp)
@@ -486,7 +462,7 @@ internal fun SearchScreen(state: AppState) {
             // What to type rather than where it goes: the chips below say where, and a list of services
             // here went out of date the moment a third arrived.
             placeholder = { Text("Songs, albums and artists") },
-            leadingIcon = { Icon(Icons.Default.Search, null) },
+            leadingIcon = { Icon(Glyph.SEARCH.image, null) },
             trailingIcon = {
                 if (ui.searchLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             },
@@ -617,9 +593,9 @@ private fun LibraryList(
             // Only where there is an account to make one on. A button that can only explain why it does
             // not work is worse than no button.
             if (services.isNotEmpty()) {
-                IconButton({ naming = true }) { Icon(Icons.Default.Add, "New playlist") }
+                IconButton({ naming = true }) { Icon(Glyph.ADD.image, "New playlist") }
             }
-            IconButton({ state.refreshLibrary(force = true) }) { Icon(Icons.Default.Refresh, "Reload") }
+            IconButton({ state.refreshLibrary(force = true) }) { Icon(Glyph.REFRESH.image, "Reload") }
         }
 
         LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
@@ -746,12 +722,12 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
                 if (missing != null) {
                     IconButton({ state.downloadAll(playlist.tracks) }, enabled = missing > 0) {
                         Icon(
-                            if (missing > 0) Icons.Default.Download else Icons.Default.DownloadDone,
+                            if (missing > 0) Glyph.DOWNLOAD.image else Glyph.DOWNLOAD_DONE.image,
                             if (missing > 0) "Download $missing" else "All downloaded",
                         )
                     }
                 }
-                IconButton({ state.playPlaylist(playlist) }) { Icon(Icons.Default.PlayArrow, "Play this playlist") }
+                IconButton({ state.playPlaylist(playlist) }) { Icon(Glyph.PLAY_ARROW.image, "Play this playlist") }
             }
         }
         // A window's title bar under the Windows skins, closed by its cross; the row it always was otherwise.
@@ -762,7 +738,7 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
                 Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(state::closePlaylist) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to the library") }
+                IconButton(state::closePlaylist) { Icon(Glyph.ARROW_BACK.image, "Back to the library") }
                 Column(Modifier.weight(1f)) {
                     Text(playlist.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
@@ -811,13 +787,13 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
                                 {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         IconButton({ state.moveInYouTubePlaylist(index, index - 1) }, enabled = index > 0, modifier = Modifier.size(36.dp)) {
-                                            Icon(Icons.Default.KeyboardArrowUp, "Move up")
+                                            Icon(Glyph.KEYBOARD_ARROW_UP.image, "Move up")
                                         }
                                         IconButton(
                                             { state.moveInYouTubePlaylist(index, index + 1) },
                                             enabled = index < playlist.tracks.lastIndex,
                                             modifier = Modifier.size(36.dp),
-                                        ) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
+                                        ) { Icon(Glyph.KEYBOARD_ARROW_DOWN.image, "Move down") }
                                         TrackMenuButton(track, state)
                                     }
                                 }
@@ -840,7 +816,7 @@ private fun DownloadsCard(downloads: app.noctorium.downloads.DownloadsState, sta
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.DownloadDone, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(Glyph.DOWNLOAD_DONE.image, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Available offline", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
@@ -852,7 +828,7 @@ private fun DownloadsCard(downloads: app.noctorium.downloads.DownloadsState, sta
                     )
                 }
                 if (downloads.entries.isNotEmpty()) {
-                    IconButton({ state.playDownloads() }) { Icon(Icons.Default.PlayArrow, "Play downloads") }
+                    IconButton({ state.playDownloads() }) { Icon(Glyph.PLAY_ARROW.image, "Play downloads") }
                 }
             }
             downloads.active.forEach { job ->
@@ -904,60 +880,60 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
 
     Box {
         IconButton({ open = true }) {
-            Icon(Icons.Default.MoreVert, "Track actions", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Glyph.MORE_VERT.image, "Track actions", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text("Play next") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistPlay, null) },
+                leadingIcon = { Icon(Glyph.PLAYLIST_PLAY.image, null) },
                 onClick = { state.playNext(track); open = false },
             )
             DropdownMenuItem(
                 text = { Text("Add to queue") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.QueueMusic, null) },
+                leadingIcon = { Icon(Glyph.QUEUE_MUSIC.image, null) },
                 onClick = { state.addToQueue(track); open = false },
             )
             if (likes.supports(track)) {
                 val liked = likes.isLiked(track)
                 DropdownMenuItem(
                     text = { Text(if (liked) "Remove from likes" else "Like on ${track.provider.displayName}") },
-                    leadingIcon = { Icon(if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder, null) },
+                    leadingIcon = { Icon(if (liked) Glyph.FAVORITE.image else Glyph.FAVORITE_BORDER.image, null) },
                     onClick = { state.toggleLike(track); open = false },
                 )
             }
             when {
                 job != null && job.stage != DownloadStage.FAILED -> DropdownMenuItem(
                     text = { Text("Downloading… ${(job.progress * 100).roundToInt()}%") },
-                    leadingIcon = { Icon(Icons.Default.Downloading, null) },
+                    leadingIcon = { Icon(Glyph.DOWNLOADING.image, null) },
                     onClick = { state.cancelDownload(onDisk.queueKey); open = false },
                 )
                 job != null -> DropdownMenuItem(
                     text = { Text("Download failed — try again") },
-                    leadingIcon = { Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.error) },
+                    leadingIcon = { Icon(Glyph.ERROR_OUTLINE.image, null, tint = MaterialTheme.colorScheme.error) },
                     onClick = { state.cancelDownload(onDisk.queueKey); state.downloadTrack(track); open = false },
                 )
                 kept -> DropdownMenuItem(
                     text = { Text("Remove download") },
-                    leadingIcon = { Icon(Icons.Default.DownloadDone, null, tint = MaterialTheme.colorScheme.primary) },
+                    leadingIcon = { Icon(Glyph.DOWNLOAD_DONE.image, null, tint = MaterialTheme.colorScheme.primary) },
                     onClick = { state.deleteDownload(onDisk.queueKey); open = false },
                 )
                 keepable -> DropdownMenuItem(
                     text = { Text("Download for offline") },
-                    leadingIcon = { Icon(Icons.Default.Download, null) },
+                    leadingIcon = { Icon(Glyph.DOWNLOAD.image, null) },
                     onClick = { state.downloadTrack(track); open = false },
                 )
             }
             if (keepable) {
                 DropdownMenuItem(
                     text = { Text("Save a copy…") },
-                    leadingIcon = { Icon(Icons.Default.SaveAlt, null) },
+                    leadingIcon = { Icon(Glyph.SAVE_ALT.image, null) },
                     onClick = { state.exportTrack(track); open = false },
                 )
             }
             servicePage(track.provider, track.pageUrl)?.let {
                 DropdownMenuItem(
                     text = { Text(openOnLabel(track.provider)) },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
+                    leadingIcon = { Icon(Glyph.OPEN_IN_NEW.image, null) },
                     onClick = { state.openExternalUrl(it); open = false },
                 )
             }
@@ -972,24 +948,24 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
             if (playlistAccountFor(track) != null) {
                 DropdownMenuItem(
                     text = { Text("Add to playlist…") },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
+                    leadingIcon = { Icon(Glyph.PLAYLIST_ADD.image, null) },
                     onClick = { open = false; addOpen = true },
                 )
             }
             HorizontalDivider()
             DropdownMenuItem(
                 text = { Text(if (pinned) "Unpin from Home" else "Pin to Home") },
-                leadingIcon = { Icon(if (pinned) Icons.Default.PushPin else Icons.Outlined.PushPin, null) },
+                leadingIcon = { Icon(if (pinned) Glyph.PUSH_PIN.image else Glyph.PUSH_PIN_OUTLINE.image, null) },
                 onClick = { state.togglePin(track); open = false },
             )
             DropdownMenuItem(
                 text = { Text("Edit details…") },
-                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                leadingIcon = { Icon(Glyph.EDIT.image, null) },
                 onClick = { open = false; editOpen = true },
             )
             DropdownMenuItem(
                 text = { Text("Copy link") },
-                leadingIcon = { Icon(Icons.Default.Link, null) },
+                leadingIcon = { Icon(Glyph.LINK.image, null) },
                 onClick = { state.copyTrackLink(track); open = false },
             )
         }
@@ -1004,7 +980,7 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
  * nothing has loaded the library yet.
  */
 @Composable
-private fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Unit) {
+internal fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> Unit) {
     val library by state.library.collectAsState()
     var naming by remember { mutableStateOf(false) }
 

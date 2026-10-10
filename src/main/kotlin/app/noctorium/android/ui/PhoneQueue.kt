@@ -13,17 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.AllInclusive
-import androidx.compose.material.icons.filled.ClearAll
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -94,7 +83,7 @@ internal fun QueueScreen(
             if (queue.tracks.isNotEmpty()) QueueMenu(queue, state) { naming = true }
             // The Windows skins put the close on the title bar; the others need it here.
             if (overNowPlaying && LocalSkin.current == ThemeSkin.STANDARD) {
-                IconButton(close) { Icon(Icons.Default.ExpandMore, "Back to the song") }
+                IconButton(close) { Icon(Glyph.EXPAND_MORE.image, "Back to the song") }
             }
         }
         saved?.let {
@@ -121,7 +110,7 @@ internal fun QueueScreen(
                     isCurrent = index == queue.currentIndex,
                     trailing = {
                         IconButton({ state.removeQueueItem(index) }) {
-                            Icon(Icons.Default.Delete, "Remove from the queue", Modifier.size(18.dp))
+                            Icon(Glyph.DELETE.image, "Remove from the queue", Modifier.size(18.dp))
                         }
                     },
                 ) { state.jumpToQueueItem(index) }
@@ -137,35 +126,54 @@ internal fun QueueScreen(
     }
 }
 
-/** What can be done to the queue as a whole: shuffle or clear what is still to come, save it, or empty it. */
+/**
+ * What can be done to the queue as a whole: shuffle or clear what is still to come, save it, stop once this song
+ * ends, or empty it -- all of it, or all of it but the song playing.
+ */
 @Composable
 private fun QueueMenu(queue: QueueState, state: AppState, saveAs: () -> Unit) {
     var open by remember { mutableStateOf(false) }
+    val stopAfter by state.stopAfterCurrent.collectAsState()
     Box {
-        IconButton({ open = true }) { Icon(Icons.Default.MoreVert, "Queue actions") }
+        IconButton({ open = true }) { Icon(Glyph.MORE_VERT.image, "Queue actions") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text("Shuffle what's next") },
-                leadingIcon = { Icon(Icons.Default.Shuffle, null) },
+                leadingIcon = { Icon(Glyph.SHUFFLE.image, null) },
                 // Two songs at least: one has nowhere to be shuffled to.
                 enabled = queue.upNext.size >= 2,
                 onClick = { state.shuffleUpcoming(); open = false },
             )
             DropdownMenuItem(
                 text = { Text("Clear what's next") },
-                leadingIcon = { Icon(Icons.Default.ClearAll, null) },
+                leadingIcon = { Icon(Glyph.CLEAR_ALL.image, null) },
                 enabled = queue.upNext.isNotEmpty(),
                 onClick = { state.clearUpcoming(); open = false },
             )
             DropdownMenuItem(
                 text = { Text("Save queue as playlist…") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null) },
+                leadingIcon = { Icon(Glyph.PLAYLIST_ADD.image, null) },
                 onClick = { open = false; saveAs() },
             )
+            DropdownMenuItem(
+                text = { Text("Stop after this song") },
+                leadingIcon = { Icon(Glyph.STOP_AFTER.image, null) },
+                trailingIcon = { if (stopAfter) Icon(Glyph.CHECK.image, "On", tint = MaterialTheme.colorScheme.primary) },
+                enabled = queue.current != null,
+                onClick = { state.toggleStopAfterCurrent(); open = false },
+            )
             HorizontalDivider()
+            // Beside the one that empties it: everything goes but the song playing, which plays on, and autoplay
+            // finds its songs after it as it would after any last song.
+            DropdownMenuItem(
+                text = { Text("Clear all but this song") },
+                leadingIcon = { Icon(Glyph.CLEAR_ALL_BUT_THIS.image, null) },
+                enabled = canClearAllButCurrent(queue),
+                onClick = { state.clearAllButCurrent(); open = false },
+            )
             DropdownMenuItem(
                 text = { Text("Clear the queue") },
-                leadingIcon = { Icon(Icons.Default.Delete, null) },
+                leadingIcon = { Icon(Glyph.DELETE.image, null) },
                 onClick = { state.clearQueue(); open = false },
             )
         }
@@ -183,7 +191,7 @@ private fun AutoplayHeading(heading: String, refreshable: Boolean, autoplay: Boo
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Default.AllInclusive, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+        Icon(Glyph.ALL_INCLUSIVE.image, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
         Text(
             heading,
@@ -197,7 +205,7 @@ private fun AutoplayHeading(heading: String, refreshable: Boolean, autoplay: Boo
         )
         if (refreshable) {
             IconButton(state::refreshSuggestions) {
-                Icon(Icons.Default.Refresh, "Other songs", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(Glyph.REFRESH.image, "Other songs", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         SkinnedSwitch(autoplay, onCheckedChange = state::setAutoplay, Modifier.semantics { contentDescription = "Autoplay" })
@@ -246,16 +254,26 @@ private fun SuggestionRow(track: Track, index: Int, state: AppState) {
             )
         }
         IconButton({ state.keepSuggestion(index) }, Modifier.size(40.dp)) {
-            Icon(Icons.AutoMirrored.Filled.QueueMusic, "Add to queue", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Glyph.QUEUE_MUSIC.image, "Add to queue", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         IconButton({ state.removeSuggestion(index) }, Modifier.size(40.dp)) {
-            Icon(Icons.Default.Close, "Leave out", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Glyph.CLOSE.image, "Leave out", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 /** How much quieter autoplay's songs are drawn than the queue's own. */
 private const val SUGGESTION_ALPHA = .72f
+
+/**
+ * Whether "Clear all but this song" has anything to do: a song playing, and something else in the queue or lined
+ * up after it by autoplay for a song that is not this one.
+ */
+internal fun canClearAllButCurrent(queue: QueueState): Boolean {
+    val playing = queue.current ?: return false
+    val suggestionsForIt = queue.suggestionsSeed?.startsWith("${playing.queueKey}|") == true
+    return queue.tracks.size > 1 || (queue.suggestions.isNotEmpty() && !suggestionsForIt)
+}
 
 /** Where the queue stands with autoplay, which decides what is said and shown under it. */
 internal enum class UpNext {
