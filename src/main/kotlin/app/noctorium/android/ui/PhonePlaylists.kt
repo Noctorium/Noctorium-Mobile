@@ -11,19 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.CloudUpload
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -118,7 +105,7 @@ internal fun ServicePlaylistControls(playlist: Playlist, notice: String?, state:
                     if (asked == isPublic) {
                         CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                     } else {
-                        Icon(if (isPublic) Icons.Default.Public else Icons.Default.Lock, null, Modifier.size(16.dp))
+                        Icon(if (isPublic) Glyph.PUBLIC.image else Glyph.LOCK.image, null, Modifier.size(16.dp))
                     }
                 },
             )
@@ -126,12 +113,12 @@ internal fun ServicePlaylistControls(playlist: Playlist, notice: String?, state:
         AssistChip(
             onClick = { renaming = true },
             label = { Text("Rename") },
-            leadingIcon = { Icon(Icons.Default.Edit, null, Modifier.size(16.dp)) },
+            leadingIcon = { Icon(Glyph.EDIT.image, null, Modifier.size(16.dp)) },
         )
         AssistChip(
             onClick = { deleting = true },
             label = { Text("Delete") },
-            leadingIcon = { Icon(Icons.Default.Delete, null, Modifier.size(16.dp)) },
+            leadingIcon = { Icon(Glyph.DELETE.image, null, Modifier.size(16.dp)) },
         )
     }
     Text(
@@ -159,7 +146,7 @@ internal fun ServicePageAction(label: String, page: String, state: AppState) {
         AssistChip(
             onClick = { state.openExternalUrl(page) },
             label = { Text(label) },
-            leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(16.dp)) },
+            leadingIcon = { Icon(Glyph.OPEN_IN_NEW.image, null, Modifier.size(16.dp)) },
         )
     }
 }
@@ -198,14 +185,14 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
     ScreenScaffold {
         val actions: @Composable () -> Unit = {
             if (playlist.tracks.isNotEmpty()) {
-                IconButton({ state.playLocalPlaylist(playlist) }) { Icon(Icons.Default.PlayArrow, "Play this playlist") }
+                IconButton({ state.playLocalPlaylist(playlist) }) { Icon(Glyph.PLAY_ARROW.image, "Play this playlist") }
             }
             Box {
-                IconButton({ menu = true }) { Icon(Icons.Default.MoreVert, "Playlist actions") }
+                IconButton({ menu = true }) { Icon(Glyph.MORE_VERT.image, "Playlist actions") }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     DropdownMenuItem(
                         text = { Text("Rename") },
-                        leadingIcon = { Icon(Icons.Default.Edit, null) },
+                        leadingIcon = { Icon(Glyph.EDIT.image, null) },
                         onClick = { menu = false; renaming = true },
                     )
                     // Copied up only to the accounts that are signed in, and only the tracks that live there --
@@ -213,7 +200,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
                     services.forEach { service ->
                         DropdownMenuItem(
                             text = { Text("Copy to ${service.displayName}") },
-                            leadingIcon = { Icon(Icons.Default.CloudUpload, null) },
+                            leadingIcon = { Icon(Glyph.CLOUD_UPLOAD.image, null) },
                             onClick = {
                                 menu = false
                                 val copy = playlist.copy(tracks = tracksPlaylistCanHold(service, playlist.tracks))
@@ -227,7 +214,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
                     }
                     DropdownMenuItem(
                         text = { Text("Delete") },
-                        leadingIcon = { Icon(Icons.Default.Delete, null) },
+                        leadingIcon = { Icon(Glyph.DELETE.image, null) },
                         onClick = { menu = false; deleting = true },
                     )
                 }
@@ -243,7 +230,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
                 Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(state::closeLocalPlaylist) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to the library") }
+                IconButton(state::closeLocalPlaylist) { Icon(Glyph.ARROW_BACK.image, "Back to the library") }
                 Column(Modifier.weight(1f)) {
                     Text(playlist.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
@@ -274,15 +261,15 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
                             trailing = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton({ state.moveInLocalPlaylist(playlist.id, index, index - 1) }, enabled = index > 0, modifier = Modifier.size(34.dp)) {
-                                        Icon(Icons.Default.KeyboardArrowUp, "Move up")
+                                        Icon(Glyph.KEYBOARD_ARROW_UP.image, "Move up")
                                     }
                                     IconButton(
                                         { state.moveInLocalPlaylist(playlist.id, index, index + 1) },
                                         enabled = index < playlist.tracks.lastIndex,
                                         modifier = Modifier.size(34.dp),
-                                    ) { Icon(Icons.Default.KeyboardArrowDown, "Move down") }
+                                    ) { Icon(Glyph.KEYBOARD_ARROW_DOWN.image, "Move down") }
                                     IconButton({ state.removeTrackFromPlaylist(playlist.id, track.queueKey) }, modifier = Modifier.size(34.dp)) {
-                                        Icon(Icons.Default.RemoveCircleOutline, "Take out of this playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Icon(Glyph.REMOVE_CIRCLE_OUTLINE.image, "Take out of this playlist", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                 }
                             },

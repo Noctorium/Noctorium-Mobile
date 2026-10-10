@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -193,7 +191,7 @@ internal fun RecordBar(
         TrackLines(track, playback, onSpotify, Modifier.weight(1f))
         PlayPauseButton(playback, state)
         IconButton({ haptics.tick(); state.next() }, enabled = hasNext) {
-            Icon(Icons.Default.SkipNext, "Next track")
+            Icon(Glyph.SKIP_NEXT.image, "Next track")
         }
     }
 }

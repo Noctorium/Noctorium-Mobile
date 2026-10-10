@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
@@ -521,7 +519,7 @@ internal fun SkinTaskbar(
     labels: Boolean,
     tabs: List<Destination>,
     clock: Boolean,
-    icon: (Destination) -> ImageVector,
+    icon: (Destination) -> Glyph,
     go: (Destination) -> Unit,
 ) {
     val xp = LocalSkin.current == ThemeSkin.WINDOWS_XP
@@ -549,7 +547,7 @@ internal fun SkinTaskbar(
                     val named = labels && roomy && others.size <= 3
                     val label = tabName(destination)
                     TaskbarButton(current == destination, label, Modifier.weight(1f), onClick = { go(destination) }) { ink ->
-                        Icon(icon(destination), null, Modifier.size(20.dp), tint = ink)
+                        Icon(icon(destination).image, null, Modifier.size(20.dp), tint = ink)
                         if (named) {
                             Spacer(Modifier.width(5.dp))
                             Text(label, color = ink, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -867,7 +865,7 @@ internal fun SkinArtwork(url: String?, size: Dp, corner: Dp) {
             // The note in the scheme's greyed writing: 98's own grey, which was its shadow's too, and on Noctorium
             // 98's dark face a violet that still shows, where the shadow there is all but black.
             Icon(
-                Icons.Default.MusicNote,
+                Glyph.MUSIC_NOTE.image,
                 null,
                 Modifier.size(size / 2),
                 tint = if (xp) Luna.GreyText else win98.GreyText,

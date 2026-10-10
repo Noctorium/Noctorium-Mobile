@@ -21,13 +21,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -133,7 +126,7 @@ private fun LyricsSources(lyrics: LyricsUiState, refresh: () -> Unit, choose: (L
             }
         }
         IconButton(refresh, Modifier.size(36.dp)) {
-            Icon(Icons.Default.Refresh, "Ask every source again", Modifier.size(18.dp))
+            Icon(Glyph.REFRESH.image, "Ask every source again", Modifier.size(18.dp))
         }
     }
 }
@@ -151,11 +144,11 @@ private fun usefulness(outcome: LyricsProviderOutcome): Int = when {
 private fun SourceStatus(status: LyricsProviderStatus) {
     when (status) {
         LyricsProviderStatus.SEARCHING -> CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp)
-        LyricsProviderStatus.FOUND -> Icon(Icons.Default.CheckCircle, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-        LyricsProviderStatus.LINK_ONLY -> Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-        LyricsProviderStatus.NEEDS_KEY -> Icon(Icons.Default.Key, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        LyricsProviderStatus.ERROR -> Icon(Icons.Default.ErrorOutline, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
-        LyricsProviderStatus.NOT_FOUND -> Icon(Icons.Default.RemoveCircleOutline, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        LyricsProviderStatus.FOUND -> Icon(Glyph.CHECK_CIRCLE.image, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+        LyricsProviderStatus.LINK_ONLY -> Icon(Glyph.OPEN_IN_NEW.image, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+        LyricsProviderStatus.NEEDS_KEY -> Icon(Glyph.KEY.image, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        LyricsProviderStatus.ERROR -> Icon(Glyph.ERROR_OUTLINE.image, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+        LyricsProviderStatus.NOT_FOUND -> Icon(Glyph.REMOVE_CIRCLE_OUTLINE.image, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -212,7 +205,7 @@ private fun LyricsElsewhere(result: app.noctorium.lyrics.LyricsResult, state: Ap
         Spacer(Modifier.height(12.dp))
         result.sourceUrl?.let { url ->
             SkinnedTonalButton({ state.openExternalUrl(url) }) {
-                Icon(Icons.AutoMirrored.Filled.OpenInNew, null, Modifier.size(16.dp))
+                Icon(Glyph.OPEN_IN_NEW.image, null, Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Open ${result.provider.displayName}")
             }

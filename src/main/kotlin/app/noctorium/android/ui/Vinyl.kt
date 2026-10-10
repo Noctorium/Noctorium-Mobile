@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -52,7 +50,7 @@ internal fun Record(artworkUrl: String?, size: Dp, spinning: Boolean, modifier: 
                 contentAlignment = Alignment.Center,
             ) {
                 if (artworkUrl == null) {
-                    Icon(Icons.Default.MusicNote, null, Modifier.size(size * LABEL_FRACTION * .45f), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Icon(Glyph.MUSIC_NOTE.image, null, Modifier.size(size * LABEL_FRACTION * .45f), tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 } else {
                     AsyncImage(artworkUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 }

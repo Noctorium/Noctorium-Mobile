@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -129,7 +127,7 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                 Modifier.fillMaxWidth().padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(close) { Icon(Icons.Default.Close, "Cancel") }
+                IconButton(close) { Icon(Glyph.CLOSE.image, "Cancel") }
                 Column(Modifier.weight(1f)) {
                     Text(
                         // The site, not the service: what is signed in to is VK itself.

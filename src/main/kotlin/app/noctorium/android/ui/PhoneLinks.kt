@@ -17,17 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.DownloadDone
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -117,7 +106,7 @@ internal fun LinkScreen(state: AppState) {
                     { clipboard.getText()?.text?.takeIf(String::isNotBlank)?.let(::submit) },
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).height(52.dp),
                 ) {
-                    Icon(Icons.Default.ContentPaste, null, Modifier.size(20.dp))
+                    Icon(Glyph.CONTENT_PASTE.image, null, Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Paste and play", fontSize = 16.sp)
                 }
@@ -125,7 +114,7 @@ internal fun LinkScreen(state: AppState) {
             phoneLinkOutcome(link, playback, state)
             item {
                 Row(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Share, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Glyph.SHARE.image, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "Or, wherever you found it, tap Share and pick Noctorium.",
@@ -150,9 +139,9 @@ private fun PhoneLinkField(
         text,
         onText,
         placeholder = { Text(placeholder, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        leadingIcon = { Icon(Icons.Default.Link, null) },
+        leadingIcon = { Icon(Glyph.LINK.image, null) },
         trailingIcon = {
-            if (text.isNotEmpty()) IconButton(onClear) { Icon(Icons.Default.Close, "Clear") }
+            if (text.isNotEmpty()) IconButton(onClear) { Icon(Glyph.CLOSE.image, "Clear") }
         },
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
@@ -232,7 +221,7 @@ private fun PhoneLinkTrackCard(track: Track, playing: Boolean, state: AppState) 
                 Column(Modifier.weight(1f)) {
                     if (playing) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.GraphicEq, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                            Icon(Glyph.GRAPHIC_EQ.image, null, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(4.dp))
                             Text("Playing", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                         }
@@ -251,11 +240,11 @@ private fun PhoneLinkTrackCard(track: Track, playing: Boolean, state: AppState) 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (!playing) {
                     SkinnedButton({ state.play(track) }) {
-                        Icon(Icons.Default.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Play")
+                        Icon(Glyph.PLAY_ARROW.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Play")
                     }
                 }
                 SkinnedTonalButton({ state.addToQueue(track) }) {
-                    Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue")
+                    Icon(Glyph.PLAYLIST_ADD.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue")
                 }
                 // Not for a Bandcamp or VK song, which is there to be heard rather than kept.
                 if (state.canKeep(track)) PhoneDownloadButton(track, state)
@@ -273,15 +262,15 @@ private fun PhonePlaylistActions(tracks: List<Track>, state: AppState) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         SkinnedButton({ tracks.firstOrNull()?.let { state.play(it, PlaybackOrigin.PLAYLIST, tracks) } }) {
-            Icon(Icons.Default.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Play all", maxLines = 1)
+            Icon(Glyph.PLAY_ARROW.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Play all", maxLines = 1)
         }
         SkinnedTonalButton({ tracks.forEach(state::addToQueue) }) {
-            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue all", maxLines = 1)
+            Icon(Glyph.PLAYLIST_ADD.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue all", maxLines = 1)
         }
         // A Bandcamp album has nothing in it that may be kept, nor a VK playlist, so neither is offered it.
         if (tracks.any(state::canKeep)) {
             SkinnedTonalButton({ state.downloadAll(tracks) }) {
-                Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download all", maxLines = 1)
+                Icon(Glyph.DOWNLOAD.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download all", maxLines = 1)
             }
         }
     }
@@ -310,7 +299,7 @@ private fun PhoneDownloadButton(track: Track, state: AppState) {
         },
         enabled = !kept,
     ) {
-        Icon(if (kept) Icons.Default.DownloadDone else Icons.Default.Download, null, Modifier.size(18.dp))
+        Icon(if (kept) Glyph.DOWNLOAD_DONE.image else Glyph.DOWNLOAD.image, null, Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(
             when {
@@ -349,7 +338,7 @@ internal fun DownloadsScreen(state: AppState) {
     ScreenScaffold {
         ScreenTitle("Downloads", summary, close = { state.navigate(Destination.HOME) }) {
             if (downloads.entries.isNotEmpty()) {
-                FilledTonalIconButton({ state.playDownloads() }) { Icon(Icons.Default.PlayArrow, "Play all downloads") }
+                FilledTonalIconButton({ state.playDownloads() }) { Icon(Glyph.PLAY_ARROW.image, "Play all downloads") }
             }
         }
         LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
@@ -369,14 +358,14 @@ internal fun DownloadsScreen(state: AppState) {
                         { clipboard.getText()?.text?.takeIf(String::isNotBlank)?.let { text = it } },
                         Modifier.weight(1f),
                     ) {
-                        Icon(Icons.Default.ContentPaste, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Paste")
+                        Icon(Glyph.CONTENT_PASTE.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Paste")
                     }
                     SkinnedButton(
                         { state.openLink(text, LinkAction.DOWNLOAD) },
                         Modifier.weight(1f),
                         enabled = downloadable,
                     ) {
-                        Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download")
+                        Icon(Glyph.DOWNLOAD.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download")
                     }
                 }
                 pasted?.let { keepRefusal(it.provider) }?.let { PhoneNote(it) }
@@ -407,7 +396,7 @@ internal fun DownloadsScreen(state: AppState) {
                                 LinearProgressIndicator(progress = { job.progress }, modifier = Modifier.fillMaxWidth().height(3.dp))
                             }
                         }
-                        IconButton({ state.cancelDownload(job.track.queueKey) }) { Icon(Icons.Default.Close, "Stop this download") }
+                        IconButton({ state.cancelDownload(job.track.queueKey) }) { Icon(Glyph.CLOSE.image, "Stop this download") }
                     }
                 }
             }
@@ -423,7 +412,7 @@ internal fun DownloadsScreen(state: AppState) {
                         isCurrent = playback.track?.queueKey == track.queueKey,
                         trailing = {
                             IconButton({ state.deleteDownload(entry.queueKey) }) {
-                                Icon(Icons.Default.Delete, "Remove this download", Modifier.size(20.dp))
+                                Icon(Glyph.DELETE.image, "Remove this download", Modifier.size(20.dp))
                             }
                         },
                     ) { state.playDownloads(track) }

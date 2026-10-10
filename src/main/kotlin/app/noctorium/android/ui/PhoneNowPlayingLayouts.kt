@@ -21,8 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -134,7 +132,7 @@ private fun FullBleedCover(url: String?) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Default.MusicNote,
+            Glyph.MUSIC_NOTE.image,
             null,
             Modifier.size(160.dp).offset(y = (-90).dp),
             tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = .4f),
