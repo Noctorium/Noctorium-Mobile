@@ -344,13 +344,13 @@ private fun skinPageLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
         Look("skin-$skin-player-bar-card", preferences.copy(progressBarStyle = windowsSeekBar(preferences))) { settings, state ->
             Card { PlayerBarCard(settings, state) }
         },
-        // Customization, with the themes to choose from at the top of it.
+        // Theme and colour, with the themes to choose from at the top of it.
         Look("skin-$skin-customization", preferences) { _, state ->
-            SettingsPageScreen(SettingsPage.CUSTOMIZATION, state, signIn = {}, back = {})
+            SettingsPageScreen(SettingsPage.THEME, state, signIn = {}, back = {})
         },
     )
 } + Look(
-    // Noctorium 98 chosen on Customization while 98 is the theme: the page turns to night there and then.
+    // Noctorium 98 chosen on Theme and colour while 98 is the theme: the page turns to night there and then.
     "skin-98-choosing-noctorium-98",
     NoctoriumPreferences(theme = ThemePreset.WINDOWS_98),
     act = {
@@ -358,7 +358,7 @@ private fun skinPageLooks(): List<Look> = SKINS.flatMap { (skin, preferences) ->
         mainClock.advanceTimeBy(1_000)
         waitForIdle()
     },
-) { _, state -> SettingsPageScreen(SettingsPage.CUSTOMIZATION, state, signIn = {}, back = {}) }
+) { _, state -> SettingsPageScreen(SettingsPage.THEME, state, signIn = {}, back = {}) }
 
 /**
  * The taskbars' clock: put away under each Windows theme, from the tabs' taskbar, the Taskbar bar's and the one
@@ -420,4 +420,14 @@ private fun DeleteDialogShown() {
         confirmButton = { SkinnedTextButton({}) { Text("Delete") } },
         dismissButton = { SkinnedTextButton({}) { Text("Keep") } },
     )
+}
+
+/**
+ * The looks whose names begin with one of those in NOCTORIUM_SHOTS (comma-separated), when it is set: for drawing
+ * a few pictures again while working on them, rather than every one. Unset, every look.
+ */
+internal fun List<Look>.only(): List<Look> {
+    val wanted = System.getenv("NOCTORIUM_SHOTS")?.split(',')?.map(String::trim)?.filter(String::isNotEmpty).orEmpty()
+    if (wanted.isEmpty()) return this
+    return filter { look -> wanted.any { look.toString().startsWith(it) } }.ifEmpty { take(1) }
 }

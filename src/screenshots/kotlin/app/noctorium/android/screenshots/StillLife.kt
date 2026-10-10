@@ -17,12 +17,15 @@ import app.noctorium.lyrics.LyricsProviderStatus
 import app.noctorium.lyrics.LyricsResult
 import app.noctorium.lyrics.LyricsUiState
 import app.noctorium.platform.SystemBridge
+import app.noctorium.playback.AudioAnalysis
+import app.noctorium.playback.AudioAnalysisKind
 import app.noctorium.playback.MusicBackend
 import app.noctorium.playback.PlaybackEngine
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.PlaybackStatus
 import app.noctorium.playback.QueueStore
 import app.noctorium.playback.SavedQueue
+import app.noctorium.playback.StreamFormat
 import app.noctorium.playlists.PinnedTracksRepository
 import app.noctorium.playlists.RecentTracksRepository
 import app.noctorium.providers.MusicProvider
@@ -265,6 +268,13 @@ internal object Still {
         )
     }
 
+    /** One look at a song's sound, as the player would measure it: a full low end, falling away to the top. */
+    val sound = AudioAnalysis(
+        bands = listOf(.66f, .9f, .81f, .7f, .74f, .61f, .55f, .47f, .36f, .22f),
+        peaks = listOf(.86f, .82f),
+        rms = listOf(.68f, .63f),
+    )
+
     /** What SoundCloud would relate to the queue's last song. */
     val related = listOf(
         track(ProviderType.SOUNDCLOUD, "a1", "Harbour Wall", "Odile Brandt", 226),
@@ -342,15 +352,27 @@ internal fun stillState(
     return state
 }
 
-/** A player holding one track, playing and a minute and a half into it, that never moves on. */
+/**
+ * A player holding one track, playing and a minute and a half into it, that never moves on. It says what it is
+ * playing as a player would -- Opus, stereo, 48 kHz -- and holds one look at the sound for a visualiser to draw.
+ */
 private class StillEngine(track: Track?) : PlaybackEngine {
     override val state: StateFlow<PlaybackState> = MutableStateFlow(
         if (track == null) {
             PlaybackState()
         } else {
-            PlaybackState(status = PlaybackStatus.PLAYING, track = track, positionMs = 83_000, durationMs = track.durationMs ?: 0)
+            PlaybackState(
+                status = PlaybackStatus.PLAYING,
+                track = track,
+                positionMs = 83_000,
+                durationMs = track.durationMs ?: 0,
+                format = StreamFormat(codec = "audio/opus", sampleRateHz = 48_000, channels = 2, bitsPerSecond = 131_400),
+            )
         },
     )
+
+    override val analysisKind: AudioAnalysisKind = AudioAnalysisKind.SPECTRUM
+    override val analysis: StateFlow<AudioAnalysis?> = MutableStateFlow(if (track == null) null else Still.sound)
 
     override suspend fun play(track: Track) = Unit
     override suspend fun pause() = Unit
