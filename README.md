@@ -45,6 +45,20 @@ They land in `build/outputs/screenshots` unless `-PscreenshotDir` says otherwise
 run downloads Android itself for Robolectric, and without `-Pscreenshots` neither the tests in
 `src/screenshots/` nor their libraries are part of the build, so `testDebugUnitTest` stays quick.
 
+`UnchangedScreenshots` draws every player bar, seek bar and layout there was before the Toolbar, the Slider
+and the Playlist layout, in a dark theme, a light one and the three Windows skins: drawn before a change and
+after it, the two sets should be the same to the pixel. To draw only some of the pictures while working on
+them, name the start of theirs in `NOCTORIUM_SHOTS` (comma-separated), e.g. `NOCTORIUM_SHOTS=new-toolbar`.
+
+## Icons
+
+Every icon goes through one mapping (`ui/Glyphs.kt`), which draws it in the icon set chosen under Settings ›
+Look › Icons. Standard is the icons the app has always drawn — Compose's Material icons, Material's filled
+set — and Rounded, Outlined, Sharp and Two-tone are Google's Material icons in those styles (Apache License
+2.0). **Line** is drawn from [Lucide](https://lucide.dev)'s shapes (lucide-react 1.50.0) under the ISC licence,
+with the icons Lucide took from [Feather](https://feathericons.com) under the MIT licence; both notices are
+reproduced in `ui/LineGlyphs.kt`, where the shapes are kept.
+
 ## Releases
 
 Signed APKs are built and published by [Noctorium-Installer](https://github.com/Noctorium/Noctorium-Installer),
@@ -59,4 +73,13 @@ Playback state, independent of what the screen shows:
 adb shell dumpsys media_session | grep -A12 package=app.noctorium
 ```
 
-The launcher activity is `app.noctorium/.android.MainActivity`.
+The launcher activity is `app.noctorium/.android.MainActivity` (a debug build's package is
+`app.noctorium.debug`).
+
+The volume booster is Android's loudness enhancer on the player's audio session. Whether it is on, and on
+which session, is in AudioFlinger's effect chains; the gain the effect holds is logged, read back from it:
+
+```bash
+adb shell dumpsys media.audio_flinger | grep -A6 "effects for session"
+adb logcat -s NoctoriumPlayer | grep "Volume boost"
+```
