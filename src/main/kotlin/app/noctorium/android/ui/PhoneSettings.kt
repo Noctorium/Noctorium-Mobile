@@ -21,42 +21,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.Equalizer
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.Lyrics
-import androidx.compose.material.icons.filled.MonitorHeart
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Speaker
-import androidx.compose.material.icons.filled.SystemUpdateAlt
-import androidx.compose.material.icons.filled.Tablet
-import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,6 +34,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -96,34 +67,7 @@ import app.noctorium.settings.ThemePreset
 import app.noctorium.settings.ThemeSkin
 
 /**
- * The pages under Settings, in the order the list shows them.
- *
- * Laid out the way the desktop's are: a short list of tiles, each saying where it stands, and one page
- * behind each. Settings used to be every card one after another, which put the lyrics below the updates
- * and the diagnostics a long scroll from anywhere.
- */
-internal enum class SettingsPage(val title: String) {
-    ACCOUNT("Noctorium account"),
-    YOUTUBE("YouTube Music"),
-    SOUNDCLOUD("SoundCloud"),
-    SPOTIFY("Spotify"),
-    BANDCAMP("Bandcamp"),
-    VK("VK Music"),
-    CUSTOMIZATION("Customization"),
-    PLAYBACK("Playback"),
-    SEARCH("Search"),
-    SOUND("Sound"),
-    PHONE("On this phone"),
-    LYRICS("Lyrics"),
-    SCROBBLING("Scrobbling"),
-    CONNECT("Noctorium Connect"),
-    SAVING("Saving music"),
-    UPDATES("Updates"),
-    DIAGNOSTICS("Diagnostics"),
-}
-
-/**
- * A theme's whole name, for the Customization tile: a one-word name with its family in front -- "Catppuccin
+ * A theme's whole name, for the Theme and colour tile: a one-word name with its family in front -- "Catppuccin
  * Mocha", "Windows 98" -- since "Mocha" alone means nothing; a family's only theme by the family's name; and a
  * name of two words or more as it is, being whole already: "Noctorium 98" rather than "Windows Noctorium 98",
  * "Solarized Dark" rather than "Solarized Solarized Dark".
@@ -142,32 +86,54 @@ internal fun themeName(theme: ThemePreset): String = when {
  * what actually differs from device to device: the accounts, where saved music goes, and what is on the
  * machine.
  *
+ * A search box sits at the top: anything typed there lists the settings it finds, by name, by the other words
+ * people use for them, or by what they do, and choosing one opens its page with it brought into view and lit.
+ *
  * [backEnabled] is off while something covers this screen -- the now playing sheet, a sign-in -- so the
  * back button closes that first instead of turning a page nobody can see.
  */
 @Composable
 internal fun SettingsScreen(state: AppState, backEnabled: Boolean = true, signIn: (ProviderType) -> Unit) {
     var page by rememberSaveable { mutableStateOf<SettingsPage?>(null) }
-    BackHandler(enabled = backEnabled && page != null) { page = null }
+    var highlight by rememberSaveable { mutableStateOf<String?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    BackHandler(enabled = backEnabled && page != null) {
+        page = null
+        highlight = null
+    }
+    // Back from a search empties it before it leaves Settings.
+    BackHandler(enabled = backEnabled && page == null && query.isNotEmpty()) { query = "" }
 
     // Into a page from the right, and back out to it, as the desktop's Settings do.
     MotionContent(page, Modifier.fillMaxSize(), kind = MotionKind.PAGE, forward = { _, to -> to != null }) { shown ->
         if (shown == null) {
-            SettingsHome(state) { page = it }
+            SettingsHome(state, query, { query = it }) { to, setting ->
+                page = to
+                highlight = setting
+            }
         } else {
-            SettingsPageScreen(shown, state, signIn) { page = null }
+            SettingsPageScreen(shown, state, signIn, highlight = highlight) {
+                page = null
+                highlight = null
+            }
         }
     }
 }
 
 @Composable
-private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
+private fun SettingsHome(
+    state: AppState,
+    query: String,
+    search: (String) -> Unit,
+    open: (SettingsPage, String?) -> Unit,
+) {
     val settings by state.settings.collectAsState()
     val likes by state.likes.collectAsState()
     val account by state.account.collectAsState()
     val connect by state.connect.collectAsState()
     val updates by state.updates.collectAsState()
     val preferences = settings.preferences
+    val found = remember(query) { searchPhoneSettings(query) }
 
     // The status-bar inset the other screens get from ScreenScaffold. Without it the title sits under
     // the clock, which on this phone is exactly where the clock is.
@@ -176,12 +142,22 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
         contentPadding = chromePadding(28.dp),
     ) {
         item { ScreenTitle("Settings", "Accounts, services and how Noctorium behaves", close = { state.navigate(Destination.HOME) }) }
+        item(key = "search") { SettingsSearchField(query, search) }
+        if (query.isNotBlank()) {
+            if (found.isEmpty()) item(key = "nothing") { NoSettingsFound(query) }
+            found.forEach { (setting, match) ->
+                item(key = "found:${setting.id}") {
+                    SettingsTile(setting.page.glyph.image, setting.title, resultDetail(setting, match)) { open(setting.page, setting.id) }
+                }
+            }
+            return@LazyColumn
+        }
         settingsMessage(settings, state)
 
-        item { SectionLabel("Your account") }
+        item { SectionLabel(SettingsSection.YOU.title) }
         item {
             SettingsTile(
-                Icons.Default.Insights,
+                SettingsPage.ACCOUNT.glyph.image,
                 account.user?.displayName ?: "Noctorium account",
                 if (account.signedIn) {
                     "${account.stats.streams} streamed · ${account.stats.uniqueTracks} different"
@@ -189,104 +165,88 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
                     "Sign in to count what you listen to"
                 },
                 active = account.signedIn,
-            ) { open(SettingsPage.ACCOUNT) }
+            ) { open(SettingsPage.ACCOUNT, null) }
         }
 
-        item { SectionLabel("Services") }
+        item { SectionLabel(SettingsSection.LOOK.title) }
         item {
-            SettingsTile(
-                Icons.Default.PlayCircle,
-                "YouTube Music",
-                serviceSummary(ProviderType.YOUTUBE_MUSIC, settings, likes),
-                active = likes.youTubeReady,
-            ) { open(SettingsPage.YOUTUBE) }
+            SettingsTile(SettingsPage.THEME.glyph.image, "Theme and colour", "${themeName(preferences.theme)} · ${preferences.accent.displayName} accent") {
+                open(SettingsPage.THEME, null)
+            }
         }
         item {
             SettingsTile(
-                Icons.Default.Cloud,
-                "SoundCloud",
-                serviceSummary(ProviderType.SOUNDCLOUD, settings, likes),
-                active = likes.soundCloudReady,
-            ) { open(SettingsPage.SOUNDCLOUD) }
+                SettingsPage.TEXT_AND_LAYOUT.glyph.image,
+                "Text and layout",
+                "${preferences.textSize.displayName} text · ${preferences.font.displayName} typeface",
+            ) { open(SettingsPage.TEXT_AND_LAYOUT, null) }
+        }
+        item {
+            val hidden = preferences.hiddenHomeParts.size
+            SettingsTile(
+                SettingsPage.HOME_LOOK.glyph.image,
+                "Home",
+                if (hidden == 0) "Everything Home has" else "$hidden ${if (hidden == 1) "part" else "parts"} put away",
+            ) { open(SettingsPage.HOME_LOOK, null) }
         }
         item {
             SettingsTile(
-                Icons.Default.LibraryMusic,
-                "Spotify",
-                spotifySummary(settings.spotify),
-                tint = ProviderType.SPOTIFY.badgeColour(),
-                active = settings.spotify.connected,
-            ) { open(SettingsPage.SPOTIFY) }
-        }
-        item {
-            val name = preferences.bandcampUsername
-            SettingsTile(
-                Icons.Default.Album,
-                "Bandcamp",
-                bandcampSummary(name, settings.bandcamp),
-                tint = ProviderType.BANDCAMP.badgeColour(),
-                active = name.isNotBlank(),
-            ) { open(SettingsPage.BANDCAMP) }
+                SettingsPage.PLAYER_BAR.glyph.image,
+                "Player bar",
+                "${preferences.phone.playerBarStyle.displayName} bar · ${preferences.progressBarStyle.displayName} seek bar",
+            ) { open(SettingsPage.PLAYER_BAR, null) }
         }
         item {
             SettingsTile(
-                Icons.Default.Audiotrack,
-                "VK Music",
-                vkSummary(settings.vk),
-                tint = ProviderType.VK.badgeColour(),
-                active = settings.vk.connected,
-            ) { open(SettingsPage.VK) }
+                SettingsPage.NOW_PLAYING.glyph.image,
+                "Now playing",
+                "${preferences.phone.nowPlayingLayout.displayName} layout · ${preferences.visualiser.displayName} visualiser",
+            ) { open(SettingsPage.NOW_PLAYING, null) }
+        }
+        item {
+            SettingsTile(SettingsPage.ICONS.glyph.image, "Icons", "${shownIconSet(preferences.iconSet).displayName} icons") {
+                open(SettingsPage.ICONS, null)
+            }
+        }
+        item {
+            val tabs = visibleTabs(preferences.phone.hiddenDestinations).size
+            SettingsTile(
+                SettingsPage.TABS.glyph.image,
+                "Tabs",
+                "$tabs tabs" + if (preferences.phone.navigationLabels) ", named" else ", icons only",
+            ) { open(SettingsPage.TABS, null) }
         }
 
-        item { SectionLabel("Look and feel") }
+        item { SectionLabel(SettingsSection.LISTENING.title) }
         item {
             SettingsTile(
-                Icons.Default.Palette,
-                "Customization",
-                "${themeName(preferences.theme)} · ${preferences.phone.playerBarStyle.displayName} player bar",
-            ) { open(SettingsPage.CUSTOMIZATION) }
-        }
-        item {
-            SettingsTile(
-                Icons.Default.GraphicEq,
+                SettingsPage.PLAYBACK.glyph.image,
                 "Playback",
-                playbackSummary(preferences).replaceFirstChar { it.uppercase() },
-            ) { open(SettingsPage.PLAYBACK) }
-        }
-        item {
-            SettingsTile(Icons.Default.Search, "Search", hybridSummary(preferences.hybridSearch)) {
-                open(SettingsPage.SEARCH)
-            }
+                playbackSummary(preferences.copy(autoplay = false)).replaceFirstChar { it.uppercase() },
+            ) { open(SettingsPage.PLAYBACK, null) }
         }
         item {
             SettingsTile(
-                Icons.Default.Equalizer,
+                SettingsPage.AUTOPLAY.glyph.image,
+                "Autoplay and the queue",
+                if (preferences.autoplay) "Autoplay on · ${preferences.autoplayFrom.displayName}" else "Autoplay off",
+            ) { open(SettingsPage.AUTOPLAY, null) }
+        }
+        item {
+            SettingsTile(
+                SettingsPage.SOUND.glyph.image,
                 "Sound",
-                equalizerSummary(preferences.equalizer, LocalEqualizerAvailable.current),
+                soundSummary(preferences.equalizer, LocalEqualizerAvailable.current, preferences.volumeBoostPercent),
                 active = preferences.equalizer.enabled && LocalEqualizerAvailable.current,
-            ) { open(SettingsPage.SOUND) }
+            ) { open(SettingsPage.SOUND, null) }
         }
         item {
-            // The one thing here that can stop the music, so it is said on the tile when it is not settled.
-            val unrestricted = rememberBackgroundUnrestricted()
             SettingsTile(
-                if (unrestricted) Icons.Default.PhoneAndroid else Icons.Default.BatteryAlert,
-                "On this phone",
-                if (unrestricted) "Screen, downloads, tabs and haptics" else "The music may stop when the phone locks. Tap to fix it.",
-                tint = if (unrestricted) null else MaterialTheme.colorScheme.error,
-            ) {
-                open(SettingsPage.PHONE)
-            }
-        }
-
-        item { SectionLabel("Listening") }
-        item {
-            SettingsTile(
-                Icons.Default.Lyrics,
+                SettingsPage.LYRICS.glyph.image,
                 "Lyrics",
                 preferences.lyricsProvider?.let { "Opens on ${it.displayName}, when it has the song" }
                     ?: "The best answer from eight sources",
-            ) { open(SettingsPage.LYRICS) }
+            ) { open(SettingsPage.LYRICS, null) }
         }
         item {
             val scrobbling = settings.scrobbling
@@ -294,7 +254,7 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
                 .filter { it.status == ScrobbleConnectionStatus.CONNECTED }
                 .mapNotNull { it.username }
             SettingsTile(
-                Icons.Default.History,
+                SettingsPage.SCROBBLING.glyph.image,
                 "Scrobbling",
                 when {
                     scrobbling.lastFm.status == ScrobbleConnectionStatus.ERROR -> "Last.fm needs connecting again"
@@ -302,11 +262,76 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
                     else -> "Connect Last.fm or ListenBrainz"
                 },
                 active = connected.isNotEmpty(),
-            ) { open(SettingsPage.SCROBBLING) }
+            ) { open(SettingsPage.SCROBBLING, null) }
+        }
+
+        item { SectionLabel(SettingsSection.SERVICES.title) }
+        item {
+            SettingsTile(
+                SettingsPage.YOUTUBE.glyph.image,
+                "YouTube Music",
+                serviceSummary(ProviderType.YOUTUBE_MUSIC, settings, likes),
+                active = likes.youTubeReady,
+            ) { open(SettingsPage.YOUTUBE, null) }
         }
         item {
             SettingsTile(
-                Icons.Default.Devices,
+                SettingsPage.SOUNDCLOUD.glyph.image,
+                "SoundCloud",
+                serviceSummary(ProviderType.SOUNDCLOUD, settings, likes),
+                active = likes.soundCloudReady,
+            ) { open(SettingsPage.SOUNDCLOUD, null) }
+        }
+        item {
+            SettingsTile(
+                SettingsPage.SPOTIFY.glyph.image,
+                "Spotify",
+                spotifySummary(settings.spotify),
+                tint = ProviderType.SPOTIFY.badgeColour(),
+                active = settings.spotify.connected,
+            ) { open(SettingsPage.SPOTIFY, null) }
+        }
+        item {
+            val name = preferences.bandcampUsername
+            SettingsTile(
+                SettingsPage.BANDCAMP.glyph.image,
+                "Bandcamp",
+                bandcampSummary(name, settings.bandcamp),
+                tint = ProviderType.BANDCAMP.badgeColour(),
+                active = name.isNotBlank(),
+            ) { open(SettingsPage.BANDCAMP, null) }
+        }
+        item {
+            SettingsTile(
+                SettingsPage.VK.glyph.image,
+                "VK Music",
+                vkSummary(settings.vk),
+                tint = ProviderType.VK.badgeColour(),
+                active = settings.vk.connected,
+            ) { open(SettingsPage.VK, null) }
+        }
+        item {
+            SettingsTile(SettingsPage.SEARCH.glyph.image, "Search", hybridSummary(preferences.hybridSearch)) {
+                open(SettingsPage.SEARCH, null)
+            }
+        }
+
+        item { SectionLabel(SettingsSection.PHONE.title) }
+        item {
+            // The one thing here that can stop the music, so it is said on the tile when it is not settled.
+            val unrestricted = rememberBackgroundUnrestricted()
+            SettingsTile(
+                if (unrestricted) Glyph.PHONE_ANDROID.image else Glyph.BATTERY_ALERT.image,
+                "On this phone",
+                if (unrestricted) "Screen, downloads, data and haptics" else "The music may stop when the phone locks. Tap to fix it.",
+                tint = if (unrestricted) null else MaterialTheme.colorScheme.error,
+            ) {
+                open(SettingsPage.PHONE, null)
+            }
+        }
+        item {
+            SettingsTile(
+                SettingsPage.CONNECT.glyph.image,
                 "Noctorium Connect",
                 when {
                     !preferences.connect.enabled -> "Off: your other devices cannot see this phone"
@@ -316,21 +341,21 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
                     else -> "Appears as \"${connect.thisDevice}\" · ${connect.devices.size} other devices"
                 },
                 active = connect.available && preferences.connect.enabled,
-            ) { open(SettingsPage.CONNECT) }
+            ) { open(SettingsPage.CONNECT, null) }
         }
-
-        item { SectionLabel("Noctorium") }
         item {
             SettingsTile(
-                Icons.Default.Save,
+                SettingsPage.SAVING.glyph.image,
                 "Saving music",
                 preferences.exportFolder.ifBlank { state.exportFolder()?.toString() ?: "Your Music folder" },
-            ) { open(SettingsPage.SAVING) }
+            ) { open(SettingsPage.SAVING, null) }
         }
+
+        item { SectionLabel(SettingsSection.ABOUT.title) }
         item {
             val available = updates.available
             SettingsTile(
-                Icons.Default.SystemUpdateAlt,
+                SettingsPage.UPDATES.glyph.image,
                 "Updates",
                 when {
                     available != null -> "Noctorium ${available.version} is available"
@@ -338,78 +363,136 @@ private fun SettingsHome(state: AppState, open: (SettingsPage) -> Unit) {
                     else -> "Check for a newer Noctorium"
                 },
                 active = available != null,
-            ) { open(SettingsPage.UPDATES) }
+            ) { open(SettingsPage.UPDATES, null) }
         }
         item {
-            SettingsTile(Icons.Default.MonitorHeart, "Diagnostics", "Check what this phone can reach and play") {
-                open(SettingsPage.DIAGNOSTICS)
+            SettingsTile(SettingsPage.DIAGNOSTICS.glyph.image, "Diagnostics", "Check what this phone can reach and play") {
+                open(SettingsPage.DIAGNOSTICS, null)
             }
         }
     }
 }
 
-/** One page of Settings, with the way back at the top. */
+/** What the Sound tile says: the booster when it is on, then the equaliser, in the few words a tile has room for. */
+internal fun soundSummary(equalizer: app.noctorium.settings.EqualizerSettings, available: Boolean, boostPercent: Int): String =
+    listOfNotNull(
+        "Boost ${app.noctorium.playback.VolumeBoost.percentLabel(boostPercent)}".takeIf { app.noctorium.playback.VolumeBoost.isOn(boostPercent) },
+        equalizerSummary(equalizer, available),
+    ).joinToString(" · ")
+
+/**
+ * One page of Settings, with the way back at the top: its cards, one after another. [highlight] is a setting a
+ * search led here to: the page opens at its card, and the setting is brought into view and lit (see
+ * [SettingAnchor]).
+ */
 @Composable
-internal fun SettingsPageScreen(page: SettingsPage, state: AppState, signIn: (ProviderType) -> Unit, back: () -> Unit) {
+internal fun SettingsPageScreen(
+    page: SettingsPage,
+    state: AppState,
+    signIn: (ProviderType) -> Unit,
+    highlight: String? = null,
+    back: () -> Unit,
+) {
     val settings by state.settings.collectAsState()
     val likes by state.likes.collectAsState()
+    val cards = pageCards(page, settings, likes, state, signIn)
+    val list = rememberLazyListState()
+    val target = PHONE_SETTINGS.firstOrNull { it.id == highlight && it.page == page }
+    LaunchedEffect(target) {
+        val card = target?.card ?: return@LaunchedEffect
+        val index = cards.indexOfFirst { it.first == card }.takeIf { it >= 0 } ?: return@LaunchedEffect
+        // The heading, and the note from the last thing done when there is one, come before the cards.
+        list.scrollToItem(index + 1 + if (settings.message != null) 1 else 0)
+    }
 
-    LazyColumn(
-        modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
-        contentPadding = chromePadding(28.dp),
-    ) {
-        item {
-            if (LocalSkin.current != ThemeSkin.STANDARD) {
-                // A page of Settings is a window of its own under the Windows skins, closed by its cross.
-                SkinTitleBar(page.title, Modifier.padding(bottom = 6.dp)) {
-                    CaptionButton(Caption.CLOSE, "Back to Settings", back)
+    CompositionLocalProvider(LocalSettingHighlight provides target?.id) {
+        LazyColumn(
+            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
+            state = list,
+            contentPadding = chromePadding(28.dp),
+        ) {
+            item {
+                if (LocalSkin.current != ThemeSkin.STANDARD) {
+                    // A page of Settings is a window of its own under the Windows skins, closed by its cross.
+                    SkinTitleBar(page.title, Modifier.padding(bottom = 6.dp)) {
+                        CaptionButton(Caption.CLOSE, "Back to Settings", back)
+                    }
+                    return@item
                 }
-                return@item
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 6.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(back) { Icon(Glyph.ARROW_BACK.image, "Back to Settings") }
+                    Spacer(Modifier.width(2.dp))
+                    Text(page.title, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                }
             }
-            Row(
-                Modifier.fillMaxWidth().padding(start = 6.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back to Settings") }
-                Spacer(Modifier.width(2.dp))
-                Text(page.title, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-        settingsMessage(settings, state)
-
-        when (page) {
-            SettingsPage.ACCOUNT -> item { NoctoriumAccountCard(state) }
-            SettingsPage.YOUTUBE -> item { ServiceCard(ProviderType.YOUTUBE_MUSIC, settings, likes, state, signIn) }
-            SettingsPage.SOUNDCLOUD -> item { ServiceCard(ProviderType.SOUNDCLOUD, settings, likes, state, signIn) }
-            SettingsPage.SPOTIFY -> item { SpotifyCards(settings, state) }
-            SettingsPage.BANDCAMP -> {
-                item { BandcampCard(settings, state) }
-                item { BandcampGenresCard(settings, state) }
-            }
-            SettingsPage.VK -> item { VkCard(settings, state, signIn) }
-            SettingsPage.CUSTOMIZATION -> customizationCards(settings, state)
-            SettingsPage.PLAYBACK -> item { PlaybackOptionsCard(settings, state) }
-            SettingsPage.SEARCH -> item { HybridSearchCard(settings, state) }
-            SettingsPage.SOUND -> item { SoundCard(settings, state) }
-            SettingsPage.PHONE -> {
-                item { KeepPlayingCard() }
-                item { PhoneOptionsCard(settings, state) }
-                item { TabsCard(settings, state) }
-            }
-            SettingsPage.LYRICS -> {
-                item { LyricsCard(settings, state) }
-                item { LyricsLookCard(settings, state) }
-            }
-            SettingsPage.SCROBBLING -> {
-                item { LastFmCard(settings, state) }
-                item { ListenBrainzCard(settings, state) }
-            }
-            SettingsPage.CONNECT -> item { ConnectCard(settings, state) }
-            SettingsPage.SAVING -> item { SavingCard(settings, state) }
-            SettingsPage.UPDATES -> item { UpdateCard(settings, state) }
-            SettingsPage.DIAGNOSTICS -> item { DiagnosticsCard(settings, state) }
+            settingsMessage(settings, state)
+            items(cards, key = { it.first }) { (_, card) -> card() }
         }
     }
+}
+
+/** The cards on [page], each by the name its settings know it by (see [PhoneSetting.card]). */
+private fun pageCards(
+    page: SettingsPage,
+    settings: app.noctorium.settings.SettingsState,
+    likes: app.noctorium.core.LikeState,
+    state: AppState,
+    signIn: (ProviderType) -> Unit,
+): List<Pair<String, @Composable () -> Unit>> = when (page) {
+    SettingsPage.ACCOUNT -> listOf(
+        "account" to { NoctoriumAccountCard(state) },
+        "name" to { ProfileNameCard(settings, state) },
+    )
+    SettingsPage.THEME -> listOf(
+        "theme" to { ThemeCard(settings, state) },
+        "colour" to { ColourCard(settings, state) },
+    )
+    SettingsPage.TEXT_AND_LAYOUT -> listOf("text" to { TextAndLayoutCard(settings, state) })
+    SettingsPage.HOME_LOOK -> listOf("home" to { HomeLookCard(settings, state) })
+    SettingsPage.PLAYER_BAR -> listOf(
+        "player-bar" to { PlayerBarCard(settings, state) },
+        "player-buttons" to { PlayerButtonsCard(settings, state) },
+    )
+    SettingsPage.NOW_PLAYING -> listOf(
+        "now-playing" to { NowPlayingLookCard(settings, state) },
+        "playlist-layout" to { PlaylistLayoutCard(settings, state) },
+    )
+    SettingsPage.ICONS -> listOf("icons" to { IconSetCard(settings, state) })
+    SettingsPage.TABS -> listOf("tabs" to { TabsCard(settings, state) })
+    SettingsPage.PLAYBACK -> listOf("playback" to { PlaybackOptionsCard(settings, state) })
+    SettingsPage.AUTOPLAY -> listOf("autoplay" to { AutoplayCard(settings, state) })
+    SettingsPage.SOUND -> listOf(
+        "booster" to { VolumeBoosterCard(settings, state) },
+        "equaliser" to { SoundCard(settings, state) },
+    )
+    SettingsPage.LYRICS -> listOf(
+        "lyrics-source" to { LyricsCard(settings, state) },
+        "lyrics-look" to { LyricsLookCard(settings, state) },
+    )
+    SettingsPage.SCROBBLING -> listOf(
+        "lastfm" to { LastFmCard(settings, state) },
+        "listenbrainz" to { ListenBrainzCard(settings, state) },
+    )
+    SettingsPage.YOUTUBE -> listOf("youtube" to { ServiceCard(ProviderType.YOUTUBE_MUSIC, settings, likes, state, signIn) })
+    SettingsPage.SOUNDCLOUD -> listOf("soundcloud" to { ServiceCard(ProviderType.SOUNDCLOUD, settings, likes, state, signIn) })
+    SettingsPage.SPOTIFY -> listOf("spotify" to { SpotifyCards(settings, state) })
+    SettingsPage.BANDCAMP -> listOf(
+        "bandcamp" to { BandcampCard(settings, state) },
+        "bandcamp-genres" to { BandcampGenresCard(settings, state) },
+    )
+    SettingsPage.VK -> listOf("vk" to { VkCard(settings, state, signIn) })
+    SettingsPage.SEARCH -> listOf("hybrid" to { HybridSearchCard(settings, state) })
+    SettingsPage.PHONE -> listOf(
+        "keep-playing" to { KeepPlayingCard() },
+        "phone" to { PhoneOptionsCard(settings, state) },
+    )
+    SettingsPage.CONNECT -> listOf("connect" to { ConnectCard(settings, state) })
+    SettingsPage.SAVING -> listOf("saving" to { SavingCard(settings, state) })
+    SettingsPage.UPDATES -> listOf("updates" to { UpdateCard(settings, state) })
+    SettingsPage.DIAGNOSTICS -> listOf("diagnostics" to { DiagnosticsCard(settings, state) })
 }
 
 /** A note from the last thing done, shown wherever Settings is open until it is dismissed. */
@@ -475,10 +558,10 @@ private fun SettingsTile(
             }
             if (active) {
                 Spacer(Modifier.width(8.dp))
-                Icon(Icons.Default.CheckCircle, "Connected", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(Glyph.CHECK_CIRCLE.image, "Connected", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
             }
             Spacer(Modifier.width(4.dp))
-            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Glyph.CHEVRON_RIGHT.image, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -505,8 +588,8 @@ private fun serviceSummary(
 @Composable
 private fun NoctoriumAccountCard(state: AppState) {
     val account by state.account.collectAsState()
-    SettingsCardShell {
-        CardHeading(Icons.Default.Insights, "Noctorium account")
+    SettingsCardShell(anchor = SettingIds.ACCOUNT) {
+        CardHeading(Glyph.INSIGHTS.image, "Noctorium account")
         Spacer(Modifier.height(6.dp))
         if (account.signedIn) {
             Text(account.user?.displayName.orEmpty(), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
@@ -532,9 +615,14 @@ private fun NoctoriumAccountCard(state: AppState) {
  * skins it is a group box, with the card's heading set into its edge.
  */
 @Composable
-internal fun SettingsCardShell(content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsCardShell(
+    /** The setting this whole card is, for a card that is one: the search lights all of it. See [SettingAnchor]. */
+    anchor: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val inside: @Composable ColumnScope.() -> Unit = if (anchor == null) content else ({ SettingAnchor(anchor, content = content) })
     if (LocalSkin.current != ThemeSkin.STANDARD) {
-        GroupBox(content)
+        GroupBox(inside)
         return
     }
     Surface(
@@ -542,7 +630,7 @@ internal fun SettingsCardShell(content: @Composable ColumnScope.() -> Unit) {
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
-        Column(Modifier.padding(16.dp), content = content)
+        Column(Modifier.padding(16.dp), content = inside)
     }
 }
 
@@ -623,8 +711,8 @@ private fun ServiceCard(
     val source = if (isSoundCloud) settings.preferences.soundCloudCookies else settings.preferences.youtubeCookies
     val connected = if (isSoundCloud) likes.soundCloudReady else likes.youTubeReady
 
-    SettingsCardShell {
-        CardHeading(if (isSoundCloud) Icons.Default.Cloud else Icons.Default.PlayCircle, provider.displayName)
+    SettingsCardShell(anchor = if (isSoundCloud) SettingIds.SOUNDCLOUD_SIGN_IN else SettingIds.YOUTUBE_SIGN_IN) {
+        CardHeading(if (isSoundCloud) Glyph.CLOUD.image else Glyph.PLAY_CIRCLE.image, provider.displayName)
         Spacer(Modifier.height(6.dp))
         Text(
             when {
@@ -662,7 +750,7 @@ private fun ServiceCard(
 }
 
 @Composable
-private fun SoundCloudProfileField(saved: String, state: AppState) {
+private fun SoundCloudProfileField(saved: String, state: AppState) = SettingAnchor(SettingIds.SOUNDCLOUD_PROFILE) {
     var name by remember(saved) { mutableStateOf(saved) }
     OutlinedTextField(
         name,
@@ -710,8 +798,8 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
     val canConnect = !spotify.connecting && clientId == settings.preferences.spotifyClientId
     val who = spotify.accountName.takeIf(String::isNotBlank)?.let { " as $it" }.orEmpty()
 
-    SettingsCardShell {
-        CardHeading(Icons.Default.LibraryMusic, "Spotify", tint = green)
+    SettingsCardShell(anchor = SettingIds.SPOTIFY_SIGN_IN) {
+        CardHeading(Glyph.LIBRARY_MUSIC.image, "Spotify", tint = green)
         Spacer(Modifier.height(6.dp))
         Text(
             when {
@@ -766,7 +854,7 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
 
     SpotifyPlaybackCard(spotify, state)
 
-    SettingsCardShell {
+    SettingsCardShell(anchor = SettingIds.SPOTIFY_OWN_APP) {
         Row(
             Modifier.fillMaxWidth().clickable { ownAppOpen = !ownAppOpen },
             verticalAlignment = Alignment.CenterVertically,
@@ -781,7 +869,7 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
                     fontSize = 11.sp,
                 )
             }
-            Icon(if (ownAppOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (ownAppOpen) "Fold away" else "Show")
+            Icon(if (ownAppOpen) Glyph.EXPAND_LESS.image else Glyph.EXPAND_MORE.image, if (ownAppOpen) "Fold away" else "Show")
         }
         if (ownAppOpen) {
             Spacer(Modifier.height(8.dp))
@@ -800,11 +888,11 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(state::copySpotifyRedirectUri, Modifier.size(30.dp)) {
-                    Icon(Icons.Default.ContentCopy, "Copy the redirect address", Modifier.size(15.dp))
+                    Icon(Glyph.CONTENT_COPY.image, "Copy the redirect address", Modifier.size(15.dp))
                 }
             }
             SkinnedOutlinedButton(state::openSpotifyDashboard) {
-                Icon(Icons.Default.OpenInNew, null, Modifier.size(16.dp))
+                Icon(Glyph.OPEN_IN_NEW.image, null, Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Spotify dashboard")
             }
@@ -821,7 +909,7 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
                 SkinnedButton(
                     { state.setSpotifyClientId(clientId) },
                     enabled = clientId.isNotBlank() && clientId != settings.preferences.spotifyClientId,
-                ) { Icon(Icons.Default.Save, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Use this app") }
+                ) { Icon(Glyph.SAVE.image, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Use this app") }
                 if (spotify.ownApp) {
                     SkinnedOutlinedButton({ clientId = ""; state.setSpotifyClientId("") }) { Text("Use Noctorium's") }
                 }
@@ -839,8 +927,8 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
  */
 @Composable
 private fun SpotifyPlaybackCard(spotify: app.noctorium.settings.SpotifyConnectionState, state: AppState) {
-    SettingsCardShell {
-        CardHeading(Icons.Default.Speaker, "Playing on Spotify", tint = ProviderType.SPOTIFY.badgeColour())
+    SettingsCardShell(anchor = SettingIds.SPOTIFY_PLAYBACK) {
+        CardHeading(Glyph.SPEAKER.image, "Playing on Spotify", tint = ProviderType.SPOTIFY.badgeColour())
         Spacer(Modifier.height(6.dp))
         Toggle(
             "Play Spotify songs on Spotify",
@@ -864,13 +952,13 @@ private fun SpotifyDevices(spotify: app.noctorium.settings.SpotifyConnectionStat
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("Play on", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         SkinnedTextButton(state::refreshSpotifyDevices) {
-            Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
+            Icon(Glyph.REFRESH.image, null, Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
             Text("Refresh")
         }
     }
     SpotifyDeviceRow(
-        Icons.Default.Devices,
+        Glyph.DEVICES.image,
         "Any active device",
         "Wherever Spotify is playing, or played last",
         selected = spotify.device.isBlank(),
@@ -878,7 +966,7 @@ private fun SpotifyDevices(spotify: app.noctorium.settings.SpotifyConnectionStat
     ) { state.chooseSpotifyDevice("") }
     spotify.devices.forEach { device ->
         SpotifyDeviceRow(
-            spotifyDeviceIcon(device.type),
+            spotifyDeviceIcon(device.type).image,
             device.name,
             spotifyDeviceDetail(device),
             selected = spotify.device == device.id,
@@ -926,14 +1014,14 @@ private fun SpotifyDeviceRow(
 }
 
 /** A picture for Spotify's word for a device: Computer, Smartphone, Speaker, TV and the rest. */
-private fun spotifyDeviceIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type.lowercase()) {
-    "computer" -> Icons.Default.Computer
-    "smartphone" -> Icons.Default.PhoneAndroid
-    "tablet" -> Icons.Default.Tablet
-    "tv", "castvideo", "stb" -> Icons.Default.Tv
-    "automobile" -> Icons.Default.DirectionsCar
-    "speaker", "avr", "castaudio", "audiodongle" -> Icons.Default.Speaker
-    else -> Icons.Default.Devices
+private fun spotifyDeviceIcon(type: String): Glyph = when (type.lowercase()) {
+    "computer" -> Glyph.COMPUTER
+    "smartphone" -> Glyph.PHONE_ANDROID
+    "tablet" -> Glyph.TABLET
+    "tv", "castvideo", "stb" -> Glyph.TV
+    "automobile" -> Glyph.DIRECTIONS_CAR
+    "speaker", "avr", "castaudio", "audiodongle" -> Glyph.SPEAKER
+    else -> Glyph.DEVICES
 }
 
 /**
@@ -958,8 +1046,8 @@ internal fun VkCard(settings: app.noctorium.settings.SettingsState, state: AppSt
         pasted = ""
     }
 
-    SettingsCardShell {
-        CardHeading(Icons.Default.Audiotrack, "VK Music", tint = ProviderType.VK.badgeColour())
+    SettingsCardShell(anchor = SettingIds.VK_SIGN_IN) {
+        CardHeading(Glyph.AUDIOTRACK.image, "VK Music", tint = ProviderType.VK.badgeColour())
         Spacer(Modifier.height(6.dp))
         if (vk.connected) {
             Text("${vkSummary(vk)}.", fontSize = 12.sp)
@@ -996,7 +1084,7 @@ internal fun VkCard(settings: app.noctorium.settings.SettingsState, state: AppSt
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Paste the cookies instead", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                Icon(if (pasteOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, if (pasteOpen) "Fold away" else "Show")
+                Icon(if (pasteOpen) Glyph.EXPAND_LESS.image else Glyph.EXPAND_MORE.image, if (pasteOpen) "Fold away" else "Show")
             }
             if (pasteOpen) {
                 Text(
@@ -1048,8 +1136,8 @@ internal fun VkCard(settings: app.noctorium.settings.SettingsState, state: AppSt
 @Composable
 internal fun HybridSearchCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
     val included = settings.preferences.hybridSearch
-    SettingsCardShell {
-        CardHeading(Icons.Default.Search, "Hybrid search")
+    SettingsCardShell(anchor = SettingIds.HYBRID_SEARCH) {
+        CardHeading(Glyph.SEARCH.image, "Hybrid search")
         Text(
             "The services the Hybrid chip on Search asks at once. Spotify answers only while its songs play on " +
                 "Spotify, and VK only while you are signed in to it.",
@@ -1101,8 +1189,8 @@ private fun BandcampCard(settings: app.noctorium.settings.SettingsState, state: 
         state.setBandcampUsername(name)
     }
 
-    SettingsCardShell {
-        CardHeading(Icons.Default.Album, "Bandcamp", tint = ProviderType.BANDCAMP.badgeColour())
+    SettingsCardShell(anchor = SettingIds.BANDCAMP_NAME) {
+        CardHeading(Glyph.ALBUM.image, "Bandcamp", tint = ProviderType.BANDCAMP.badgeColour())
         Spacer(Modifier.height(6.dp))
         Text(
             "No sign-in is needed. Give your Bandcamp name, the end of bandcamp.com/<name>, and your " +
@@ -1160,8 +1248,8 @@ private fun BandcampCard(settings: app.noctorium.settings.SettingsState, state: 
 @Composable
 private fun BandcampGenresCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
     val chosen = settings.preferences.bandcampGenres
-    SettingsCardShell {
-        CardHeading(Icons.Default.Home, "Genres on Home")
+    SettingsCardShell(anchor = SettingIds.BANDCAMP_GENRES) {
+        CardHeading(Glyph.HOME.image, "Genres on Home")
         Spacer(Modifier.height(6.dp))
         Text(
             "Each genre picked is a row on Home of what sells best on Bandcamp in it.",
@@ -1192,8 +1280,8 @@ private fun BandcampGenresCard(settings: app.noctorium.settings.SettingsState, s
 @Composable
 private fun SavingCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
     var folder by remember(settings.preferences.exportFolder) { mutableStateOf(settings.preferences.exportFolder) }
-    SettingsCardShell {
-        CardHeading(Icons.Default.Save, "Saving music")
+    SettingsCardShell(anchor = SettingIds.EXPORT_FOLDER) {
+        CardHeading(Glyph.SAVE.image, "Saving music")
         Spacer(Modifier.height(6.dp))
         OutlinedTextField(
             folder,
@@ -1222,9 +1310,9 @@ private fun SavingCard(settings: app.noctorium.settings.SettingsState, state: Ap
 
 @Composable
 private fun DiagnosticsCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
-    SettingsCardShell {
+    SettingsCardShell(anchor = SettingIds.DIAGNOSTICS) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CardHeading(Icons.Default.History, "Diagnostics")
+            CardHeading(Glyph.HISTORY.image, "Diagnostics")
             Spacer(Modifier.weight(1f))
             SkinnedTextButton(state::runDiagnostics, enabled = !settings.diagnosticsRunning) {
                 Text(if (settings.diagnosticsRunning) "Checking…" else "Check")

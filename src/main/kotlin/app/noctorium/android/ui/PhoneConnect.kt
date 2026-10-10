@@ -9,10 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,7 +53,7 @@ internal fun ConnectButton(state: AppState, haptics: Haptics) {
 
     IconButton({ haptics.tick(); open = true }) {
         Icon(
-            Icons.Default.Devices,
+            Glyph.DEVICES.image,
             if (connect.target != null) "Playing on ${connect.target?.name}" else "Noctorium Connect",
             tint = if (connect.target != null) {
                 MaterialTheme.colorScheme.primary
@@ -157,7 +153,7 @@ private fun DeviceRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            if (kind == DeviceKind.PHONE) Icons.Default.PhoneAndroid else Icons.Default.Computer,
+            if (kind == DeviceKind.PHONE) Glyph.PHONE_ANDROID.image else Glyph.COMPUTER.image,
             null,
             Modifier.size(20.dp),
             tint = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -183,7 +179,7 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
     }
 
     SettingsCardShell {
-        CardHeading(Icons.Default.Devices, "Noctorium Connect")
+        CardHeading(Glyph.DEVICES.image, "Noctorium Connect")
         Text(
             if (connect.available) {
                 "Your devices on this wifi can hand playback to each other. " +
@@ -196,7 +192,7 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
         )
         Spacer(Modifier.height(10.dp))
 
-        OutlinedTextField(
+        SettingAnchor(SettingIds.CONNECT_NAME) { OutlinedTextField(
             name,
             { name = it },
             label = { Text("Name this phone") },
@@ -206,9 +202,9 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End) {
             SkinnedTextButton({ state.renameThisDevice(name) }) { Text("Save") }
-        }
+        } }
 
-        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        SettingAnchor(SettingIds.CONNECT_ENABLED) { Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Let my other devices find this one", fontSize = 13.sp)
                 Text(
@@ -222,7 +218,7 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
                 )
             }
             SkinnedSwitch(settings.preferences.connect.enabled, state::setConnectEnabled)
-        }
+        } }
 
         connect.controlledBy?.let {
             Text(

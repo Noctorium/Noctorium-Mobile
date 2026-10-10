@@ -15,10 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Computer
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -84,7 +80,7 @@ internal fun PhoneYouTubeExtras(settings: SettingsState, likes: LikeState, state
                         .setOrientationLocked(false),
                 )
             }) {
-                Icon(Icons.Default.Computer, null, Modifier.size(18.dp))
+                Icon(Glyph.COMPUTER.image, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Send to computer")
             }
@@ -140,7 +136,7 @@ internal fun PhoneYouTubeExtras(settings: SettingsState, likes: LikeState, state
     }
 
     Spacer(Modifier.height(14.dp))
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    SettingAnchor(SettingIds.YOUTUBE_HISTORY) { Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("Add what I play to my YouTube Music history", fontSize = 13.sp)
             Text(
@@ -150,7 +146,7 @@ internal fun PhoneYouTubeExtras(settings: SettingsState, likes: LikeState, state
             )
         }
         SkinnedSwitch(preferences.youtubeHistory, state::setYouTubeHistory)
-    }
+    } }
 }
 
 /** Follow the playing song's artist on YouTube Music. Shown once the artist is known, for YouTube songs only. */
@@ -164,7 +160,7 @@ internal fun PhoneFollowArtistChip(track: Track, state: AppState, modifier: Modi
         selected = following,
         onClick = state::toggleFollowArtist,
         label = { Text(if (following) "Following ${known.name}" else "Follow ${known.name}") },
-        leadingIcon = { Icon(if (following) Icons.Default.Check else Icons.Default.PersonAdd, null, Modifier.size(18.dp)) },
+        leadingIcon = { Icon(if (following) Glyph.CHECK.image else Glyph.PERSON_ADD.image, null, Modifier.size(18.dp)) },
         modifier = modifier,
     )
 }

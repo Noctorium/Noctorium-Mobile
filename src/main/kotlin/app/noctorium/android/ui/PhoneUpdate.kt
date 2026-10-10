@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -41,7 +39,7 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
     val file = available?.file
 
     SettingsCardShell {
-        CardHeading(Icons.Default.SystemUpdateAlt, "Updates")
+        CardHeading(Glyph.SYSTEM_UPDATE_ALT.image, "Updates")
         Text(
             when {
                 available != null -> "Noctorium ${available.version} is out. You have ${updates.currentVersion}."
@@ -90,7 +88,7 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
             Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
         }
 
-        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        SettingAnchor(SettingIds.CHECK_UPDATES) { Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Look for updates when Noctorium starts", fontSize = 13.sp)
                 Text(
@@ -100,7 +98,7 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
                 )
             }
             SkinnedSwitch(settings.preferences.updates.checkOnLaunch, state::setUpdateCheckOnLaunch)
-        }
+        } }
 
         if (available != null) {
             Text(
@@ -140,7 +138,7 @@ internal fun UpdatePrompt(state: AppState) {
         // Opaque even under glass. A pane of glass in the middle of the page is the effect; a modal you
         // can read the track list through is a modal competing with what it is covering.
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 1f),
-        icon = { Icon(Icons.Default.SystemUpdateAlt, null) },
+        icon = { Icon(Glyph.SYSTEM_UPDATE_ALT.image, null) },
         title = "Noctorium ${offer.version} is out",
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

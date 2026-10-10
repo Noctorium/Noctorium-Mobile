@@ -14,8 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -87,8 +85,8 @@ internal fun SoundCard(settings: SettingsState, state: AppState) {
     val gains = heldBand?.let { (index, gain) -> equalizer.gains.toMutableList().also { it[index] = gain } } ?: equalizer.gains
     val preamp = heldPreamp ?: equalizer.preampDb.coerceIn(-PREAMP_RANGE_DB, PREAMP_RANGE_DB)
 
-    SettingsCardShell {
-        CardHeading(Icons.Default.Equalizer, "Equaliser")
+    SettingsCardShell(anchor = SettingIds.EQUALISER) {
+        CardHeading(Glyph.EQUALIZER.image, "Equaliser")
         Text(
             "Shapes everything Noctorium plays, through this phone's own equaliser. Its bands are not these " +
                 "ten, so each of them follows the curve.",

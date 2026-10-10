@@ -12,19 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Lyrics
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.SmartDisplay
-import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -70,29 +57,18 @@ import app.noctorium.settings.SettingsState
 import app.noctorium.settings.StartPage
 import app.noctorium.settings.TimeDisplay
 
-/**
- * How Noctorium looks, with the desktop's own choices reaching the phone.
+/*
+ * How Noctorium looks, with the desktop's own choices reaching the phone: the cards of Settings' Look section.
  *
- * The same preferences object drives both, so anything here is a setting the desktop already has — accent,
- * background depth, card size, badges, the progress bar, which screen opens first, and the time readout.
- *
- * One of the desktop's is left out because it describes a thing a phone has not got: hover controls need
- * a pointer to hover. The player bar's position used to be left out on the same reasoning and was not
- * the same case at all -- a phone screen has a top, and some people want the bar there.
+ * The same preferences object drives both, so most of what is here is a setting the desktop already has --
+ * the theme, the accent, card size, badges, the seek bar, which screen opens first, and the time readout.
+ * One of the desktop's is left out because it describes a thing a phone has not got: hover controls need a
+ * pointer to hover. The player bar's position used to be left out on the same reasoning and was not the same
+ * case at all -- a phone screen has a top, and some people want the bar there.
  *
  * Then the ways of making it one's own: an accent of the listener's own colour, the typeface, what Home is
- * made of, and which of the player's buttons are there at all.
+ * made of, which of the player's buttons are there at all, the icons, and the Playlist layout's table.
  */
-internal fun LazyListScope.customizationCards(settings: SettingsState, state: AppState) {
-    item { ProfileNameCard(settings, state) }
-    item { ThemeCard(settings, state) }
-    item { ColourCard(settings, state) }
-    item { TextAndLayoutCard(settings, state) }
-    item { HomeLookCard(settings, state) }
-    item { PlayerBarCard(settings, state) }
-    item { PlayerButtonsCard(settings, state) }
-    item { NowPlayingLookCard(settings, state) }
-}
 
 /**
  * What Home is made of. Each part can be put away and brought back; the service rows go together by
@@ -102,11 +78,13 @@ internal fun LazyListScope.customizationCards(settings: SettingsState, state: Ap
 internal fun HomeLookCard(settings: SettingsState, state: AppState) {
     val hidden = settings.preferences.hiddenHomeParts
     SettingsCardShell {
-        CardHeading(Icons.Default.Home, "Home")
+        CardHeading(Glyph.HOME.image, "Home")
         Spacer(Modifier.height(6.dp))
-        HomePart.entries.forEach { part ->
-            Toggle(part.displayName, part.description, part !in hidden) { shown ->
-                state.setHomePartHidden(part, hidden = !shown)
+        SettingAnchor(SettingIds.HOME_PARTS) {
+            HomePart.entries.forEach { part ->
+                Toggle(part.displayName, part.description, part !in hidden) { shown ->
+                    state.setHomePartHidden(part, hidden = !shown)
+                }
             }
         }
     }
@@ -123,7 +101,7 @@ internal fun HomeLookCard(settings: SettingsState, state: AppState) {
 internal fun PlayerButtonsCard(settings: SettingsState, state: AppState) {
     val hidden = settings.preferences.phone.hiddenPlayerButtons
     SettingsCardShell {
-        CardHeading(Icons.Default.Tune, "Player buttons")
+        CardHeading(Glyph.TUNE.image, "Player buttons")
         Text(
             "Play, pause, next and previous always stay. A hidden sleep timer or Connect button still " +
                 "appears while it is in use.",
@@ -131,10 +109,11 @@ internal fun PlayerButtonsCard(settings: SettingsState, state: AppState) {
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
         )
-        PHONE_PLAYER_BUTTONS.forEach { button ->
-            Toggle(button.displayName, playerButtonWhere(button), button !in hidden) { shown ->
-                state.updatePhone {
-                    copy(hiddenPlayerButtons = if (shown) hiddenPlayerButtons - button else hiddenPlayerButtons + button)
+        val asked = settings.preferences.phone.shownPlayerButtons
+        SettingAnchor(SettingIds.PLAYER_BUTTONS) {
+            PHONE_PLAYER_BUTTONS.forEach { button ->
+                Toggle(button.displayName, playerButtonWhere(button), showsPlayerButton(hidden, button, shown = asked)) { shown ->
+                    state.updatePhone { choosingPlayerButton(button, shown) }
                 }
             }
         }
@@ -152,74 +131,79 @@ private fun playerButtonWhere(button: PlayerButton): String = when (button) {
     PlayerButton.VOLUME -> "Volume, mute and the boost, beside the heart on the full screen."
     PlayerButton.SPEED -> "The dial under the seek bar on the full screen. It stays while the speed is not normal."
     PlayerButton.QUEUE -> "Beside the Aa at the top of the full screen; it opens the queue over the song."
+    PlayerButton.STOP -> "Back to the start of the song, beside play on the full screen. Off until asked for; the Toolbar player bar always has it."
 }
 
 /** What Noctorium calls you, on the home screen's greeting. */
 @Composable
-private fun ProfileNameCard(settings: SettingsState, state: AppState) {
+internal fun ProfileNameCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     var name by remember(preferences.profileName) { mutableStateOf(preferences.profileName) }
     SettingsCardShell {
-        CardHeading(Icons.Default.AccountCircle, "Your name")
+        CardHeading(Glyph.ACCOUNT_CIRCLE.image, "Your name")
         Spacer(Modifier.height(10.dp))
-        OutlinedTextField(
-            name,
-            { name = it.take(60) },
-            label = { Text("Your name") },
-            singleLine = true,
-            trailingIcon = {
-                if (name != preferences.profileName) {
-                    SkinnedTextButton({ state.setProfileName(name) }) { Text("Save") }
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
+        SettingAnchor(SettingIds.YOUR_NAME) {
+            OutlinedTextField(
+                name,
+                { name = it.take(60) },
+                label = { Text("Your name") },
+                singleLine = true,
+                trailingIcon = {
+                    if (name != preferences.profileName) {
+                        SkinnedTextButton({ state.setProfileName(name) }) { Text("Save") }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ThemeCard(settings: SettingsState, state: AppState) {
+internal fun ThemeCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     SettingsCardShell {
-        CardHeading(Icons.Default.Palette, "Theme")
+        CardHeading(Glyph.PALETTE.image, "Theme")
         Text(
             "Noctorium's own, and the palettes you may know from your editor. The desktop and the phone share it.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 10.dp),
         )
-        // The themes, by family: "Mocha" on its own means nothing and "Catppuccin Mocha" does. Each chip
-        // carries the theme's page with its accent on it, so the choice can be made by eye.
-        ThemePreset.entries.groupBy { it.family }.forEach { (family, presets) ->
-            ChoiceRow("Theme · $family") {
-                presets.forEach { preset ->
-                    val colours = preset.colours ?: preferences.customTheme
-                    SkinnedFilterChip(
-                        selected = preferences.theme == preset,
-                        onClick = { state.setTheme(preset) },
-                        label = { Text(preset.displayName, fontSize = 11.sp) },
-                        leadingIcon = {
-                            Surface(
-                                color = Color(colours.background),
-                                shape = RoundedCornerShape(4.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                modifier = Modifier.size(16.dp),
-                            ) {
-                                androidx.compose.foundation.layout.Box(
-                                    Modifier.padding(4.dp).size(8.dp),
+        SettingAnchor(SettingIds.THEME) {
+            // The themes, by family: "Mocha" on its own means nothing and "Catppuccin Mocha" does. Each chip
+            // carries the theme's page with its accent on it, so the choice can be made by eye.
+            ThemePreset.entries.groupBy { it.family }.forEach { (family, presets) ->
+                ChoiceRow("Theme · $family") {
+                    presets.forEach { preset ->
+                        val colours = preset.colours ?: preferences.customTheme
+                        SkinnedFilterChip(
+                            selected = preferences.theme == preset,
+                            onClick = { state.setTheme(preset) },
+                            label = { Text(preset.displayName, fontSize = 11.sp) },
+                            leadingIcon = {
+                                Surface(
+                                    color = Color(colours.background),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                    modifier = Modifier.size(16.dp),
                                 ) {
-                                    Surface(color = Color(colours.accent), shape = RoundedCornerShape(50), modifier = Modifier.size(8.dp)) {}
+                                    androidx.compose.foundation.layout.Box(
+                                        Modifier.padding(4.dp).size(8.dp),
+                                    ) {
+                                        Surface(color = Color(colours.accent), shape = RoundedCornerShape(50), modifier = Modifier.size(8.dp)) {}
+                                    }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        )
+                    }
                 }
             }
-        }
-        if (preferences.theme == ThemePreset.CUSTOM) {
-            CustomThemeEditor(preferences.customTheme, state::setCustomTheme)
-            Spacer(Modifier.height(10.dp))
+            if (preferences.theme == ThemePreset.CUSTOM) {
+                CustomThemeEditor(preferences.customTheme, state::setCustomTheme)
+                Spacer(Modifier.height(10.dp))
+            }
         }
     }
 }
@@ -228,59 +212,65 @@ private fun ThemeCard(settings: SettingsState, state: AppState) {
 internal fun ColourCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     SettingsCardShell {
-        CardHeading(Icons.Default.ColorLens, "Colour and surfaces")
+        CardHeading(Glyph.COLOR_LENS.image, "Colour and surfaces")
         Spacer(Modifier.height(10.dp))
 
-        ChoiceRow("Accent") {
-            AccentPreset.entries.forEach { accent ->
-                val swatch = accent.argb
-                    ?: preferences.themeColours().accent.takeIf { accent == AccentPreset.THEME }
-                    ?: (AccentPreview.argb ?: preferences.customAccent).takeIf { accent == AccentPreset.CUSTOM }
-                SkinnedFilterChip(
-                    selected = preferences.accent == accent,
-                    onClick = { state.setAccent(accent) },
-                    label = { Text(accent.displayName, fontSize = 11.sp) },
-                    leadingIcon = swatch?.let { argb ->
-                        {
-                            Surface(
-                                color = Color(argb.toInt()),
-                                shape = RoundedCornerShape(50),
-                                modifier = Modifier.size(12.dp),
-                            ) {}
-                        }
-                    },
-                )
+        SettingAnchor(SettingIds.ACCENT) {
+            ChoiceRow("Accent") {
+                AccentPreset.entries.forEach { accent ->
+                    val swatch = accent.argb
+                        ?: preferences.themeColours().accent.takeIf { accent == AccentPreset.THEME }
+                        ?: (AccentPreview.argb ?: preferences.customAccent).takeIf { accent == AccentPreset.CUSTOM }
+                    SkinnedFilterChip(
+                        selected = preferences.accent == accent,
+                        onClick = { state.setAccent(accent) },
+                        label = { Text(accent.displayName, fontSize = 11.sp) },
+                        leadingIcon = swatch?.let { argb ->
+                            {
+                                Surface(
+                                    color = Color(argb.toInt()),
+                                    shape = RoundedCornerShape(50),
+                                    modifier = Modifier.size(12.dp),
+                                ) {}
+                            }
+                        },
+                    )
+                }
+            }
+            // The colour itself, only once "Your own" is the accent: offered to everybody, it would be a large
+            // square of controls in the way of the rest of the card for a choice most people never make.
+            if (preferences.accent == AccentPreset.CUSTOM) {
+                AccentPicker(preferences.customAccent, state::setCustomAccent)
             }
         }
-        // The colour itself, only once "Your own" is the accent: offered to everybody, it would be a large
-        // square of controls in the way of the rest of the card for a choice most people never make.
-        if (preferences.accent == AccentPreset.CUSTOM) {
-            AccentPicker(preferences.customAccent, state::setCustomAccent)
-        }
 
-        ChoiceRow("Surfaces") {
-            SurfaceStyle.entries.forEach { style ->
-                SkinnedFilterChip(
-                    selected = preferences.surfaceStyle == style,
-                    onClick = { state.setSurfaceStyle(style) },
-                    label = { Text(style.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.SURFACES) {
+            ChoiceRow("Surfaces") {
+                SurfaceStyle.entries.forEach { style ->
+                    SkinnedFilterChip(
+                        selected = preferences.surfaceStyle == style,
+                        onClick = { state.setSurfaceStyle(style) },
+                        label = { Text(style.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
+            Text(
+                preferences.surfaceStyle.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
         }
-        Text(
-            preferences.surfaceStyle.description,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
 
-        ChoiceRow("Corners") {
-            CornerStyle.entries.forEach { corner ->
-                SkinnedFilterChip(
-                    selected = preferences.cornerStyle == corner,
-                    onClick = { state.setCornerStyle(corner) },
-                    label = { Text(corner.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.CORNERS) {
+            ChoiceRow("Corners") {
+                CornerStyle.entries.forEach { corner ->
+                    SkinnedFilterChip(
+                        selected = preferences.cornerStyle == corner,
+                        onClick = { state.setCornerStyle(corner) },
+                        label = { Text(corner.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
         }
         // Said rather than left to be found out: under a Windows theme the two choices above wait for another one.
@@ -299,83 +289,90 @@ internal fun ColourCard(settings: SettingsState, state: AppState) {
 internal fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     SettingsCardShell {
-        CardHeading(Icons.Default.TextFields, "Text and layout")
+        CardHeading(Glyph.TEXT_FIELDS.image, "Text and layout")
         Spacer(Modifier.height(10.dp))
 
-        ChoiceRow("Text size") {
-            TextSize.entries.forEach { size ->
-                SkinnedFilterChip(
-                    selected = preferences.textSize == size,
-                    onClick = { state.setTextSize(size) },
-                    label = { Text(size.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.TEXT_SIZE) {
+            ChoiceRow("Text size") {
+                TextSize.entries.forEach { size ->
+                    SkinnedFilterChip(
+                        selected = preferences.textSize == size,
+                        onClick = { state.setTextSize(size) },
+                        label = { Text(size.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
-        }
-        Text(
-            "Everything at once, on top of the phone's own text size.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
-
-        // Each chip is set in its own typeface, so the choice is made by looking rather than by name.
-        ChoiceRow("Typeface") {
-            FontChoice.entries.forEach { font ->
-                SkinnedFilterChip(
-                    selected = preferences.font == font,
-                    onClick = { state.setFont(font) },
-                    label = { Text(font.displayName, fontSize = 12.sp, fontFamily = font.family()) },
-                    leadingIcon = { Text("Aa", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = font.family()) },
-                )
-            }
-        }
-        Text(
-            preferences.font.description,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
-
-        ChoiceRow("Card size") {
-            CardSize.entries.forEach { size ->
-                SkinnedFilterChip(
-                    selected = preferences.cardSize == size,
-                    onClick = { state.setCardSize(size) },
-                    label = { Text(size.displayName, fontSize = 11.sp) },
-                )
-            }
+            Text(
+                "Everything at once, on top of the phone's own text size.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
         }
 
-        ChoiceRow("Service badges") {
-            BadgePolicy.entries.forEach { policy ->
-                SkinnedFilterChip(
-                    selected = preferences.badgePolicy == policy,
-                    onClick = { state.setBadgePolicy(policy) },
-                    label = { Text(policy.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.TYPEFACE) {
+            // Each chip is set in its own typeface, so the choice is made by looking rather than by name.
+            ChoiceRow("Typeface") {
+                FontChoice.entries.forEach { font ->
+                    SkinnedFilterChip(
+                        selected = preferences.font == font,
+                        onClick = { state.setFont(font) },
+                        label = { Text(font.displayName, fontSize = 12.sp, fontFamily = font.family()) },
+                        leadingIcon = { Text("Aa", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, fontFamily = font.family()) },
+                    )
+                }
+            }
+            Text(
+                preferences.font.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
+
+        SettingAnchor(SettingIds.CARD_SIZE) {
+            ChoiceRow("Card size") {
+                CardSize.entries.forEach { size ->
+                    SkinnedFilterChip(
+                        selected = preferences.cardSize == size,
+                        onClick = { state.setCardSize(size) },
+                        label = { Text(size.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
         }
 
-        ChoiceRow("Opens on") {
-            StartPage.entries.forEach { page ->
-                SkinnedFilterChip(
-                    selected = preferences.startPage == page,
-                    onClick = { state.setStartPage(page) },
-                    label = { Text(page.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.SERVICE_BADGES) {
+            ChoiceRow("Service badges") {
+                BadgePolicy.entries.forEach { policy ->
+                    SkinnedFilterChip(
+                        selected = preferences.badgePolicy == policy,
+                        onClick = { state.setBadgePolicy(policy) },
+                        label = { Text(policy.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
         }
 
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Animations", fontSize = 13.sp)
-                Text(
-                    "Screens ease in, pages slide, and a new track's name rises into place. Off makes every change instant.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
-                )
+        SettingAnchor(SettingIds.OPENS_ON) {
+            ChoiceRow("Opens on") {
+                StartPage.entries.forEach { page ->
+                    SkinnedFilterChip(
+                        selected = preferences.startPage == page,
+                        onClick = { state.setStartPage(page) },
+                        label = { Text(page.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
-            SkinnedSwitch(preferences.animations, state::setAnimations)
+        }
+
+        SettingAnchor(SettingIds.ANIMATIONS) {
+            Toggle(
+                "Animations",
+                "Screens ease in, pages slide, and a new track's name rises into place. Off makes every change instant.",
+                preferences.animations,
+                onChange = state::setAnimations,
+            )
         }
     }
 }
@@ -385,61 +382,76 @@ internal fun PlayerBarCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     val playback by state.playback.collectAsState()
     SettingsCardShell {
-        CardHeading(Icons.Default.SmartDisplay, "Player bar")
+        CardHeading(Glyph.SMART_DISPLAY.image, "Player bar")
         Spacer(Modifier.height(10.dp))
 
-        // Each drawn as it will be, the Bars from the song that is playing, so the choice is made by eye.
-        Text("Seek bar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        Text(
-            "On the now playing screen, and as the thin line along the player bar.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        SeekBarPicker(preferences.progressBarStyle, playback.track?.queueKey ?: PREVIEW_SEED, state::setProgressBarStyle)
-        Text(
-            preferences.progressBarStyle.description,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
+        SettingAnchor(SettingIds.SEEK_BAR) {
+            // Each drawn as it will be, the Bars from the song that is playing, so the choice is made by eye.
+            Text("Seek bar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "On the now playing screen, and as the thin line along the player bar.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+            SeekBarPicker(preferences.progressBarStyle, playback.track?.queueKey ?: PREVIEW_SEED, state::setProgressBarStyle)
+            Text(
+                preferences.progressBarStyle.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
 
-        ChoiceRow("Where it sits") {
-            PlayerBarPosition.entries.forEach { position ->
-                SkinnedFilterChip(
-                    selected = preferences.playerBarPosition == position,
-                    onClick = { state.setPlayerBarPosition(position) },
-                    label = { Text(position.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.PLAYER_BAR_POSITION) {
+            ChoiceRow("Where it sits") {
+                PlayerBarPosition.entries.forEach { position ->
+                    SkinnedFilterChip(
+                        selected = preferences.playerBarPosition == position,
+                        onClick = { state.setPlayerBarPosition(position) },
+                        label = { Text(position.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
         }
 
-        Text("Layout", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
-        PlayerBarPicker(preferences.phone.playerBarStyle) { layout -> state.updatePhone { copy(playerBarStyle = layout) } }
-        Text(
-            preferences.phone.playerBarStyle.description,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
-        // Only while there is a taskbar to have a clock: the Taskbar bar, or under the Windows themes the tabs.
-        if (LocalSkin.current != ThemeSkin.STANDARD || preferences.phone.playerBarStyle == PhonePlayerBarStyle.TASKBAR) {
+        SettingAnchor(SettingIds.PLAYER_BAR_LAYOUT) {
+            Text("Layout", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+            PlayerBarPicker(preferences.phone.playerBarStyle) { layout -> state.updatePhone { copy(playerBarStyle = layout) } }
+            Text(
+                preferences.phone.playerBarStyle.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
+        // Only while there is a taskbar to have a clock -- the Taskbar bar, or under the Windows themes the tabs --
+        // and said, rather than gone, while there is not: the search finds it, and should not find nothing.
+        val taskbar = LocalSkin.current != ThemeSkin.STANDARD || preferences.phone.playerBarStyle == PhonePlayerBarStyle.TASKBAR
+        SettingAnchor(SettingIds.TASKBAR_CLOCK) {
             Toggle(
                 "Show the clock",
-                "The time in the taskbar's tray, as Windows showed it. Off gives its room to the buttons beside it.",
+                if (taskbar) {
+                    "The time in the taskbar's tray, as Windows showed it. Off gives its room to the buttons beside it."
+                } else {
+                    "The time in a taskbar's tray: on the Taskbar player bar, and under the Windows themes."
+                },
                 preferences.taskbarClock,
+                enabled = taskbar,
                 onChange = state::setTaskbarClock,
             )
             Spacer(Modifier.height(6.dp))
         }
 
-        ChoiceRow("Time shows") {
-            TimeDisplay.entries.forEach { display ->
-                SkinnedFilterChip(
-                    selected = preferences.timeDisplay == display,
-                    onClick = { state.setTimeDisplay(display) },
-                    label = { Text(display.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.TIME_DISPLAY) {
+            ChoiceRow("Time shows") {
+                TimeDisplay.entries.forEach { display ->
+                    SkinnedFilterChip(
+                        selected = preferences.timeDisplay == display,
+                        onClick = { state.setTimeDisplay(display) },
+                        label = { Text(display.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
         }
     }
@@ -456,38 +468,39 @@ private const val PREVIEW_SEED = "noctorium"
 internal fun NowPlayingLookCard(settings: SettingsState, state: AppState) {
     val preferences = settings.preferences
     SettingsCardShell {
-        CardHeading(Icons.Default.Album, "Now playing")
+        CardHeading(Glyph.ALBUM.image, "Now playing")
         Spacer(Modifier.height(10.dp))
 
-        Text("Layout", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
-        NowPlayingPicker(preferences.phone.nowPlayingLayout) { layout -> state.updatePhone { copy(nowPlayingLayout = layout) } }
-        Text(
-            preferences.phone.nowPlayingLayout.description,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
+        SettingAnchor(SettingIds.NOW_PLAYING_LAYOUT) {
+            Text("Layout", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 6.dp))
+            NowPlayingPicker(preferences.phone.nowPlayingLayout) { layout -> state.updatePhone { copy(nowPlayingLayout = layout) } }
+            Text(
+                preferences.phone.nowPlayingLayout.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
 
-        ChoiceRow("Cover shape") {
-            ArtworkShape.entries.forEach { shape ->
-                SkinnedFilterChip(
-                    selected = preferences.phone.artworkShape == shape,
-                    onClick = { state.updatePhone { copy(artworkShape = shape) } },
-                    label = { Text(shape.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.COVER_SHAPE) {
+            ChoiceRow("Cover shape") {
+                ArtworkShape.entries.forEach { shape ->
+                    SkinnedFilterChip(
+                        selected = preferences.phone.artworkShape == shape,
+                        onClick = { state.updatePhone { copy(artworkShape = shape) } },
+                        label = { Text(shape.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
         }
 
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Ambient backdrop", fontSize = 13.sp)
-                Text(
-                    "Tints the now playing screen with the artwork behind it.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
-                )
-            }
-            SkinnedSwitch(preferences.ambientBackdrop, state::setAmbientBackdrop)
+        SettingAnchor(SettingIds.AMBIENT_BACKDROP) {
+            Toggle(
+                "Ambient backdrop",
+                "Tints the now playing screen with the artwork behind it.",
+                preferences.ambientBackdrop,
+                onChange = state::setAmbientBackdrop,
+            )
         }
     }
 }
@@ -512,8 +525,8 @@ private fun ChoiceRow(label: String, chips: @Composable () -> Unit) {
 internal fun LastFmCard(settings: SettingsState, state: AppState) {
     val scrobbling = settings.scrobbling
 
-    SettingsCardShell {
-        CardHeading(Icons.Default.History, "Last.fm")
+    SettingsCardShell(anchor = SettingIds.LAST_FM) {
+        CardHeading(Glyph.HISTORY.image, "Last.fm")
         Spacer(Modifier.height(6.dp))
         Text(
             scrobbling.lastFm.username?.let { "Connected as $it" }
@@ -544,8 +557,8 @@ internal fun ListenBrainzCard(settings: SettingsState, state: AppState) {
     val scrobbling = settings.scrobbling
     var token by remember { mutableStateOf("") }
 
-    SettingsCardShell {
-        CardHeading(Icons.Default.History, "ListenBrainz")
+    SettingsCardShell(anchor = SettingIds.LISTENBRAINZ) {
+        CardHeading(Glyph.HISTORY.image, "ListenBrainz")
         Spacer(Modifier.height(6.dp))
         Text(
             scrobbling.listenBrainz.username?.let { "Connected as $it" } ?: "Not connected.",
@@ -580,8 +593,8 @@ internal fun ListenBrainzCard(settings: SettingsState, state: AppState) {
 internal fun LyricsCard(settings: SettingsState, state: AppState) {
     val preferred = settings.preferences.lyricsProvider
 
-    SettingsCardShell {
-        CardHeading(Icons.Default.Lyrics, "Open lyrics on")
+    SettingsCardShell(anchor = SettingIds.LYRICS_SOURCE) {
+        CardHeading(Glyph.LYRICS.image, "Open lyrics on")
         Spacer(Modifier.height(6.dp))
         Text(
             "Eight sources are asked at once. Choose one to read first whenever it has the song, or let the " +
@@ -617,7 +630,7 @@ internal fun LyricsLookCard(settings: SettingsState, state: AppState) {
     val look = settings.preferences.lyrics
 
     SettingsCardShell {
-        CardHeading(Icons.Default.FormatSize, "How lyrics look")
+        CardHeading(Glyph.FORMAT_SIZE.image, "How lyrics look")
         Spacer(Modifier.height(10.dp))
         Surface(
             color = MaterialTheme.colorScheme.background.copy(alpha = .6f),
@@ -631,29 +644,35 @@ internal fun LyricsLookCard(settings: SettingsState, state: AppState) {
             }
         }
 
-        ChoiceRow("Size") {
-            LyricsSize.entries.forEach { size ->
-                SkinnedFilterChip(
-                    selected = look.size == size,
-                    onClick = { state.updateLyricsLook { copy(size = size) } },
-                    label = { Text(size.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.LYRICS_SIZE) {
+            ChoiceRow("Size") {
+                LyricsSize.entries.forEach { size ->
+                    SkinnedFilterChip(
+                        selected = look.size == size,
+                        onClick = { state.updateLyricsLook { copy(size = size) } },
+                        label = { Text(size.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
         }
-        ChoiceRow("Lined up") {
-            LyricsAlignment.entries.forEach { alignment ->
-                SkinnedFilterChip(
-                    selected = look.alignment == alignment,
-                    onClick = { state.updateLyricsLook { copy(alignment = alignment) } },
-                    label = { Text(alignment.displayName, fontSize = 11.sp) },
-                )
+        SettingAnchor(SettingIds.LYRICS_ALIGNMENT) {
+            ChoiceRow("Lined up") {
+                LyricsAlignment.entries.forEach { alignment ->
+                    SkinnedFilterChip(
+                        selected = look.alignment == alignment,
+                        onClick = { state.updateLyricsLook { copy(alignment = alignment) } },
+                        label = { Text(alignment.displayName, fontSize = 11.sp) },
+                    )
+                }
             }
         }
-        Toggle(
-            "Dim the other lines",
-            "So the eye finds the one being sung. Off sets every line at full strength, with that one in the accent.",
-            look.dimOtherLines,
-        ) { dim -> state.updateLyricsLook { copy(dimOtherLines = dim) } }
+        SettingAnchor(SettingIds.LYRICS_DIM) {
+            Toggle(
+                "Dim the other lines",
+                "So the eye finds the one being sung. Off sets every line at full strength, with that one in the accent.",
+                look.dimOtherLines,
+            ) { dim -> state.updateLyricsLook { copy(dimOtherLines = dim) } }
+        }
     }
 }
 

@@ -5,9 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryAlert
-import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,9 +43,9 @@ internal fun KeepPlayingCard() {
     val unrestricted = rememberBackgroundUnrestricted()
     val strict = BackgroundPlayback.strictManufacturer
 
-    SettingsCardShell {
+    SettingsCardShell(anchor = SettingIds.KEEP_PLAYING) {
         CardHeading(
-            if (unrestricted) Icons.Default.BatteryFull else Icons.Default.BatteryAlert,
+            if (unrestricted) Glyph.BATTERY_FULL.image else Glyph.BATTERY_ALERT.image,
             "Keep playing when the phone locks",
             tint = if (unrestricted) null else MaterialTheme.colorScheme.error,
         )
