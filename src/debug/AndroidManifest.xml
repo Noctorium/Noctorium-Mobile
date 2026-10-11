@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The debug build's way in from adb: see DebugHooks, beside this in src/debug. A release build has neither.
+
+  Guarded by DUMP, which the adb shell holds and no app installed from anywhere can be granted, so nothing
+  else on the phone can send it anything.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name=".DebugHooks"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+    </application>
+</manifest>

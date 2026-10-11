@@ -4,6 +4,7 @@ import android.app.Application
 import app.noctorium.android.ui.speedToCarryOver
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import app.noctorium.account.NoctoriumAccountClient
 import app.noctorium.connect.DeviceKind
 import app.noctorium.core.AppState
 import app.noctorium.discord.NoPresenceReporter
@@ -118,6 +119,8 @@ class NoctoriumApplication : Application(), ImageLoaderFactory {
             likeClient = SoundCloudLikeClient(soundCloudBrowser),
             playlistClient = SoundCloudPlaylistClient(soundCloudBrowser),
             networkPresence = WifiPresence(this),
+            // The real service, except in a debug build pointed at one on the computer through adb; see DebugHooks.
+            accountClient = DebugHooks.serviceUrl(this)?.let { NoctoriumAccountClient(baseUrl = it) } ?: NoctoriumAccountClient(),
             updateInstaller = AndroidUpdateInstaller(this),
         )
         (backend as? NewPipeBackend)?.let { pipe ->
