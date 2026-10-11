@@ -319,6 +319,22 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
                 fontWeight = FontWeight.SemiBold,
             )
         }
+
+        // Music sent from a computer while Noctorium is in the background starts without the service Android
+        // keeps music alive with -- Android refuses to start one from the background unless the app may run
+        // there -- and is stopped soon after. Said here, beside the feature it breaks, with Android's own way
+        // to allow it; the listener decides.
+        val context = androidx.compose.ui.platform.LocalContext.current
+        if (connect.available && !rememberBackgroundUnrestricted()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "For your other devices to start music here while Noctorium is in the background, allow it to " +
+                    "run in the background.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+            )
+            SkinnedTextButton({ app.noctorium.android.BackgroundPlayback.ask(context) }) { Text("Allow") }
+        }
     }
 }
 
