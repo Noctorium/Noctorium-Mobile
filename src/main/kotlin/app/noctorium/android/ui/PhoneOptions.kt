@@ -260,9 +260,10 @@ internal fun AutoplayCard(settings: SettingsState, state: AppState) {
             )
         }
 
-        // A song picked on Home: a radio from it, or the rest of its shelf -- and with autoplay off, always the shelf.
+        // A song picked on Home or from a search: a radio from it, or the songs around it -- and with autoplay off,
+        // always the songs around it.
         SettingAnchor(SettingIds.HOME_PLAY) {
-            Text("Playing a song from Home", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
+            Text("Playing a song from Home or a search", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
             Column(Modifier.selectableGroup()) {
                 HomePlay.entries.forEach { choice ->
                     ChoiceRadioRow(choice.displayName, choice.description, selected = preferences.homePlay == choice, enabled = true) {
@@ -272,7 +273,7 @@ internal fun AutoplayCard(settings: SettingsState, state: AppState) {
             }
             if (!preferences.autoplay && preferences.homePlay == HomePlay.AUTOPLAY) {
                 Text(
-                    "Autoplay is off, so the rest of the shelf plays after it until autoplay is back on.",
+                    "Autoplay is off, so the songs around it play after it until autoplay is back on.",
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(bottom = 6.dp),

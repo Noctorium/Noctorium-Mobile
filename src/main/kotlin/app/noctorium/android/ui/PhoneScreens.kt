@@ -531,7 +531,7 @@ internal fun SearchScreen(state: AppState) {
                         track,
                         state,
                         isCurrent = playback.track?.queueKey == track.queueKey,
-                    ) { state.play(track, sourceQueue = results) }
+                    ) { state.playFromSearch(track, results) }
                 }
             }
         }

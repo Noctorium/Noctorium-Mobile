@@ -382,9 +382,9 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         stores = listOf("autoplayAvoidRecent"),
     ),
     PhoneSetting(
-        SettingIds.HOME_PLAY, "Playing a song from Home", SettingsPage.AUTOPLAY, "autoplay",
-        "Autoplay after it, as a radio started from it, or the rest of its shelf.",
-        listOf("home", "shelf", "start radio", "song radio", "what plays next"),
+        SettingIds.HOME_PLAY, "Playing a song from Home or a search", SettingsPage.AUTOPLAY, "autoplay",
+        "Autoplay after it, as a radio started from it, or the rest of its shelf or results.",
+        listOf("home", "search", "search results", "shelf", "start radio", "song radio", "what plays next"),
         stores = listOf("homePlay"),
     ),
     PhoneSetting(
