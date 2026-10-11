@@ -79,12 +79,12 @@ class QueueAwarePlayer(
     override fun hasPreviousMediaItem(): Boolean = canGoPrevious()
 
     /**
-     * All four go to the queue.
+     * All four go to the queue, through the application's own next and previous.
      *
-     * seekToPrevious ordinarily restarts the current track when you are far enough into it, and that is
-     * deliberately not done here: the button beside this one in the application moves through the queue,
-     * and a skip that means two different things depending on where you pressed it is a worse surprise
-     * than one that always means the same thing.
+     * Previous starts the song again once it is five seconds in, and goes to the song before only sooner than
+     * that -- the rule the buttons in the application keep (see AppState.previous). Media3's own seekToPrevious
+     * keeps a rule like it with three seconds; it is the application's that applies, so a lock screen and the
+     * app never disagree about what the same press does.
      */
     override fun seekToNext() = goNext()
 

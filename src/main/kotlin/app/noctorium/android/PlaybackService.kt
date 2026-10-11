@@ -31,7 +31,8 @@ class PlaybackService : MediaSessionService() {
             goNext = state::next,
             goPrevious = state::previous,
             canGoNext = { state.queue.state.value.hasNext },
-            canGoPrevious = { state.queue.state.value.hasPrevious },
+            // A song playing can always go back to its start, so the first in the queue keeps the button too.
+            canGoPrevious = { state.canGoPrevious },
             repeatMode = { state.queue.state.value.repeatMode },
             setRepeat = state.queue::setRepeat,
         )
