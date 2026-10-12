@@ -5,7 +5,6 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.media.audiofx.AudioEffect
-import android.media.audiofx.LoudnessEnhancer
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -62,10 +61,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.roundToInt
 
 /** The logcat tag playback failures are written under. */
 private const val PLAYER_LOG_TAG = "NoctoriumPlayer"
+
+/** The quietest volume the meter is made up for while the booster carries the volume: -60 dB, its floor. */
+private const val METER_QUIETEST = .001f
 
 /** How many times one track is brought back after its stream fails, before the listener is told. */
 internal const val MAX_RECOVERIES = 2
@@ -155,17 +156,22 @@ private fun mediaRequests(context: Context, vkAgent: () -> String?, opened: Tran
     }
 
 /**
- * Media3's renderers as they always were, with one thing added to the sound's way out: a tee that shows each
- * buffer to [tee]'s sink and passes it on untouched, for the visualiser. Everything else about the sink -- its
- * float output, its playback parameters, silence skipping and the speed after the tee -- is Media3's default.
+ * Media3's renderers as they always were, with two things added to the sound's way out: the booster, and after
+ * it a tee that shows each buffer to [tee]'s sink and passes it on untouched, for the visualiser -- which so sees
+ * the sound boosted, as the desktop's meter does. Everything else about the sink -- its float output, its
+ * playback parameters, silence skipping and the speed after the tee -- is Media3's default.
  */
 @OptIn(UnstableApi::class)
-private class TeedRenderersFactory(context: Context, private val tee: TeeAudioProcessor) : DefaultRenderersFactory(context) {
+private class TeedRenderersFactory(
+    context: Context,
+    private val boost: BoostAudioProcessor,
+    private val tee: TeeAudioProcessor,
+) : DefaultRenderersFactory(context) {
     override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
         DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(enableFloatOutput)
             .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-            .setAudioProcessors(arrayOf(tee))
+            .setAudioProcessors(arrayOf(boost, tee))
             .build()
 }
 
@@ -179,12 +185,6 @@ private fun pcmEncoding(encoding: Int): PcmEncoding? = when (encoding) {
     else -> null
 }
 
-/**
- * The booster's level as Android's loudness enhancer takes it: its gain in millibels, a hundredth of a decibel.
- * 100% is none, 200% about 602, and 1000% -- ten times the amplitude -- 2000, the twenty decibels the booster
- * goes to everywhere.
- */
-internal fun boostMillibels(percent: Int): Int = (VolumeBoost.gainDb(percent) * 100).roundToInt()
 
 /**
  * Playing on Android, through Media3.
@@ -294,6 +294,9 @@ class Media3PlaybackEngine(
         }
     })
 
+    /** The volume booster, on the sound on its way out: see [BoostAudioProcessor] and [setVolumeBoostPercent]. */
+    internal val boost = BoostAudioProcessor()
+
     /**
      * How long each file is, by its address, as the server said when it was opened: what a stream's bitrate is
      * worked out from when the stream does not declare one. See [refreshFormat].
@@ -315,7 +318,7 @@ class Media3PlaybackEngine(
     }
 
     @OptIn(UnstableApi::class)
-    private val player: ExoPlayer = ExoPlayer.Builder(context, TeedRenderersFactory(context, tee))
+    private val player: ExoPlayer = ExoPlayer.Builder(context, TeedRenderersFactory(context, boost, tee))
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
@@ -363,12 +366,11 @@ class Media3PlaybackEngine(
             // is built on any Android this runs on; this is the guard against a version that does not.
             ensureAudioSession(this, context)
 
-            // The volume boost and the equaliser hang off the audio session, and it is not the same
-            // session afterwards if the sink is torn down and rebuilt. Re-applying whenever it changes
-            // keeps both attached to the thing actually playing.
+            // The equaliser hangs off the audio session, and it is not the same session afterwards if the
+            // sink is torn down and rebuilt. Re-applying whenever it changes keeps it attached to the thing
+            // actually playing. (The booster is in the sound itself, and goes wherever the sound goes.)
             addAnalyticsListener(object : AnalyticsListener {
                 override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
-                    applyBoost(audioSessionId)
                     applyEqualizer(audioSessionId)
                 }
 
@@ -683,8 +685,8 @@ class Media3PlaybackEngine(
 
     override suspend fun setVolume(value: Float) = withContext(Dispatchers.Main) {
         val clamped = value.coerceIn(0f, 1f)
-        player.volume = clamped
         mutableState.update { it.copy(volume = clamped) }
+        applyVolume()
     }
 
     /**
@@ -696,79 +698,64 @@ class Media3PlaybackEngine(
         setVolumeBoostPercent(if (enabled) lastBoostPercent else VolumeBoost.OFF_PERCENT)
 
     /**
-     * The volume booster, from 100% (off) to 1000%: Android's own loudness enhancer on this player's audio
-     * session, set to the level's gain -- twenty decibels at 1000%, ten times the amplitude.
+     * The volume booster, from 100% (off) to 1000%: [boost], on the sound itself on its way to the speaker --
+     * the listener's volume first, then a limiter and a clipper, as everywhere (see [VolumeBoost]).
      *
-     * ExoPlayer's `volume` stops at unity and multiplying past it would only clip. `LoudnessEnhancer` is the
-     * part of the platform meant for this: it sits in the effect chain on the session and applies a target gain
-     * in millibels behind a limiter of its own, so a quiet song gets louder instead of squarer and a loud one
-     * is held at full scale rather than broken. The same trade the desktop's gain and limiter make, done by the
-     * phone's own audio framework.
-     *
-     * It lives on the session rather than on a song, so it carries from one song to the next, through a stop
-     * and a new start, and is put on again whenever the session itself changes. Best-effort throughout: a phone
-     * that will not build one says so through [PlaybackState.volumeBoostAvailable], rather than the slider
-     * moving and nothing changing.
+     * It lives in the player's sound rather than on a song or an audio session, so it carries from one song to the
+     * next, through a stop and a new start, and through whatever Android does to the session. Every phone has it:
+     * it is Noctorium's own arithmetic, not an effect a phone might not offer.
      */
     override suspend fun setVolumeBoostPercent(percent: Int) = withContext(Dispatchers.Main) {
         boostPercent = VolumeBoost.clamp(percent)
         if (VolumeBoost.isOn(boostPercent)) lastBoostPercent = boostPercent
-        applyBoost()
+        applyVolume()
+        mutableState.update { it.copy(
+            volumeBoostEnabled = VolumeBoost.isOn(boostPercent),
+            volumeBoostPercent = boostPercent,
+            volumeBoostAvailable = true,
+        ) }
+        // What the booster now does, for whoever is checking a phone over adb.
+        android.util.Log.i(
+            PLAYER_LOG_TAG,
+            if (!VolumeBoost.isOn(boostPercent)) {
+                "Volume boost off"
+            } else {
+                "Volume boost $boostPercent%: gain ${VolumeBoost.gain(boostPercent, mutableState.value.volume)}, " +
+                    "drive ${VolumeBoost.drive(boostPercent)}"
+            },
+        )
+        Unit
     }
 
     /**
-     * Put the wanted boost on whatever session the player has right now.
+     * Puts the volume, the mute and the booster where they should be, between the player and [boost].
      *
-     * Kept apart from the level because the answer changes underneath it. A player that has not opened its
-     * audio sink yet may have no session to attach an effect to, and one that reopens it -- a headset
-     * arriving, a phone call ending -- gets a different one. Asking again every time the session changes is
-     * what stops a boost switched on during a buffering track from quietly doing nothing.
+     * With the booster off the volume is the player's, as it always was. With it on, the player plays at unity and
+     * the volume is in the booster's gain instead, in front of its limiter: a volume below the top is room, and
+     * the booster uses it up before it limits anything -- at 72%, 130% is plain gain. The player's own volume
+     * comes after everything and can only ever turn the sound down, so the booster used to limit at full scale
+     * and then have the sound turned down again. Muting is the player's in either case, so it is immediate.
+     *
+     * The meter sees the sound after the booster and would read the volume in it while the booster is on; it is
+     * told to take it back out, so the bars read the same with the booster on as off.
      */
-    private fun applyBoost(session: Int = player.audioSessionId) {
-        val level = boostPercent
-        var refused = false
-        val applied = runCatching {
-            if (!VolumeBoost.isOn(level) || session == C.AUDIO_SESSION_ID_UNSET) {
-                loudness?.enabled = false
-                return@runCatching false
-            }
-            if (loudness == null || loudnessSession != session) {
-                runCatching { loudness?.release() }
-                loudness = null
-                loudnessSession = C.AUDIO_SESSION_ID_UNSET
-                loudness = runCatching { LoudnessEnhancer(session) }.getOrElse { error ->
-                    android.util.Log.w(PLAYER_LOG_TAG, "This phone would not give Noctorium a loudness enhancer", error)
-                    refused = true
-                    return@runCatching false
-                }
-                loudnessSession = session
-            }
-            loudness?.setTargetGain(boostMillibels(level))
-            loudness?.enabled = true
-            // What the effect itself now holds, read back from it, for whoever is checking a phone over adb.
-            loudness?.let {
-                android.util.Log.i(PLAYER_LOG_TAG, "Volume boost $level% on session $session: ${it.targetGain.roundToInt()} mB, enabled ${it.enabled}")
-            }
-            true
-        }.getOrDefault(false)
-        mutableState.update { it.copy(
-            volumeBoostEnabled = applied,
-            volumeBoostPercent = if (applied) level else VolumeBoost.OFF_PERCENT,
-            volumeBoostAvailable = !refused,
-        ) }
+    private fun applyVolume() {
+        val state = mutableState.value
+        val boosting = VolumeBoost.isOn(boostPercent)
+        boost.setLevel(boostPercent, state.volume)
+        meter.gain = if (boosting) 1f / state.volume.coerceAtLeast(METER_QUIETEST) else 1f
+        player.volume = when {
+            state.isMuted -> 0f
+            boosting -> 1f
+            else -> state.volume
+        }
     }
 
-    /** The level the listener asked for, as opposed to what the audio session currently has on it. */
+    /** The level the listener asked for. */
     private var boostPercent = VolumeBoost.OFF_PERCENT
 
     /** The last level above 100%, for the old switch to go back to. */
     private var lastBoostPercent = VolumeBoost.FIRST_PERCENT
-
-    /** Released with the player; an effect outlives its session otherwise and leaks the native object. */
-    private var loudness: LoudnessEnhancer? = null
-
-    /** The session [loudness] was built for, so a replacement is noticed instead of boosting nothing. */
-    private var loudnessSession = C.AUDIO_SESSION_ID_UNSET
 
     // --- The visualiser's feed ---
 
@@ -914,7 +901,7 @@ class Media3PlaybackEngine(
     /** What the listener asked for, as opposed to what the audio session currently has on it. */
     private var equalizerWanted = EqualizerSettings()
 
-    /** Released with the player, for the same reason as [loudness]: it holds a native object. */
+    /** Released with the player: an effect outlives its session otherwise and leaks the native object. */
     private var equalizer: android.media.audiofx.Equalizer? = null
 
     /** The session [equalizer] was built for, so a replacement session is noticed rather than shaped by nothing. */
@@ -967,8 +954,8 @@ class Media3PlaybackEngine(
     }
 
     override suspend fun setMuted(muted: Boolean) = withContext(Dispatchers.Main) {
-        player.volume = if (muted) 0f else mutableState.value.volume
         mutableState.update { it.copy(isMuted = muted) }
+        applyVolume()
     }
 
     override suspend fun seekTo(positionMs: Long) = withContext(Dispatchers.Main) {
@@ -1064,9 +1051,6 @@ class Media3PlaybackEngine(
         // Release has to happen on the thread the player was built on, and the process may be going away,
         // so this does not wait for a coroutine to be scheduled.
         // The effect first: it holds a native object tied to the session the player is about to drop.
-        runCatching { loudness?.release() }
-        loudness = null
-        loudnessSession = C.AUDIO_SESSION_ID_UNSET
         runCatching { equalizer?.release() }
         equalizer = null
         equalizerSession = C.AUDIO_SESSION_ID_UNSET

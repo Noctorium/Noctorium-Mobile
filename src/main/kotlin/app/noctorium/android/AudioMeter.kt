@@ -37,6 +37,12 @@ internal class AudioMeter(private val ringSize: Int = RING_FRAMES) {
     /** Whether anything wants frames. While false, [write] keeps nothing. */
     @Volatile var listening: Boolean = false
 
+    /**
+     * What the samples are multiplied by as they are kept. The meter sees the sound after the booster, which carries
+     * the listener's volume while it is on; this takes the volume back out, so the bars read the same either way.
+     */
+    @Volatile var gain: Float = 1f
+
     /** Frames ever kept, across every stretch: the position the next frame is written at. */
     @Volatile var written: Long = 0
         private set
@@ -78,12 +84,13 @@ internal class AudioMeter(private val ringSize: Int = RING_FRAMES) {
         var at = data.position()
         val end = data.limit()
         var next = written
+        val gain = this.gain
         while (at + frameBytes <= end) {
             val l = sample(data, at, encoding)
             val r = if (count >= 2) sample(data, at + encoding.bytes, encoding) else l
             val slot = (next % ringSize).toInt()
-            left[slot] = l
-            right[slot] = r
+            left[slot] = l * gain
+            right[slot] = r * gain
             next++
             at += frameBytes
         }
