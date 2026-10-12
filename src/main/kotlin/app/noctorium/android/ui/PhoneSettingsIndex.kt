@@ -30,6 +30,8 @@ internal enum class SettingsSection(val title: String) {
  */
 internal enum class SettingsPage(val title: String, val section: SettingsSection, val glyph: Glyph) {
     ACCOUNT("Noctorium account", SettingsSection.YOU, Glyph.INSIGHTS),
+    /** The name Noctorium calls the listener by, and the history of what has been played on this phone. */
+    PROFILE("Your profile", SettingsSection.YOU, Glyph.ACCOUNT_CIRCLE),
     THEME("Theme and colour", SettingsSection.LOOK, Glyph.PALETTE),
     TEXT_AND_LAYOUT("Text and layout", SettingsSection.LOOK, Glyph.TEXT_FIELDS),
     HOME_LOOK("Home", SettingsSection.LOOK, Glyph.HOME),
@@ -86,6 +88,9 @@ internal data class PhoneSetting(
 internal object SettingIds {
     const val ACCOUNT = "noctorium-account"
     const val YOUR_NAME = "your-name"
+    const val HISTORY = "history"
+    const val KEEP_HISTORY = "keep-history"
+    const val CLEAR_HISTORY = "clear-history"
     const val THEME = "theme"
     const val ACCENT = "accent"
     const val SURFACES = "surfaces"
@@ -167,13 +172,32 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
     PhoneSetting(
         SettingIds.ACCOUNT, "Noctorium account", SettingsPage.ACCOUNT, "account",
         "Sign in to count what you listen to, on this phone and the desktop together.",
-        listOf("sign in", "log in", "login", "profile", "statistics", "stats", "streams", "email", "password"),
+        listOf("sign in", "log in", "login", "statistics", "stats", "streams", "email", "password"),
     ),
     PhoneSetting(
-        SettingIds.YOUR_NAME, "Your name", SettingsPage.ACCOUNT, "name",
+        SettingIds.YOUR_NAME, "Your name", SettingsPage.PROFILE, "name",
         "What Noctorium calls you on Home's greeting.",
-        listOf("profile name", "nickname", "greeting", "what to call me", "username"),
+        listOf("profile", "profile name", "nickname", "greeting", "what to call me", "username"),
         stores = listOf("profileName"),
+    ),
+    PhoneSetting(
+        SettingIds.HISTORY, "History", SettingsPage.PROFILE, "history",
+        "Every song you have listened to on this phone, by day, to play again. It stays on this phone.",
+        listOf(
+            "recently played", "listening history", "play history", "played songs", "song history", "what did i listen to",
+            "what was that song", "last played", "previously played", "listened to",
+        ),
+    ),
+    PhoneSetting(
+        SettingIds.KEEP_HISTORY, "Keep a history of what I play", SettingsPage.PROFILE, "history",
+        "A song goes in once you have heard half a minute of it. Off adds nothing more.",
+        listOf("history", "pause history", "stop history", "turn off history", "private", "privacy", "incognito"),
+        stores = listOf("keepHistory"),
+    ),
+    PhoneSetting(
+        SettingIds.CLEAR_HISTORY, "Clear history", SettingsPage.PROFILE, "history",
+        "Forgets every song in the history on this phone, after asking.",
+        listOf("delete history", "erase history", "forget", "remove history", "wipe"),
     ),
     // Look
     PhoneSetting(

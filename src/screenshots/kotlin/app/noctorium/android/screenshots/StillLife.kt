@@ -287,8 +287,8 @@ internal object Still {
 /**
  * The application state for one screenshot, settled before it is drawn.
  *
- * Settings, pins, the recently played list and the [kept] queue are written to a folder of their own first,
- * as a phone would have them on disk, so the state reads them in the ordinary way.
+ * Settings, pins, the recently played list, the [kept] queue and the [history] are written to a folder of their own
+ * first, as a phone would have them on disk, so the state reads them in the ordinary way.
  */
 internal fun stillState(
     preferences: NoctoriumPreferences,
@@ -297,6 +297,7 @@ internal fun stillState(
     recent: List<Track> = Still.recent,
     shelves: List<HomeSection> = Still.shelves,
     kept: SavedQueue? = null,
+    history: List<app.noctorium.history.HistoryEntry> = emptyList(),
 ): AppState {
     val base: Path = Files.createTempDirectory("noctorium-screenshots")
     AppDirectories.useBase(base)
@@ -338,6 +339,9 @@ internal fun stillState(
         queueStore = QueueStore(base.resolve("queue.json")).also { store ->
             (kept ?: playing?.let { song -> SavedQueue(listOf(song) + Still.queue, 0) })?.let(store::save)
         },
+        playHistory = app.noctorium.history.PlayHistory(
+            app.noctorium.history.PlayHistoryRepository(base.resolve("play-history.json")).also { it.save(history) },
+        ),
         deviceName = { "Screenshot phone" },
         deviceKind = DeviceKind.PHONE,
     )
@@ -347,7 +351,9 @@ internal fun stillState(
     while (System.currentTimeMillis() < deadline) {
         val ui = state.ui.value
         // And what the player shows, which is worked out from the player and the queue a moment after them.
-        val settled = state.shownQueue.value == state.queue.state.value && state.shownPlayback.value == state.playback.value
+        val settled = state.shownQueue.value == state.queue.state.value && state.shownPlayback.value == state.playback.value &&
+            // And the history, read in the background too.
+            state.history.value.size == history.size
         if (!ui.homeLoading && ui.homeSections.size == shelves.size && settled) break
         Thread.sleep(20)
     }

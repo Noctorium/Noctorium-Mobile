@@ -40,6 +40,10 @@
     -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!--
+      The backup rules leave the history of what was played out of Android's backups, to Google Drive and to a new
+      phone alike: it is kept on this phone and nowhere else. Everything else is backed up as it always was.
+    -->
     <application
         android:name=".NoctoriumApplication"
         android:label="${appLabel}"
@@ -47,6 +51,8 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.Noctorium"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:networkSecurityConfig="@xml/network_security_config">
 
         <activity

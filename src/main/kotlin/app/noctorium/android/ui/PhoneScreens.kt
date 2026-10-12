@@ -854,8 +854,18 @@ private fun DownloadsCard(downloads: app.noctorium.downloads.DownloadsState, sta
 
 // --- The menu every track row carries ---
 
+/**
+ * A list with things of its own to do with the track puts them around the track's: [first] before everything -- the
+ * history's Play -- and [last] after it, where taking the track out of that list goes. Each is handed what closes
+ * the menu.
+ */
 @Composable
-internal fun TrackMenuButton(track: Track, state: AppState) {
+internal fun TrackMenuButton(
+    track: Track,
+    state: AppState,
+    first: @Composable (close: () -> Unit) -> Unit = {},
+    last: @Composable (close: () -> Unit) -> Unit = {},
+) {
     var open by remember { mutableStateOf(false) }
     var editOpen by remember { mutableStateOf(false) }
     val likes by state.likes.collectAsState()
@@ -883,6 +893,7 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
             Icon(Glyph.MORE_VERT.image, "Track actions", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            first { open = false }
             DropdownMenuItem(
                 text = { Text("Play next") },
                 leadingIcon = { Icon(Glyph.PLAYLIST_PLAY.image, null) },
@@ -968,6 +979,7 @@ internal fun TrackMenuButton(track: Track, state: AppState) {
                 leadingIcon = { Icon(Glyph.LINK.image, null) },
                 onClick = { state.copyTrackLink(track); open = false },
             )
+            last { open = false }
         }
     }
 }
