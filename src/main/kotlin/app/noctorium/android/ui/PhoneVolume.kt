@@ -237,9 +237,10 @@ internal fun VolumeBoosterCard(settings: SettingsState, state: AppState) {
     SettingsCardShell {
         CardHeading(Glyph.BOLT.image, "Volume booster")
         Text(
-            "Louder than the phone's loudest, up to ten times, through the phone's own loudness enhancer: quiet songs " +
-                "come up and loud ones are held at full scale rather than broken. It stays on until you switch it off, " +
-                "and the volume button says so while it is.",
+            "Louder than the phone's loudest. It uses up Noctorium's own volume first, then rounds the loudest " +
+                "moments off so the rest can come up: a quiet song gets up to ten times louder, one already mastered " +
+                "loud gets denser rather than broken. It stays on until you switch it off, and the volume button says " +
+                "so while it is.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),

@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** What the status bar says a song is, from Media3's numbers for it; and the booster's level in Android's terms. */
+/** What the status bar says a song is, from Media3's numbers for it. */
 class PlayerFormatTest {
 
     @Test
@@ -47,16 +47,5 @@ class PlayerFormatTest {
         assertNull(estimatedBitrate(null, 240_000))
         assertNull(estimatedBitrate(3_840_000, 0))
         assertNull(estimatedBitrate(100, 240_000))
-    }
-
-    @Test
-    fun `the booster's level in millibels, none at 100% and twenty decibels at 1000%`() {
-        assertEquals(0, boostMillibels(100))
-        assertEquals(602, boostMillibels(200))
-        assertEquals(1_204, boostMillibels(400))
-        assertEquals(2_000, boostMillibels(1_000))
-        // Past either end is held at it.
-        assertEquals(2_000, boostMillibels(5_000))
-        assertEquals(0, boostMillibels(10))
     }
 }
