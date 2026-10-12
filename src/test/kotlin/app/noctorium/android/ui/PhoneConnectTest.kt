@@ -166,6 +166,15 @@ class PhoneConnectTest {
         )
     }
 
+    /** After a launch the player holds nothing until play is pressed, but the bar shows the kept queue's song. */
+    @Test
+    fun `the kept queue's song is music here, not nothing`() {
+        val kept = PlaybackState(status = PlaybackStatus.PAUSED, track = song)
+        assertEquals(MusicPlace.Here, MusicPlace.Nowhere.withKeptSong(kept))
+        assertEquals(MusicPlace.Nowhere, MusicPlace.Nowhere.withKeptSong(PlaybackState()))
+        assertEquals(MusicPlace.Elsewhere(desk), MusicPlace.Elsewhere(desk).withKeptSong(kept))
+    }
+
     @Test
     fun `the music is somewhere else while a device is driven or playing by itself`() {
         assertTrue(MusicPlace.Driving(desk).isElsewhere())

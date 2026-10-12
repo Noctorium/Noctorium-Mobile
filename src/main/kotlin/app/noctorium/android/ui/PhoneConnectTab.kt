@@ -54,6 +54,7 @@ import app.noctorium.connect.ConnectPeer
 import app.noctorium.connect.ConnectState
 import app.noctorium.connect.DeviceKind
 import app.noctorium.connect.MusicPlace
+import app.noctorium.connect.NowPlaying
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.playback.PlaybackState
@@ -123,7 +124,7 @@ internal fun ConnectScreen(state: AppState) {
                     return@LazyColumn
                 }
                 item(key = "devices") {
-                    DevicesCard(connect, place, here, now, state, haptics)
+                    DevicesCard(connect, place, here, now, song, state, haptics)
                 }
                 item(key = "help") {
                     HelpCard(found = connect.devices.isNotEmpty(), onWifi = onWifi, unrestricted = unrestricted)
@@ -351,6 +352,7 @@ private fun DevicesCard(
     place: MusicPlace,
     here: PlaybackState,
     nowMs: Long,
+    song: SongThere?,
     state: AppState,
     haptics: Haptics,
 ) {
@@ -364,6 +366,7 @@ private fun DevicesCard(
             detail = if (place.isElsewhere()) "Idle" else deviceDetail(here),
             relation = relationHere(connect),
             hasMusic = place == MusicPlace.Here,
+            playing = here.isPlaying,
             progress = if (place == MusicPlace.Here) here.track?.let { playbackFraction(here.positionMs, here.durationMs) } else null,
         ) {
             if (place.isElsewhere()) {
@@ -375,14 +378,19 @@ private fun DevicesCard(
         connect.devices.forEach { peer ->
             DeviceDivider()
             val music = place.isOn(peer)
+            // The device this phone drives is told about by the player, which shows a pause or a skip at once and
+            // moves by the quarter second; the others by what they last said.
+            val driven = song?.takeIf { place is MusicPlace.Driving && music }
             DeviceRow(
                 glyph = peer.kind.glyph(),
                 name = peer.name,
                 about = listOf(kindName(peer.kind), hostAndPortOf(peer)).joinToString(" · "),
-                detail = deviceDetail(peer.nowPlaying),
+                detail = driven?.let { deviceDetail(NowPlaying(it.title, it.artist, playing = it.playing)) } ?: deviceDetail(peer.nowPlaying),
                 relation = relationLine(peer, connect.thisDeviceId),
                 hasMusic = music,
-                progress = peer.nowPlaying?.takeIf { it.durationMs > 0 }?.let { playbackFraction(peer.positionAt(nowMs), it.durationMs) },
+                playing = driven?.playing ?: (peer.nowPlaying?.playing == true),
+                progress = driven?.let { playbackFraction(it.positionMs, it.durationMs) }
+                    ?: peer.nowPlaying?.takeIf { it.durationMs > 0 }?.let { playbackFraction(peer.positionAt(nowMs), it.durationMs) },
             ) {
                 if (!music) {
                     SkinnedTonalButton(
@@ -432,6 +440,8 @@ private fun DeviceRow(
     detail: String,
     relation: String?,
     hasMusic: Boolean,
+    /** Whether the music, where it is on this device, is playing rather than paused. */
+    playing: Boolean,
     progress: Float?,
     action: @Composable () -> Unit,
 ) {
@@ -461,7 +471,7 @@ private fun DeviceRow(
                 )
                 if (hasMusic) {
                     Spacer(Modifier.width(8.dp))
-                    Text("Playing here", color = accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+                    Text(if (playing) "Playing here" else "Paused here", color = accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                 }
             }
             Text(about, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

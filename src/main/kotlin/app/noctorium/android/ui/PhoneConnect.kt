@@ -84,9 +84,20 @@ internal val LocalConnectPicture = staticCompositionLocalOf<ConnectPicture?> { n
 @Composable
 internal fun AppState.connectNow(): ConnectState = LocalConnectPicture.current?.connect ?: connect.collectAsState().value
 
-/** Where the music is. */
+/**
+ * Where the music is: as Base says, except that the song the kept queue was left on counts as music here. Base
+ * reads the player, which has nothing in it after a launch until play is pressed; the player bar shows that song,
+ * paused, and Play on sends it with its queue, so the tab says it is here rather than that nothing is playing.
+ */
 @Composable
-internal fun AppState.musicPlaceNow(): MusicPlace = LocalConnectPicture.current?.place ?: musicPlace.collectAsState().value
+internal fun AppState.musicPlaceNow(): MusicPlace {
+    val place = LocalConnectPicture.current?.place ?: musicPlace.collectAsState().value
+    return place.withKeptSong(playbackHere())
+}
+
+/** [this], or here when it is nowhere but this phone has a song waiting in its player: see [musicPlaceNow]. */
+internal fun MusicPlace.withKeptSong(here: PlaybackState): MusicPlace =
+    if (this == MusicPlace.Nowhere && here.track != null) MusicPlace.Here else this
 
 /**
  * What the player shows: this phone's playback, or the driven device's while this phone is its remote control;
