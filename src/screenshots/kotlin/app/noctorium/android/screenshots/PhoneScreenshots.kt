@@ -696,7 +696,7 @@ class PhoneScreenshots {
         prepare: (AppState) -> Unit = {},
         then: (() -> Unit)? = null,
         content: @Composable (SettingsState, AppState) -> Unit,
-    ) = compose.shootPhone(folder, name, preferences, playing, equalizerAvailable, kept, prepare, then, content)
+    ) = compose.shootPhone(folder, name, preferences, playing, equalizerAvailable, kept, prepare, then, content = content)
 }
 
 /** Where the pictures go: the folder -PscreenshotDir named, or the build's own. */
@@ -718,9 +718,11 @@ internal fun ComposeContentTestRule.shootPhone(
     kept: SavedQueue? = null,
     prepare: (AppState) -> Unit = {},
     then: (() -> Unit)? = null,
+    /** What the history on the profile page holds, newest first. */
+    history: List<app.noctorium.history.HistoryEntry> = emptyList(),
     content: @Composable (SettingsState, AppState) -> Unit,
 ) {
-    val state = stillState(preferences, playing, kept = kept)
+    val state = stillState(preferences, playing, kept = kept, history = history)
     try {
         prepare(state)
         // What the player shows is worked out from the queue a moment after it changes, on the state's own threads,

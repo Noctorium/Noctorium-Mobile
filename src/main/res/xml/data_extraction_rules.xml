@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What Android's backup leaves out from Android 12 on: backups to the listener's Google Drive, and the copy made
+  when moving to a new phone. backup_rules.xml says the same to the Androids before.
+
+  The history of what was played on this phone stays on this phone (see PlayHistory in Base), so it goes in
+  neither. Nothing is named to be included, so everything else goes exactly as it did before there were rules.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="noctorium/play-history.json" />
+        <exclude domain="file" path="noctorium/play-history.json.tmp" />
+        <exclude domain="file" path="noctorium/play-history.json.unreadable" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="noctorium/play-history.json" />
+        <exclude domain="file" path="noctorium/play-history.json.tmp" />
+        <exclude domain="file" path="noctorium/play-history.json.unreadable" />
+    </device-transfer>
+</data-extraction-rules>

@@ -177,6 +177,11 @@ private fun SettingsHome(
                 active = account.signedIn,
             ) { open(SettingsPage.ACCOUNT, null) }
         }
+        item {
+            SettingsTile(SettingsPage.PROFILE.glyph.image, preferences.profileName, "Your local profile and history") {
+                open(SettingsPage.PROFILE, null)
+            }
+        }
 
         item { SectionLabel(SettingsSection.LOOK.title) }
         item {
@@ -406,6 +411,10 @@ internal fun SettingsPageScreen(
     val settings by state.settings.collectAsState()
     val likes by state.likes.collectAsState()
     val cards = pageCards(page, settings, likes, state, signIn)
+    // The profile page has the history under its cards, as many lines as there are songs in it, so they are items
+    // of this list rather than one card that would lay out every one of them at once.
+    var historyFilter by rememberSaveable { mutableStateOf("") }
+    val history = if (page == SettingsPage.PROFILE) rememberHistoryDays(state, historyFilter) else null
     val list = rememberLazyListState()
     val target = PHONE_SETTINGS.firstOrNull { it.id == highlight && it.page == page }
     LaunchedEffect(target) {
@@ -440,6 +449,7 @@ internal fun SettingsPageScreen(
             }
             settingsMessage(settings, state)
             items(cards, key = { it.first }) { (_, card) -> card() }
+            history?.let { historyLines(it, historyFilter, { typed -> historyFilter = typed }, state) }
         }
     }
 }
@@ -452,9 +462,11 @@ private fun pageCards(
     state: AppState,
     signIn: (ProviderType) -> Unit,
 ): List<Pair<String, @Composable () -> Unit>> = when (page) {
-    SettingsPage.ACCOUNT -> listOf(
-        "account" to { NoctoriumAccountCard(state) },
+    SettingsPage.ACCOUNT -> listOf("account" to { NoctoriumAccountCard(state) })
+    // The history's songs follow these cards, a line each: see historyLines.
+    SettingsPage.PROFILE -> listOf(
         "name" to { ProfileNameCard(settings, state) },
+        "history" to { HistoryCard(settings, state) },
     )
     SettingsPage.THEME -> listOf(
         "theme" to { ThemeCard(settings, state) },

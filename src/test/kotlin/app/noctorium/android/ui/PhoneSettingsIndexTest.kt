@@ -82,6 +82,11 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingIds.KEEP_PLAYING, first("battery").id)
         assertEquals(SettingIds.LAST_FM, first("scrobble").id)
         assertEquals(SettingIds.HOME_PLAY, first("start radio").id)
+        // The history on the profile page, before Home's row of the songs played lately.
+        assertEquals(SettingIds.HISTORY, first("history").id)
+        assertEquals(SettingIds.HISTORY, first("recently played").id)
+        assertEquals(SettingIds.CLEAR_HISTORY, first("clear history").id)
+        assertEquals(SettingsPage.PROFILE, first("history").page)
     }
 
     /** The Connect tab is found by what people call it, and opened where it is: on its tab, not in Settings. */
