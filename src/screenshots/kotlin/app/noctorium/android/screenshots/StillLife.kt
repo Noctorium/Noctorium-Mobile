@@ -346,7 +346,9 @@ internal fun stillState(
     val deadline = System.currentTimeMillis() + 10_000
     while (System.currentTimeMillis() < deadline) {
         val ui = state.ui.value
-        if (!ui.homeLoading && ui.homeSections.size == shelves.size) break
+        // And what the player shows, which is worked out from the player and the queue a moment after them.
+        val settled = state.shownQueue.value == state.queue.state.value && state.shownPlayback.value == state.playback.value
+        if (!ui.homeLoading && ui.homeSections.size == shelves.size && settled) break
         Thread.sleep(20)
     }
     return state
