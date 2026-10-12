@@ -723,6 +723,9 @@ internal fun ComposeContentTestRule.shootPhone(
     val state = stillState(preferences, playing, kept = kept)
     try {
         prepare(state)
+        // What the player shows is worked out from the queue a moment after it changes, on the state's own threads,
+        // which the picture's clock does not wait for: a queue lined up just now would otherwise be drawn as it was.
+        state.waitUntil { shownQueue.value == queue.state.value && shownPlayback.value == playback.value }
         // Time moves only when told to. The full-screen seek bar's wave runs for as long as it is on
         // screen, so a screen that waited to be still before its picture was taken would wait forever;
         // two seconds in is long enough for everything that eases into place to have arrived.
