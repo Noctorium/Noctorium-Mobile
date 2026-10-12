@@ -84,6 +84,19 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingIds.HOME_PLAY, first("start radio").id)
     }
 
+    @Test
+    fun `the badges' marks are found by what people call them, beside the icon set`() {
+        assertEquals(SettingIds.SERVICE_BADGE_STYLE, first("service icons").id)
+        assertEquals(SettingIds.SERVICE_BADGE_STYLE, first("badge style").id)
+        assertEquals(SettingIds.SERVICE_BADGE_STYLE, first("marks").id)
+        assertEquals(SettingIds.SERVICE_BADGE_STYLE, first("ytm").id)
+        for (words in listOf("logo", "icons", "badges", "letters")) {
+            assertTrue(searchPhoneSettings(words).any { it.first.id == SettingIds.SERVICE_BADGE_STYLE }, "\"$words\" does not find the badges")
+        }
+        assertEquals(SettingIds.ICON_SET, first("icons").id)
+        assertEquals(SettingsPage.ICONS, first("marks").page)
+    }
+
     /** The Connect tab is found by what people call it, and opened where it is: on its tab, not in Settings. */
     @Test
     fun `the Connect tab is found by the words for it, and opens the tab`() {

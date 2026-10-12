@@ -110,6 +110,7 @@ internal object SettingIds {
     const val QUEUE_COLUMNS = "queue-columns"
     const val STATUS_BAR = "status-bar"
     const val ICON_SET = "icon-set"
+    const val SERVICE_BADGE_STYLE = "service-badge-style"
     const val TABS = "tabs"
     const val TAB_LABELS = "tab-labels"
     const val SWIPE_BAR = "swipe-bar"
@@ -318,6 +319,15 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "The icons every button is drawn with: Standard, Rounded, Outlined, Sharp, Two-tone or Line.",
         listOf("icons", "icon theme", "icon style", "outlined icons", "line icons", "symbols"),
         stores = listOf("iconSet"),
+    ),
+    PhoneSetting(
+        SettingIds.SERVICE_BADGE_STYLE, "Service badge style", SettingsPage.ICONS, "icons",
+        "Each service's own mark on the badges that say where a song comes from, or the letters, YTM, SC or SP, as before.",
+        listOf(
+            "logo", "logos", "service logos", "service icons", "brand icons", "provider icons", "badge", "badges", "marks",
+            "letters", "abbreviations", "youtube logo", "spotify logo", "soundcloud logo", "simple icons",
+        ),
+        stores = listOf("serviceBadgeStyle"),
     ),
     PhoneSetting(
         SettingIds.TABS, "Tabs along the bottom", SettingsPage.TABS, "tabs",

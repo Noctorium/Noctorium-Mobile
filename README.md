@@ -59,6 +59,12 @@ set — and Rounded, Outlined, Sharp and Two-tone are Google's Material icons in
 with the icons Lucide took from [Feather](https://feathericons.com) under the MIT licence; both notices are
 reproduced in `ui/LineGlyphs.kt`, where the shapes are kept.
 
+The badges on the covers that say which service a song comes from carry each service's mark, from
+[Simple Icons](https://simpleicons.org) (simple-icons 16.35.0, CC0 1.0), unless they are set back to letters on
+the same page. The marks are trademarks of the services they stand for, drawn only to say which service a song is
+from; music on the phone has Material Icons' folder (Apache License 2.0). The shapes are kept in Noctorium-Base,
+`core/src/main/kotlin/app/noctorium/domain/ServiceMarks.kt`, which the desktop draws them from too.
+
 ## Releases
 
 Signed APKs are built and published by [Noctorium-Installer](https://github.com/Noctorium/Noctorium-Installer),

@@ -18,7 +18,8 @@ import app.noctorium.settings.windows98Palette
  * Noctorium's look, worked out from the shared preferences: the theme's colours with the accent in force,
  * the corners, the typeface, the text size, whether things move, whether the phone can shape the sound, the
  * skin -- the rest of the look the Windows themes draw beyond their colours -- the 98 scheme that skin is drawn
- * in, 98's grey or Noctorium 98's night, and the icon set every icon is drawn from.
+ * in, 98's grey or Noctorium 98's night, the icon set every icon is drawn from, and whether the services' badges
+ * carry their marks or their letters.
  *
  * The theme and the accent are the shared preferences, so a theme picked on the desktop is the theme here.
  * Kept apart from the activity so that the screenshots rendered on the JVM are drawn in exactly this theme
@@ -56,6 +57,7 @@ internal fun NoctoriumTheme(
             LocalSkin provides skin,
             LocalWin98 provides Win98Paint.of(preferences.windows98Palette),
             LocalIconSet provides preferences.iconSet,
+            LocalServiceBadgeStyle provides preferences.serviceBadgeStyle,
             content = content,
         )
     }

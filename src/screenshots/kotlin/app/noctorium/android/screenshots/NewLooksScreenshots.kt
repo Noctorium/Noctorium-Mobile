@@ -17,6 +17,7 @@ import app.noctorium.android.ui.SettingsPage
 import app.noctorium.android.ui.SettingsPageScreen
 import app.noctorium.android.ui.SettingsScreen
 import app.noctorium.playback.SavedQueue
+import app.noctorium.settings.BadgePolicy
 import app.noctorium.settings.IconSet
 import app.noctorium.settings.NoctoriumPreferences
 import app.noctorium.settings.PhoneNowPlayingLayout
@@ -25,6 +26,7 @@ import app.noctorium.settings.PhonePreferences
 import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.QueueColumn
+import app.noctorium.settings.ServiceBadgeStyle
 import app.noctorium.settings.SpotifyPlayback
 import app.noctorium.settings.SurfaceStyle
 import app.noctorium.settings.TextSize
@@ -40,7 +42,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The desktop-music-player look and what came with it: the Toolbar bar, the Slider, the Playlist layout with its
- * visualiser and status bar, the volume booster, Stop, the icon sets, Clear all but this song, and Settings with
+ * visualiser and status bar, the volume booster, Stop, the icon sets, the services' badges with their marks, Clear
+ * all but this song, and Settings with
  * its sections and search -- each in a dark theme, a light one, 98, Noctorium 98 and XP, at the ordinary text
  * size and the largest.
  */
@@ -61,7 +64,7 @@ class NewLooksScreenshots(private val look: Look) {
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
         fun looks(): List<Array<Any>> = (
             toolbarLooks() + sliderLooks() + playlistLooks() + boosterLooks() + stopLooks() + iconLooks() +
-                queueLooks() + settingsLooks()
+                badgeLooks() + queueLooks() + settingsLooks()
             ).only().map { arrayOf(it) }
     }
 }
@@ -235,6 +238,19 @@ private fun iconLooks(): List<Look> = listOf(IconSet.ROUNDED, IconSet.OUTLINED, 
     Look("new-icons-line-toolbar-98", toolbar(NoctoriumPreferences(theme = ThemePreset.WINDOWS_98, iconSet = IconSet.LINE))) { _, state -> NoctoriumPhone(state) },
     Look("new-icons-line-settings-xp", NoctoriumPreferences(theme = ThemePreset.WINDOWS_XP, iconSet = IconSet.LINE)) { _, state -> SettingsScreen(state) {} },
 )
+
+/**
+ * The services' badges on Home's covers, every one badged: with their marks in every kind of theme and at the
+ * largest text, and with their letters to compare.
+ */
+private fun badgeLooks(): List<Look> = KINDS_AND_SIZES.map { (kind, preferences) ->
+    Look("new-badges-marks-home-$kind", still(preferences).copy(badgePolicy = BadgePolicy.ALWAYS)) { _, state -> NoctoriumPhone(state) }
+} + KINDS.map { (kind, preferences) ->
+    Look(
+        "new-badges-letters-home-$kind",
+        still(preferences).copy(badgePolicy = BadgePolicy.ALWAYS, serviceBadgeStyle = ServiceBadgeStyle.LETTERS),
+    ) { _, state -> NoctoriumPhone(state) }
+}
 
 /** The queue's menu open, with Clear all but this song beside Clear the queue. */
 private val openQueueMenu: ComposeContentTestRule.() -> Unit = {

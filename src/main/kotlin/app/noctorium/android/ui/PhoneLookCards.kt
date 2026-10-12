@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -24,9 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
+import app.noctorium.domain.ProviderType
 import app.noctorium.settings.IconSet
 import app.noctorium.settings.PhoneNowPlayingLayout
 import app.noctorium.settings.QueueColumn
+import app.noctorium.settings.ServiceBadgeStyle
 import app.noctorium.settings.SettingsState
 import app.noctorium.settings.VisualiserStyle
 
@@ -35,7 +38,8 @@ internal fun shownIconSet(set: IconSet): IconSet = if (set == IconSet.FILLED) Ic
 
 /**
  * The icons every button is drawn with, each set shown by a few of its own icons -- play, pause, next, shuffle,
- * the heart and Settings' cog -- so the choice is made by looking.
+ * the heart and Settings' cog -- so the choice is made by looking; and under them the services' badges, with their
+ * marks or with their letters, each shown by the badges themselves.
  */
 @Composable
 internal fun IconSetCard(settings: SettingsState, state: AppState) {
@@ -54,9 +58,27 @@ internal fun IconSetCard(settings: SettingsState, state: AppState) {
             }
             Text(chosen.description, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
         }
+        val badges = settings.preferences.serviceBadgeStyle
+        SettingAnchor(SettingIds.SERVICE_BADGE_STYLE) {
+            Text(
+                "Service badge style",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
+            )
+            PickerGrid(ServiceBadgeStyle.entries, columns = 2) { style, modifier ->
+                PickerTile(style.displayName, badges == style, { state.setServiceBadgeStyle(style) }, modifier) { BadgeSample(style) }
+            }
+            Text(
+                badges.description + " On the corner of a cover, saying which service the song is from.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+            )
+        }
         Text(
             "Rounded, Outlined, Sharp and Two-tone are Google's Material icons (Apache License 2.0); Line is " +
-                "Lucide's (ISC License).",
+                "Lucide's (ISC License). The services' marks are Simple Icons' (CC0), each its service's trademark, " +
+                "there only to say which service a song is from.",
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .8f),
             fontSize = 10.sp,
             modifier = Modifier.padding(top = 8.dp),
@@ -71,6 +93,23 @@ private val SAMPLE_GLYPHS = listOf(Glyph.PLAY_ARROW, Glyph.PAUSE, Glyph.SKIP_NEX
 private fun IconSample(set: IconSet) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
         SAMPLE_GLYPHS.forEach { glyph -> Icon(glyph.vector(set), null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface) }
+    }
+}
+
+/** The services a badge style is shown by in its tile: four, as many as half a phone's width has room for. */
+private val SAMPLE_SERVICES = listOf(ProviderType.YOUTUBE_MUSIC, ProviderType.SOUNDCLOUD, ProviderType.SPOTIFY, ProviderType.VK)
+
+/** The badges as [style] draws them, whatever the badges on the cards are. */
+@Composable
+private fun BadgeSample(style: ServiceBadgeStyle) {
+    CompositionLocalProvider(LocalServiceBadgeStyle provides style) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SAMPLE_SERVICES.forEach { provider -> ProviderBadge(provider) }
+        }
     }
 }
 
