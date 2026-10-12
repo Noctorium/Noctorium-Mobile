@@ -717,8 +717,12 @@ class Media3PlaybackEngine(
         // What the booster now does, for whoever is checking a phone over adb.
         android.util.Log.i(
             PLAYER_LOG_TAG,
-            "Volume boost $boostPercent%: gain ${VolumeBoost.gain(boostPercent, mutableState.value.volume)}, " +
-                "drive ${VolumeBoost.drive(boostPercent)}",
+            if (!VolumeBoost.isOn(boostPercent)) {
+                "Volume boost off"
+            } else {
+                "Volume boost $boostPercent%: gain ${VolumeBoost.gain(boostPercent, mutableState.value.volume)}, " +
+                    "drive ${VolumeBoost.drive(boostPercent)}"
+            },
         )
         Unit
     }
