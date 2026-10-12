@@ -134,6 +134,7 @@ private fun SettingsHome(
     val updates by state.updates.collectAsState()
     val preferences = settings.preferences
     val found = remember(query) { searchPhoneSettings(query) }
+    val tabSetting = LocalTabSetting.current
 
     // The status-bar inset the other screens get from ScreenScaffold. Without it the title sits under
     // the clock, which on this phone is exactly where the clock is.
@@ -147,7 +148,16 @@ private fun SettingsHome(
             if (found.isEmpty()) item(key = "nothing") { NoSettingsFound(query) }
             found.forEach { (setting, match) ->
                 item(key = "found:${setting.id}") {
-                    SettingsTile(setting.page.glyph.image, setting.title, resultDetail(setting, match)) { open(setting.page, setting.id) }
+                    SettingsTile(setting.page.glyph.image, setting.title, resultDetail(setting, match)) {
+                        // A setting on a tab is opened there, and lit as one on a page is.
+                        val tab = setting.tab
+                        if (tab == null) {
+                            open(setting.page, setting.id)
+                        } else {
+                            tabSetting.id = setting.id
+                            state.navigate(tab)
+                        }
+                    }
                 }
             }
             return@LazyColumn

@@ -30,11 +30,20 @@ class PlaybackService : MediaSessionService() {
             player = application.player.mediaPlayer,
             goNext = state::next,
             goPrevious = state::previous,
-            canGoNext = { state.queue.state.value.hasNext },
+            // The queue the player shows: this phone's, or the one on the device it is the remote control of.
+            canGoNext = { state.shownQueue.value.hasNext },
             // A song playing can always go back to its start, so the first in the queue keeps the button too.
-            canGoPrevious = { state.canGoPrevious },
-            repeatMode = { state.queue.state.value.repeatMode },
+            canGoPrevious = { state.canGoPrevious || state.connect.value.target != null },
+            repeatMode = { state.shownQueue.value.repeatMode },
             setRepeat = state.queue::setRepeat,
+            remote = {
+                when {
+                    state.connect.value.target == null -> null
+                    state.shownPlayback.value.isPlaying -> QueueAwarePlayer.RemotePlaying.PLAYING
+                    else -> QueueAwarePlayer.RemotePlaying.PAUSED
+                }
+            },
+            togglePlayback = state::togglePlayback,
         )
         session = MediaSession.Builder(this, player).build()
     }

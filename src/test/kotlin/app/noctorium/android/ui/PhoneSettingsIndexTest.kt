@@ -84,6 +84,21 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingIds.HOME_PLAY, first("start radio").id)
     }
 
+    /** The Connect tab is found by what people call it, and opened where it is: on its tab, not in Settings. */
+    @Test
+    fun `the Connect tab is found by the words for it, and opens the tab`() {
+        for (words in listOf("devices", "connect tab", "play on computer", "where is the music")) {
+            val (setting, match) = searchPhoneSettings(words).first()
+            assertEquals(SettingIds.CONNECT_TAB, setting.id, words)
+            assertEquals(app.noctorium.core.Destination.CONNECT, setting.tab)
+            assertTrue(resultDetail(setting, match).startsWith("Connect tab"), resultDetail(setting, match))
+        }
+        assertEquals(SettingIds.CONNECT_ADDRESS, first("ip address").id)
+        assertEquals(app.noctorium.core.Destination.CONNECT, first("ip address").tab)
+        // The settings that are in Settings still open there.
+        assertEquals(null, first("dark mode").tab)
+    }
+
     @Test
     fun `a setting is found by the start of its name before anything else`() {
         val found = searchPhoneSettings("vol")

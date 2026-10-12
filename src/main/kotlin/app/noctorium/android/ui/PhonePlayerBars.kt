@@ -83,6 +83,8 @@ internal fun FloatingBar(
     onSpotify: Boolean,
     hasNext: Boolean,
     gestures: Modifier,
+    /** Along the card's foot, under its line: the Connect strip, while the music is not simply this phone's. */
+    foot: @Composable () -> Unit = {},
 ) {
     val shape = MaterialTheme.shapes.large
     // Under the Windows skins the card is a small window of its own: 98's raised slab, which had no shadow to
@@ -119,6 +121,7 @@ internal fun FloatingBar(
             Box(Modifier.padding(start = 18.dp, end = 18.dp, bottom = 5.dp).clip(RoundedCornerShape(50))) {
                 PlaybackLine(playback, style)
             }
+            foot()
         }
     }
 }

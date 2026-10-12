@@ -78,7 +78,7 @@ internal fun ToolbarBar(
     hasNext: Boolean,
 ) {
     val settings by state.settings.collectAsState()
-    val queue by state.queue.state.collectAsState()
+    val queue = state.playerQueue()
     val phone = settings.preferences.phone
     val hidden = phone.hiddenPlayerButtons
     val haptics = rememberHaptics(state)

@@ -19,6 +19,12 @@ import app.noctorium.playback.RepeatMode
  *
  * So the session is handed this instead: the same player, telling the truth about the real queue and
  * passing skips to the thing that owns it.
+ *
+ * While this phone is another device's remote control the music is not here, and nothing that reaches the session
+ * -- a headset's button, a car's, a notification left from before -- may start it here: the queue would be playing
+ * in two rooms at once. The player here is idle then (the music went with the queue), so the notification and the
+ * lock screen have nothing to show; and play, pause and the skips are passed to the application, whose buttons
+ * drive the device the music is on, as the player on screen does. See [remote].
  */
 class QueueAwarePlayer(
     player: Player,
@@ -29,7 +35,43 @@ class QueueAwarePlayer(
     /** The queue's repeat mode, which is the truth; the bare player only knows whether it is looping. */
     private val repeatMode: () -> RepeatMode = { RepeatMode.OFF },
     private val setRepeat: (RepeatMode) -> Unit = {},
+    /**
+     * Whether the music is on another device with this phone as its remote control, and if so whether it is playing
+     * there: null while it is here. Read at each press.
+     */
+    private val remote: () -> RemotePlaying? = { null },
+    /** The application's play button: while [remote], the other device's. */
+    private val togglePlayback: () -> Unit = {},
 ) : ForwardingPlayer(player) {
+
+    /** What a press of play or pause does while the music is on another device. */
+    enum class RemotePlaying { PLAYING, PAUSED }
+
+    /** Play: the other device's while the music is there, which starts nothing here. */
+    override fun play() {
+        when (remote()) {
+            null -> super.play()
+            RemotePlaying.PAUSED -> togglePlayback()
+            RemotePlaying.PLAYING -> Unit
+        }
+    }
+
+    override fun pause() {
+        when (remote()) {
+            null -> super.pause()
+            RemotePlaying.PLAYING -> togglePlayback()
+            RemotePlaying.PAUSED -> Unit
+        }
+    }
+
+    override fun setPlayWhenReady(playWhenReady: Boolean) {
+        if (remote() == null) super.setPlayWhenReady(playWhenReady) else if (playWhenReady) play() else pause()
+    }
+
+    /** Loading the song here to play it, which while the music is elsewhere is exactly what must not happen. */
+    override fun prepare() {
+        if (remote() == null) super.prepare()
+    }
 
     /**
      * Repeat as the queue has it, not as ExoPlayer has it.

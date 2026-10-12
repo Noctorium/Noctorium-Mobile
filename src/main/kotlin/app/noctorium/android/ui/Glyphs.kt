@@ -132,6 +132,7 @@ internal enum class Glyph {
     SYSTEM_UPDATE_ALT,
     TAB,
     TABLET,
+    TERMINAL,
     TEXT_FIELDS,
     TUNE,
     TV,
@@ -139,6 +140,7 @@ internal enum class Glyph {
     VOLUME_DOWN,
     VOLUME_OFF,
     VOLUME_UP,
+    WIFI,
     ;
 
     /** This glyph in [set]. */
@@ -244,6 +246,7 @@ internal enum class Glyph {
         SYSTEM_UPDATE_ALT -> Icons.Filled.SystemUpdateAlt
         TAB -> Icons.Filled.Tab
         TABLET -> Icons.Filled.Tablet
+        TERMINAL -> Icons.Filled.Terminal
         TEXT_FIELDS -> Icons.Filled.TextFields
         TUNE -> Icons.Filled.Tune
         TV -> Icons.Filled.Tv
@@ -251,6 +254,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Filled.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Filled.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Filled.VolumeUp
+        WIFI -> Icons.Filled.Wifi
     }
 
     private fun rounded(): ImageVector = when (this) {
@@ -340,6 +344,7 @@ internal enum class Glyph {
         SYSTEM_UPDATE_ALT -> Icons.Rounded.SystemUpdateAlt
         TAB -> Icons.Rounded.Tab
         TABLET -> Icons.Rounded.Tablet
+        TERMINAL -> Icons.Rounded.Terminal
         TEXT_FIELDS -> Icons.Rounded.TextFields
         TUNE -> Icons.Rounded.Tune
         TV -> Icons.Rounded.Tv
@@ -347,6 +352,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Rounded.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Rounded.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Rounded.VolumeUp
+        WIFI -> Icons.Rounded.Wifi
     }
 
     private fun outlined(): ImageVector = when (this) {
@@ -436,6 +442,7 @@ internal enum class Glyph {
         SYSTEM_UPDATE_ALT -> Icons.Outlined.SystemUpdateAlt
         TAB -> Icons.Outlined.Tab
         TABLET -> Icons.Outlined.Tablet
+        TERMINAL -> Icons.Outlined.Terminal
         TEXT_FIELDS -> Icons.Outlined.TextFields
         TUNE -> Icons.Outlined.Tune
         TV -> Icons.Outlined.Tv
@@ -443,6 +450,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Outlined.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Outlined.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Outlined.VolumeUp
+        WIFI -> Icons.Outlined.Wifi
     }
 
     private fun sharp(): ImageVector = when (this) {
@@ -532,6 +540,7 @@ internal enum class Glyph {
         SYSTEM_UPDATE_ALT -> Icons.Sharp.SystemUpdateAlt
         TAB -> Icons.Sharp.Tab
         TABLET -> Icons.Sharp.Tablet
+        TERMINAL -> Icons.Sharp.Terminal
         TEXT_FIELDS -> Icons.Sharp.TextFields
         TUNE -> Icons.Sharp.Tune
         TV -> Icons.Sharp.Tv
@@ -539,6 +548,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Sharp.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Sharp.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Sharp.VolumeUp
+        WIFI -> Icons.Sharp.Wifi
     }
 
     private fun twoTone(): ImageVector = when (this) {
@@ -628,6 +638,7 @@ internal enum class Glyph {
         SYSTEM_UPDATE_ALT -> Icons.TwoTone.SystemUpdateAlt
         TAB -> Icons.TwoTone.Tab
         TABLET -> Icons.TwoTone.Tablet
+        TERMINAL -> Icons.TwoTone.Terminal
         TEXT_FIELDS -> Icons.TwoTone.TextFields
         TUNE -> Icons.TwoTone.Tune
         TV -> Icons.TwoTone.Tv
@@ -635,5 +646,6 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.TwoTone.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.TwoTone.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.TwoTone.VolumeUp
+        WIFI -> Icons.TwoTone.Wifi
     }
 }

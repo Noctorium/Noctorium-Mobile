@@ -1,5 +1,6 @@
 package app.noctorium.android.ui
 
+import app.noctorium.core.Destination
 import app.noctorium.settings.SettingEntry
 import app.noctorium.settings.SettingMatch
 import app.noctorium.settings.SettingsSearch
@@ -75,6 +76,8 @@ internal data class PhoneSetting(
     val keywords: List<String> = emptyList(),
     val stores: List<String> = emptyList(),
     val whenShown: String? = null,
+    /** The tab the setting is on, for one that is on a tab rather than on its page in Settings: see [LocalTabSetting]. */
+    val tab: Destination? = null,
 ) {
     val entry: SettingEntry get() = SettingEntry(id, title, page.path, description, keywords)
 }
@@ -146,6 +149,8 @@ internal object SettingIds {
     const val HAPTICS = "haptics"
     const val CONNECT_NAME = "connect-name"
     const val CONNECT_ENABLED = "connect-enabled"
+    const val CONNECT_TAB = "connect-tab"
+    const val CONNECT_ADDRESS = "connect-address"
     const val EXPORT_FOLDER = "export-folder"
     const val CHECK_UPDATES = "check-updates"
     const val DIAGNOSTICS = "diagnostics"
@@ -539,6 +544,22 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "A short tick when a control does something.",
         listOf("vibration", "vibrate", "feedback", "buzz"),
         stores = listOf("phone.haptics"),
+    ),
+    PhoneSetting(
+        SettingIds.CONNECT_TAB, "Your devices, and where the music is", SettingsPage.CONNECT, "connect",
+        "Every device with what it is playing, on the Connect tab: play here, or on any of them.",
+        listOf(
+            "connect tab", "devices", "play on computer", "play on another device", "speaker", "where is the music", "move the music",
+            "transfer", "hand over", "controlled from", "playing on",
+        ),
+        tab = Destination.CONNECT,
+    ),
+    PhoneSetting(
+        SettingIds.CONNECT_ADDRESS, "Add a device by its address", SettingsPage.CONNECT, "connect",
+        "On the Connect tab, for a network that keeps your devices from seeing each other.",
+        listOf("ip address", "address", "port", "device not found", "can't find computer", "manual", "firewall"),
+        whenShown = "Once Connect is on and signed in.",
+        tab = Destination.CONNECT,
     ),
     PhoneSetting(
         SettingIds.CONNECT_NAME, "Name this phone", SettingsPage.CONNECT, "connect",

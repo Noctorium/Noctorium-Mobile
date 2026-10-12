@@ -73,6 +73,7 @@ internal val PHONE_TAB_ORDER: List<Destination> = listOf(
     Destination.LIBRARY,
     Destination.DOWNLOADS,
     Destination.QUEUE,
+    Destination.CONNECT,
     Destination.SETTINGS,
 )
 
@@ -81,13 +82,15 @@ internal val PHONE_TAB_ORDER: List<Destination> = listOf(
  *
  * Not Home, which is where back leads from everywhere. Not Settings, which is the only way to put a tab
  * back. And not Queue, which on a phone is the only way to the queue: there is no queue button on the
- * player here, so hiding the tab would leave the queue with no door at all.
+ * player here, so hiding the tab would leave the queue with no door at all. Connect can go: somebody with
+ * one device has no use for it, and the devices button and the player bar's strip still lead there.
  */
 internal val HIDEABLE_TABS: List<Destination> = listOf(
     Destination.SEARCH,
     Destination.LINK,
     Destination.LIBRARY,
     Destination.DOWNLOADS,
+    Destination.CONNECT,
 )
 
 /**
@@ -108,6 +111,7 @@ internal fun tabName(destination: Destination): String = when (destination) {
     Destination.LIBRARY -> "Library"
     Destination.DOWNLOADS -> "Downloads"
     Destination.QUEUE -> "Queue"
+    Destination.CONNECT -> "Connect"
     Destination.SETTINGS -> "Settings"
 }
 
@@ -117,5 +121,7 @@ internal fun Destination.stillReachedBy(): String = when (this) {
     Destination.LINK -> "A link shared to Noctorium from another app still opens it."
     Destination.LIBRARY -> "A playlist opened from Home still opens there."
     Destination.DOWNLOADS -> "Downloaded tracks still play with no connection wherever they turn up; this tab is the list of them."
+    Destination.CONNECT ->
+        "The devices button on Now playing still leads to it, and so does the player bar while the music is on another device."
     else -> ""
 }

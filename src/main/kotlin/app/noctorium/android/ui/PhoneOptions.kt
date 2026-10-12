@@ -296,7 +296,7 @@ internal fun AutoplayCard(settings: SettingsState, state: AppState) {
 /**
  * Which tabs sit along the bottom, and whether they are named.
  *
- * Only the four that can go are offered (see [HIDEABLE_TABS]); Home, Queue and Settings are named as
+ * Only the five that can go are offered (see [HIDEABLE_TABS]); Home, Queue and Settings are named as
  * staying, so nobody goes looking for a switch that is not there. A hidden tab's page has not gone
  * anywhere, and whatever led to it before still does -- each switch says what that is.
  */

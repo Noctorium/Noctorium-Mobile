@@ -55,6 +55,10 @@ import app.noctorium.settings.ThemeSkin
  *
  * [overNowPlaying] when it is opened over the song from Now playing's queue button, which closes it again from a
  * button of its own; as the Queue tab it is left by the tabs, and needs none.
+ *
+ * While this phone is another device's remote control it is that device's queue, as far as that device has said:
+ * a song tapped plays there, and one taken out goes from there. What only this phone's own queue can do -- saving
+ * it, clearing it, autoplay's songs -- is left off until the music is back.
  */
 @Composable
 internal fun QueueScreen(
@@ -62,7 +66,8 @@ internal fun QueueScreen(
     overNowPlaying: Boolean = false,
     close: () -> Unit = { state.navigate(Destination.HOME) },
 ) {
-    val queue by state.queue.state.collectAsState()
+    val queue = state.playerQueue()
+    val remote = state.connectNow().target
     val settings by state.settings.collectAsState()
     var naming by remember { mutableStateOf(false) }
     // What saving the queue came to, in the library's own words; gone again once the queue changes.
@@ -79,8 +84,8 @@ internal fun QueueScreen(
     }
 
     ScreenScaffold {
-        ScreenTitle("Queue", "What is playing, and what follows", close = close) {
-            if (queue.tracks.isNotEmpty()) QueueMenu(queue, state) { naming = true }
+        ScreenTitle("Queue", remote?.let { "What is playing on ${it.name}, and what follows" } ?: "What is playing, and what follows", close = close) {
+            if (queue.tracks.isNotEmpty() && remote == null) QueueMenu(queue, state) { naming = true }
             // The Windows skins put the close on the title bar; the others need it here.
             if (overNowPlaying && LocalSkin.current == ThemeSkin.STANDARD) {
                 IconButton(close) { Icon(Glyph.EXPAND_MORE.image, "Back to the song") }
@@ -115,6 +120,8 @@ internal fun QueueScreen(
                     },
                 ) { state.jumpToQueueItem(index) }
             }
+            // Autoplay is this phone's, and lines up after this phone's queue: not after another device's.
+            if (remote != null) return@LazyColumn
             item(key = "autoplay") {
                 AutoplayHeading(autoplayHeading(queue, upNext), refreshable = upNext == UpNext.LINED_UP, settings.preferences.autoplay, state)
             }

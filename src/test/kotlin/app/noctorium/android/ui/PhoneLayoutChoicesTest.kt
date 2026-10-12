@@ -83,7 +83,25 @@ class PhoneLayoutChoicesTest {
     }
 
     @Test
-    fun `with nothing hidden the bar has the seven tabs it always had, in their order`() {
+    fun `with nothing hidden the bar has the seven tabs it always had and Connect, in their order`() {
+        assertEquals(
+            listOf(
+                Destination.HOME,
+                Destination.SEARCH,
+                Destination.LINK,
+                Destination.LIBRARY,
+                Destination.DOWNLOADS,
+                Destination.QUEUE,
+                Destination.CONNECT,
+                Destination.SETTINGS,
+            ),
+            visibleTabs(emptySet()),
+        )
+    }
+
+    /** Somebody who put Connect away gets back exactly the bar they had before it came. */
+    @Test
+    fun `with Connect hidden the bar is the seven tabs it was`() {
         assertEquals(
             listOf(
                 Destination.HOME,
@@ -94,14 +112,14 @@ class PhoneLayoutChoicesTest {
                 Destination.QUEUE,
                 Destination.SETTINGS,
             ),
-            visibleTabs(emptySet()),
+            visibleTabs(setOf(Destination.CONNECT)),
         )
     }
 
     @Test
     fun `hidden tabs come off and the rest keep their order`() {
         assertEquals(
-            listOf(Destination.HOME, Destination.LINK, Destination.DOWNLOADS, Destination.QUEUE, Destination.SETTINGS),
+            listOf(Destination.HOME, Destination.LINK, Destination.DOWNLOADS, Destination.QUEUE, Destination.CONNECT, Destination.SETTINGS),
             visibleTabs(setOf(Destination.SEARCH, Destination.LIBRARY)),
         )
     }
@@ -125,9 +143,9 @@ class PhoneLayoutChoicesTest {
     }
 
     @Test
-    fun `only Search, Link, Library and Downloads can be hidden`() {
+    fun `only Search, Link, Library, Downloads and Connect can be hidden`() {
         assertEquals(
-            setOf(Destination.SEARCH, Destination.LINK, Destination.LIBRARY, Destination.DOWNLOADS),
+            setOf(Destination.SEARCH, Destination.LINK, Destination.LIBRARY, Destination.DOWNLOADS, Destination.CONNECT),
             HIDEABLE_TABS.toSet(),
         )
         HIDEABLE_TABS.forEach { assertTrue(it.stillReachedBy().isNotBlank(), "$it should say where it is still reached from") }

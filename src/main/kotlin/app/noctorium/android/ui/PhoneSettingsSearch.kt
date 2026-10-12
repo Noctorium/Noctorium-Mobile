@@ -20,7 +20,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -41,6 +45,18 @@ import kotlinx.coroutines.delay
 
 /** The setting a search result led to, which its page brings into view and lights for a moment. */
 internal val LocalSettingHighlight = staticCompositionLocalOf<String?> { null }
+
+/**
+ * A setting that lives on a tab rather than in Settings -- the Connect tab's -- that the settings search has just led
+ * to. The search sets it and goes to the tab; the tab brings the setting into view, lights it as a page in Settings
+ * does, and lets go of it.
+ */
+@Stable
+internal class TabSettingRequest {
+    var id: String? by mutableStateOf(null)
+}
+
+internal val LocalTabSetting = staticCompositionLocalOf { TabSettingRequest() }
 
 /**
  * Where one setting is on its page: what the settings search jumps to, and lights.
@@ -144,7 +160,7 @@ internal const val SEARCH_TAG = "settings-search"
  * name -- the other word it goes by ("dark mode"), or that it only shows once something is so.
  */
 internal fun resultDetail(setting: PhoneSetting, match: SettingMatch): String = listOfNotNull(
-    setting.page.path,
+    setting.tab?.let { "${tabName(it)} tab" } ?: setting.page.path,
     match.keyword?.takeIf { match.kind == SettingMatchKind.KEYWORD }?.let { "also “$it”" },
     setting.whenShown,
 ).joinToString(" · ")

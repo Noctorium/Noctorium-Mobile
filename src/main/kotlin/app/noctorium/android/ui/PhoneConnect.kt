@@ -1,8 +1,8 @@
 package app.noctorium.android.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,254 +17,318 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.noctorium.connect.ConnectPeer
 import app.noctorium.connect.ConnectState
 import app.noctorium.connect.DeviceKind
-import app.noctorium.connect.RemoteState
+import app.noctorium.connect.MusicPlace
+import app.noctorium.connect.NowPlaying
 import app.noctorium.core.AppState
+import app.noctorium.playback.PlaybackState
+import app.noctorium.playback.QueueState
 import app.noctorium.settings.SettingsState
-import kotlinx.coroutines.delay
+import app.noctorium.settings.ThemeSkin
+
+/*
+ * Noctorium Connect on the phone, outside its own tab: what the player reads to be another device's remote
+ * control, the strip on the player bar saying where the music is, the devices button's short picker, and the
+ * card in Settings. The tab itself is PhoneConnectTab.kt.
+ *
+ * Connect only ever lists the listener's own devices. Two Noctoriums recognise each other by a secret derived from
+ * the account they are both signed in to, so somebody else on the same Wi-Fi is not merely hidden -- they cannot be
+ * seen, and cannot be answered.
+ */
 
 /**
- * Noctorium Connect, from the phone.
+ * Connect and the player as one picture, for the screenshots: the devices and who drives whom, where the music
+ * is, what the player shows and this phone's own playback, with the clock the other devices' places are read at.
  *
- * The same feature as on the desktop and the same button, sized for a thumb. Tapping a device moves the
- * music there from the second it is at; while something else is playing it, this is its remote control and
- * how it is taken back.
- *
- * The dialog stays open once a device has been tapped, and says how it went. It used to close at once, and
- * a handover that failed -- which, from a phone, was every one of them -- failed with nothing on the screen.
- *
- * It only ever lists the listener's own devices. Two Noctoriums recognise each other by a secret derived
- * from the account they are both signed in to, so somebody else on the same wifi is not merely hidden from
- * this list -- they cannot be seen, and cannot be answered.
+ * Null in the app, where all of it is read from [AppState] as it changes. A still life cannot be given another
+ * device -- Connect would go looking for real ones on the network -- so the pictures of a phone driving a
+ * computer hand the screens one of these instead.
+ */
+@Immutable
+internal data class ConnectPicture(
+    val connect: ConnectState,
+    val place: MusicPlace,
+    /** What the player shows: the driven device's song while there is one, as [AppState.shownPlayback] has it. */
+    val shown: PlaybackState,
+    val shownQueue: QueueState,
+    /** This phone's own playback, whatever the player is showing. */
+    val here: PlaybackState = PlaybackState(),
+    val nowMs: Long = 0,
+    val onWifi: Boolean = true,
+    val backgroundUnrestricted: Boolean = true,
+)
+
+internal val LocalConnectPicture = staticCompositionLocalOf<ConnectPicture?> { null }
+
+/** The devices, and which is being driven or driving this one. */
+@Composable
+internal fun AppState.connectNow(): ConnectState = LocalConnectPicture.current?.connect ?: connect.collectAsState().value
+
+/** Where the music is. */
+@Composable
+internal fun AppState.musicPlaceNow(): MusicPlace = LocalConnectPicture.current?.place ?: musicPlace.collectAsState().value
+
+/**
+ * What the player shows: this phone's playback, or the driven device's while this phone is its remote control;
+ * and when nothing is playing here after a launch, the song the kept queue was left on, paused (see [shownPlayback]).
  */
 @Composable
-internal fun ConnectButton(state: AppState, haptics: Haptics) {
-    val connect by state.connect.collectAsState()
-    val playback by state.playback.collectAsState()
-    var open by remember { mutableStateOf(false) }
+internal fun AppState.playerPlayback(): PlaybackState {
+    val picture = LocalConnectPicture.current
+    val reported = picture?.shown ?: shownPlayback.collectAsState().value
+    return shownPlayback(reported, playerQueue())
+}
 
-    if (!connect.available && connect.devices.isEmpty() && connect.target == null) return
+/** The queue the player shows: this phone's, or the driven device's as far as it has said. */
+@Composable
+internal fun AppState.playerQueue(): QueueState = LocalConnectPicture.current?.shownQueue ?: shownQueue.collectAsState().value
 
-    IconButton({ haptics.tick(); open = true }) {
-        Icon(
-            Glyph.DEVICES.image,
-            if (connect.target != null) "Playing on ${connect.target?.name}" else "Noctorium Connect",
-            tint = if (connect.target != null) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-        )
-    }
-
-    if (!open) return
-    val close = {
-        open = false
-        // Read by now, or it would greet the next opening as though it were news.
-        state.dismissConnectMessage()
-    }
-    SkinnedAlertDialog(
-        onDismissRequest = close,
-        title = "Noctorium Connect",
-        titleSize = 16.sp,
-        text = {
-            Column {
-                Text(
-                    connectHeadline(connect),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp,
-                )
-                connect.message?.takeIf { it.trimEnd('.') != connectHeadline(connect).trimEnd('.') }?.let {
-                    Spacer(Modifier.height(6.dp))
-                    Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-                Spacer(Modifier.height(10.dp))
-
-                if (connect.target != null) {
-                    RemoteControls(state, connect.remote, haptics)
-                    Spacer(Modifier.height(6.dp))
-                }
-
-                DeviceRow(
-                    name = connect.thisDevice.ifBlank { "This phone" },
-                    detail = localDetail(connect.target != null, playback.isPlaying),
-                    kind = DeviceKind.PHONE,
-                    current = connect.target == null,
-                ) {
-                    if (connect.target != null && !connect.busy) {
-                        haptics.tick()
-                        state.bringPlaybackBack()
-                    }
-                }
-
-                connect.devices.forEach { peer ->
-                    HorizontalDivider()
-                    DeviceRow(
-                        name = peer.name,
-                        detail = when {
-                            connect.target?.id == peer.id -> "Playing here"
-                            connect.busy -> "Wait a moment"
-                            else -> "Tap to play here"
-                        },
-                        kind = peer.kind,
-                        current = connect.target?.id == peer.id,
-                    ) {
-                        if (connect.target?.id != peer.id && !connect.busy) {
-                            haptics.tick()
-                            state.playOn(peer)
-                        }
-                    }
-                }
-
-                if (connect.devices.isEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        if (connect.available) {
-                            "Nothing else yet. Open Noctorium on your computer, on this wifi, " +
-                                "signed in to the same account."
-                        } else {
-                            "Sign in to your Noctorium account under Settings to use Connect."
-                        },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            if (connect.target != null) {
-                SkinnedTextButton({ state.bringPlaybackBack(); close() }) { Text("Bring it back") }
-            } else {
-                SkinnedTextButton(close) { Text("Close") }
-            }
-        },
-        dismissButton = {
-            if (connect.target != null) {
-                SkinnedTextButton({ state.stopControlling(); close() }) { Text("Leave it playing") }
-            }
-        },
-    )
+/** This phone's own playback, the kept queue's song included, whatever the player is showing. */
+@Composable
+internal fun AppState.playbackHere(): PlaybackState {
+    LocalConnectPicture.current?.let { return it.here }
+    val reported by playback.collectAsState()
+    val queue by this.queue.state.collectAsState()
+    return shownPlayback(reported, queue)
 }
 
 /**
- * The other device's play button, skips and volume, and what it is playing.
- *
- * Drawn from what that device says about itself, read every second, so it shows what is really happening
- * there rather than what was last asked for.
+ * The strip along the player bar while the music is not simply this phone's: "Playing on Desk" while this phone is
+ * the remote control of another device, "Controlled from Desk" while another device is driving this one. Null
+ * otherwise, and then there is no strip.
  */
-@Composable
-private fun RemoteControls(state: AppState, remote: RemoteState?, haptics: Haptics) {
-    val track = remote?.track
-    Text(
-        track?.title ?: "Nothing playing there yet",
-        fontSize = 14.sp,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-    Text(
-        remotePosition(remote),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        fontSize = 11.sp,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
-    val duration = remote?.durationMs ?: 0
-    if (duration > 0) {
-        // Where the thumb was let go, until the other device has had a moment to get there and say so.
-        var sought by remember { mutableStateOf<Float?>(null) }
-        LaunchedEffect(sought) {
-            if (sought != null) {
-                delay(SEEK_SETTLES_MS)
-                sought = null
-            }
-        }
-        var dragging by remember { mutableStateOf<Float?>(null) }
-        SkinnedSlider(
-            value = dragging ?: sought ?: (remote!!.positionMs.toFloat() / duration).coerceIn(0f, 1f),
-            onValueChange = { dragging = it },
-            onValueChangeFinished = {
-                dragging?.let { fraction ->
-                    state.connectSeekTo((fraction * duration).toLong())
-                    sought = fraction
-                }
-                dragging = null
-            },
-        )
-    }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        IconButton({ haptics.tick(); state.connectPrevious() }) { Icon(Glyph.SKIP_PREVIOUS.image, "Previous, there") }
-        IconButton({ haptics.tick(); state.connectPlayPause() }) {
-            Icon(
-                if (remote?.playing == true) Glyph.PAUSE.image else Glyph.PLAY_ARROW.image,
-                if (remote?.playing == true) "Pause, there" else "Play, there",
-                Modifier.size(32.dp),
-            )
-        }
-        IconButton({ haptics.tick(); state.connectNext() }) { Icon(Glyph.SKIP_NEXT.image, "Next, there") }
-    }
-    // Sent when the thumb lets go, not on every step of the drag: each one is a request to the other device.
-    var volume by remember(remote?.volume) { mutableFloatStateOf(remote?.volume ?: 1f) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Glyph.VOLUME_DOWN.image, "Volume, there", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        SkinnedSlider(
-            value = volume,
-            onValueChange = { volume = it },
-            modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
-            onValueChangeFinished = { state.connectSetVolume(volume) },
-        )
-        Icon(Glyph.VOLUME_UP.image, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
+internal fun connectStrip(connect: ConnectState): String? = when {
+    connect.target != null -> "Playing on ${connect.target?.name}"
+    connect.controlledBy != null -> "Controlled from ${connect.controlledBy}"
+    else -> null
 }
 
+/**
+ * The strip itself: a band along the foot of the player bar, in the accent, that opens the Connect tab. Under the
+ * Windows themes it is a status bar's panel, sunk into the bar's face.
+ */
 @Composable
-private fun DeviceRow(
-    name: String,
-    detail: String,
-    kind: DeviceKind,
-    current: Boolean,
-    onClick: () -> Unit,
-) {
+internal fun ConnectStrip(state: AppState, glass: Boolean, open: () -> Unit) {
+    val connect = state.connectNow()
+    val text = connectStrip(connect) ?: return
+    val skin = LocalSkin.current
+    val win98 = Win98
+    val ink = when (skin) {
+        ThemeSkin.STANDARD -> MaterialTheme.colorScheme.primary
+        ThemeSkin.WINDOWS_98 -> win98.Text
+        ThemeSkin.WINDOWS_XP -> Luna.Text
+    }
+    val band = when (skin) {
+        ThemeSkin.STANDARD -> Modifier.background(if (glass) Color.Transparent else MaterialTheme.colorScheme.primary.copy(alpha = .14f))
+        ThemeSkin.WINDOWS_98 -> Modifier
+            .padding(start = 3.dp, end = 3.dp, bottom = 3.dp)
+            .background(win98.Face)
+            .drawWithContent {
+                drawContent()
+                drawEdge98(Edge98.SHALLOW, win98)
+            }
+        ThemeSkin.WINDOWS_XP -> Modifier
+            .background(Luna.Face)
+            .drawWithContent {
+                drawContent()
+                drawRect(Luna.TabEdge.copy(alpha = .7f), Offset.Zero, Size(size.width, 1f))
+            }
+    }
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
+        Modifier
+            .fillMaxWidth()
+            .then(band)
+            .clickable(onClickLabel = "Open Connect", role = Role.Button, onClick = open)
+            .height(STRIP_HEIGHT)
+            .padding(start = if (glass) 24.dp else 14.dp, end = if (glass) 20.dp else 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            if (kind == DeviceKind.PHONE) Glyph.PHONE_ANDROID.image else Glyph.COMPUTER.image,
+            if (connect.target != null) connect.target!!.kind.glyph().image else Glyph.DEVICES.image,
             null,
-            Modifier.size(20.dp),
-            tint = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            Modifier.size(15.dp),
+            tint = ink,
         )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                name,
-                fontSize = 14.sp,
-                color = if (current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        Spacer(Modifier.width(7.dp))
+        Text(
+            text,
+            color = ink,
+            fontSize = 12.sp,
+            fontWeight = if (skin == ThemeSkin.STANDARD) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text("›", color = ink, fontSize = 15.sp)
+    }
+}
+
+private val STRIP_HEIGHT = 26.dp
+
+/** The icon for a kind of device: a computer's screen, a phone, a terminal's prompt. */
+internal fun DeviceKind.glyph(): Glyph = when (this) {
+    DeviceKind.DESKTOP -> Glyph.COMPUTER
+    DeviceKind.PHONE -> Glyph.PHONE_ANDROID
+    DeviceKind.TERMINAL -> Glyph.TERMINAL
+}
+
+/** What a kind of device is called under its name. */
+internal fun kindName(kind: DeviceKind): String = when (kind) {
+    DeviceKind.DESKTOP -> "Computer"
+    DeviceKind.PHONE -> "Phone"
+    DeviceKind.TERMINAL -> "Terminal"
+}
+
+/**
+ * The devices button on Now playing: a short picker of where the music can play -- this phone and each device
+ * found, the one with the music ticked -- and the way into the Connect tab, which has the rest.
+ *
+ * Choosing a device moves the music there, from wherever it is, at the same second and with the whole queue; the
+ * player then drives it from here. It used to open a popup with a remote control of its own, a second player beside
+ * the real one. The player is the remote now, and the popup has gone.
+ */
+@Composable
+internal fun DevicesButton(state: AppState, haptics: Haptics, openConnect: () -> Unit) {
+    val connect = state.connectNow()
+    val place = state.musicPlaceNow()
+    var open by remember { mutableStateOf(false) }
+    if (!connect.available && connect.devices.isEmpty() && connect.target == null) return
+
+    Box {
+        IconButton({ haptics.tick(); open = true }) {
+            Icon(
+                Glyph.DEVICES.image,
+                connectStrip(connect) ?: "Devices",
+                tint = if (connect.target != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
-            Text(detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+        }
+        SkinnedDropdownMenu(open, { open = false }) {
+            SkinnedDropdownMenuItem(
+                "This phone",
+                checked = place == MusicPlace.Here,
+                onClick = {
+                    open = false
+                    if (place.isElsewhere() && !connect.busy) {
+                        haptics.tick()
+                        state.playHere()
+                    }
+                },
+            )
+            connect.devices.forEach { peer ->
+                SkinnedDropdownMenuItem(
+                    peer.name,
+                    checked = place.isOn(peer),
+                    onClick = {
+                        open = false
+                        if (canPlayOn(place, peer, connect.busy)) {
+                            haptics.tick()
+                            state.playOn(peer)
+                        }
+                    },
+                )
+            }
+            if (LocalSkin.current == ThemeSkin.STANDARD) HorizontalDivider() else SkinSeparator(Modifier.padding(vertical = 3.dp))
+            SkinnedDropdownMenuItem("Open Connect", onClick = { open = false; openConnect() })
         }
     }
+}
+
+/** Whether the music is on another device: one this phone drives, or one playing by itself. */
+internal fun MusicPlace.isElsewhere(): Boolean = this is MusicPlace.Driving || this is MusicPlace.Elsewhere
+
+/** Whether the music is on [peer]. */
+internal fun MusicPlace.isOn(peer: ConnectPeer): Boolean = when (this) {
+    is MusicPlace.Driving -> this.peer.id == peer.id
+    is MusicPlace.Elsewhere -> this.peer.id == peer.id
+    else -> false
+}
+
+/** Whether "Play on" [peer] has anything to do: music somewhere that is not there already, and no move under way. */
+internal fun canPlayOn(place: MusicPlace, peer: ConnectPeer, busy: Boolean): Boolean =
+    !busy && place != MusicPlace.Nowhere && !place.isOn(peer)
+
+/** "Lanterns Over the Harbour — The Quiet Hours", and "Paused · " before it while it is: what a device is playing. */
+internal fun deviceDetail(nowPlaying: NowPlaying?): String {
+    nowPlaying ?: return "Idle"
+    val song = listOf(nowPlaying.title, nowPlaying.artist).filter(String::isNotBlank).joinToString(" — ")
+    return if (nowPlaying.playing) song else "Paused · $song"
+}
+
+/** The same for this phone, from its own player. */
+internal fun deviceDetail(here: PlaybackState): String {
+    val track = here.track ?: return "Idle"
+    return deviceDetail(NowPlaying(track.title, track.artistLine, playing = here.isPlaying))
+}
+
+/**
+ * Who is driving whom, said under a device: "Controlled from Desk", or "Controlling Desk". This phone is "this
+ * phone" in it rather than its name, which reads as somebody else's.
+ */
+internal fun relationLine(peer: ConnectPeer, thisDeviceId: String): String? {
+    fun name(id: String, name: String) = if (id == thisDeviceId && thisDeviceId.isNotBlank()) "this phone" else name
+    peer.drivenBy?.let { return "Controlled from ${name(it.id, it.name)}" }
+    peer.driving?.let { return "Controlling ${name(it.id, it.name)}" }
+    return null
+}
+
+/** The same for this phone: which device it is the remote control of, or which is driving it. */
+internal fun relationHere(connect: ConnectState): String? = when {
+    connect.target != null -> "Controlling ${connect.target?.name}"
+    connect.controlledBy != null -> "Controlled from ${connect.controlledBy}"
+    else -> null
+}
+
+/**
+ * What Connect has to say, unless the strip and the tab say it already: after a move it says "Playing on Desk.",
+ * which is the strip's own line over again.
+ */
+internal fun connectNote(connect: ConnectState): String? {
+    val message = connect.message?.takeIf(String::isNotBlank) ?: return null
+    val target = connect.target ?: return message
+    return message.takeUnless { it.trimEnd('.') == "Playing on ${target.name}" }
+}
+
+/**
+ * An address typed to look for a device at: "192.168.1.20:41234", "[fe80::1]:41234" or "desk.local 41234". Null
+ * for anything without a port, which the device's Connect cannot be found without.
+ */
+internal fun parseConnectAddress(text: String): Pair<String, Int>? {
+    val typed = text.trim()
+    if (typed.isEmpty()) return null
+    val (host, port) = when {
+        typed.startsWith("[") -> typed.substringAfter('[').substringBefore(']') to typed.substringAfter("]:", "")
+        ' ' in typed -> typed.substringBefore(' ').trim() to typed.substringAfterLast(' ').trim()
+        typed.count { it == ':' } == 1 -> typed.substringBefore(':') to typed.substringAfter(':')
+        else -> return null
+    }
+    val number = port.toIntOrNull()?.takeIf { it in 1..65_535 } ?: return null
+    return host.takeIf { it.isNotBlank() && it.none(Char::isWhitespace) }?.let { it to number }
 }
 
 /** Naming this phone, and switching Connect off for people who would rather it did not announce itself. */
 @Composable
 internal fun ConnectCard(settings: SettingsState, state: AppState) {
-    val connect by state.connect.collectAsState()
+    val connect = state.connectNow()
     var name by remember(settings.preferences.connect.deviceName) {
         mutableStateOf(settings.preferences.connect.deviceName)
     }
@@ -273,101 +337,56 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
         CardHeading(Glyph.DEVICES.image, "Noctorium Connect")
         Text(
             if (connect.available) {
-                "Your devices on this wifi can hand playback to each other. " +
+                "Your devices on this Wi-Fi can hand the music to each other. " +
                     "This one appears as \"${connect.thisDevice}\"."
             } else {
-                "Sign in to your Noctorium account, below, and your devices will find each other on this wifi."
+                "Sign in to your Noctorium account, and your devices will find each other on this Wi-Fi."
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
         )
         Spacer(Modifier.height(10.dp))
 
-        SettingAnchor(SettingIds.CONNECT_NAME) { OutlinedTextField(
-            name,
-            { name = it },
-            label = { Text("Name this phone") },
-            placeholder = { Text(connect.thisDevice) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End) {
-            SkinnedTextButton({ state.renameThisDevice(name) }) { Text("Save") }
-        } }
-
-        SettingAnchor(SettingIds.CONNECT_ENABLED) { Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Let my other devices find this one", fontSize = 13.sp)
-                Text(
-                    if (connect.devices.isEmpty()) {
-                        "Nothing else found yet."
-                    } else {
-                        pluralDevices(connect.devices.size) + " on this network."
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 11.sp,
-                )
-            }
-            SkinnedSwitch(settings.preferences.connect.enabled, state::setConnectEnabled)
-        } }
-
-        connect.controlledBy?.let {
-            Text(
-                "$it is controlling this phone.",
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
+        SettingAnchor(SettingIds.CONNECT_NAME) {
+            OutlinedTextField(
+                name,
+                { name = it },
+                label = { Text("Name this phone") },
+                placeholder = { Text(connect.thisDevice) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
             )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End) {
+                SkinnedTextButton({ state.renameThisDevice(name) }) { Text("Save") }
+            }
         }
 
-        // Music sent from a computer while Noctorium is in the background starts without the service Android
-        // keeps music alive with -- Android refuses to start one from the background unless the app may run
-        // there -- and is stopped soon after. Said here, beside the feature it breaks, with Android's own way
-        // to allow it; the listener decides.
-        val context = androidx.compose.ui.platform.LocalContext.current
-        if (connect.available && !rememberBackgroundUnrestricted()) {
+        SettingAnchor(SettingIds.CONNECT_ENABLED) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
+                    Text("Let my other devices find this one", fontSize = 13.sp)
+                    Text(
+                        if (connect.devices.isEmpty()) "Nothing else found yet." else pluralDevices(connect.devices.size) + " on this network.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                    )
+                }
+                SkinnedSwitch(settings.preferences.connect.enabled, state::setConnectEnabled)
+            }
+        }
+
+        // Where the devices are, and the music: the tab has it all, and the settings are only these two.
+        SettingAnchor(SettingIds.CONNECT_TAB) {
             Spacer(Modifier.height(6.dp))
             Text(
-                "For your other devices to start music here while Noctorium is in the background, allow it to " +
-                    "run in the background.",
+                "Where the music is, every device and what each is playing, and moving the music between them are on " +
+                    "the Connect tab.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
             )
-            SkinnedTextButton({ app.noctorium.android.BackgroundPlayback.ask(context) }) { Text("Allow") }
+            SkinnedTextButton({ state.navigate(app.noctorium.core.Destination.CONNECT) }) { Text("Open Connect") }
         }
     }
 }
 
-/** The line at the top of the dialog: what is happening, said before anything else. */
-internal fun connectHeadline(connect: ConnectState): String = when {
-    connect.busy -> "Sending the music…"
-    connect.target != null -> "Playing on ${connect.target?.name}."
-    connect.controlledBy != null -> "${connect.controlledBy} is controlling this phone."
-    else -> "Your devices on this wifi."
-}
-
-/** Where the other device is in its song, and in its queue: "1:02 of 3:45 · 2 of 9". */
-internal fun remotePosition(remote: RemoteState?): String {
-    if (remote?.track == null) return ""
-    val artists = remote.track?.artists.orEmpty().joinToString { it.name }
-    val clock = if (remote.durationMs > 0) {
-        "${formatDuration(remote.positionMs)} of ${formatDuration(remote.durationMs)}"
-    } else {
-        formatDuration(remote.positionMs)
-    }
-    val place = if (remote.queueSize > 1 && remote.queueIndex >= 0) " · ${remote.queueIndex + 1} of ${remote.queueSize}" else ""
-    val state = if (remote.playing) "" else " · paused"
-    return listOf(artists, clock + place + state).filter(String::isNotBlank).joinToString(" — ")
-}
-
-/** What this phone is doing, said accurately rather than optimistically. */
-private fun localDetail(elsewhere: Boolean, playing: Boolean): String = when {
-    elsewhere -> "Idle"
-    playing -> "Playing here"
-    else -> "Ready"
-}
-
-private fun pluralDevices(count: Int): String = if (count == 1) "1 device" else "$count devices"
-
-/** Long enough for the other device to have sought and been asked again, so the bar does not jump back. */
-private const val SEEK_SETTLES_MS = 2_000L
+internal fun pluralDevices(count: Int): String = if (count == 1) "1 device" else "$count devices"

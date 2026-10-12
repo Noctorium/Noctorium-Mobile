@@ -154,6 +154,7 @@ private fun lineVector(glyph: Glyph): ImageVector = when (glyph) {
     Glyph.SYSTEM_UPDATE_ALT -> line("monitor-down")
     Glyph.TAB -> line("panel-bottom")
     Glyph.TABLET -> line("tablet")
+    Glyph.TERMINAL -> line("terminal")
     Glyph.TEXT_FIELDS -> line("type")
     Glyph.TUNE -> line("sliders-horizontal")
     Glyph.TV -> line("tv")
@@ -161,6 +162,7 @@ private fun lineVector(glyph: Glyph): ImageVector = when (glyph) {
     Glyph.VOLUME_DOWN -> line("volume-1")
     Glyph.VOLUME_OFF -> line("volume-x")
     Glyph.VOLUME_UP -> line("volume-2")
+    Glyph.WIFI -> line("wifi")
 }
 
 /** Lucide's [name] drawn as a vector, its lines filled in for a glyph that is a state switched on. */
@@ -582,6 +584,10 @@ private val LUCIDE: Map<String, List<String>> = mapOf(
         "M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-16a2 2 0 0 1 2 -2z",
         "M12 18L12.01 18",
     ),
+    "terminal" to listOf(
+        "M12 19h8",
+        "m4 17 6-6-6-6",
+    ),
     "type" to listOf(
         "M12 4v16",
         "M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2",
@@ -615,6 +621,12 @@ private val LUCIDE: Map<String, List<String>> = mapOf(
         "M11 4.702a.7.7 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.7.7 0 0 0 11 19.298z",
         "m16.5 14.5 5-5",
         "m16.5 9.5 5 5",
+    ),
+    "wifi" to listOf(
+        "M12 20h.01",
+        "M2 8.82a15 15 0 0 1 20 0",
+        "M5 12.859a10 10 0 0 1 14 0",
+        "M8.5 16.429a5 5 0 0 1 7 0",
     ),
     "volume-2" to listOf(
         "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z",

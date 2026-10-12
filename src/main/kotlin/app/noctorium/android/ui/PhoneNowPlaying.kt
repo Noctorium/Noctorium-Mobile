@@ -68,6 +68,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.clickable
+import app.noctorium.connect.ConnectState
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.domain.Track
@@ -104,11 +106,12 @@ import kotlin.math.roundToInt
  * every button the others have, and a button added to one is added to all of them.
  */
 @Composable
-internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
-    val reported by state.playback.collectAsState()
-    val queue by state.queue.state.collectAsState()
+internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, close: () -> Unit) {
+    // What the player shows: this phone's song, or the driven device's while this phone is its remote control.
     // A queue kept from the last session shows its song here too, paused, until play picks it up.
-    val playback = shownPlayback(reported, queue)
+    val playback = state.playerPlayback()
+    val queue = state.playerQueue()
+    val connect = state.connectNow()
     val lyrics by state.lyrics.collectAsState()
     val settings by state.settings.collectAsState()
     val track = playback.track ?: return
@@ -141,11 +144,14 @@ internal fun NowPlayingScreen(state: AppState, close: () -> Unit) {
         hidden = hidden,
         shown = settings.preferences.phone.shownPlayerButtons,
         haptics = haptics,
-        onSpotify = playsOnSpotify(track, settings.spotify),
+        // Not while the song is another device's, which plays it however that device does.
+        onSpotify = connect.target == null && playsOnSpotify(track, settings.spotify),
         showLyrics = showLyrics,
         toggleLyrics = { lyricsAsked = !lyricsAsked },
         openQueue = { queueOpen = true },
         close = close,
+        connect = connect,
+        openConnect = openConnect,
     )
     val laidOut: @Composable () -> Unit = {
         when (layout) {
@@ -245,7 +251,7 @@ private val LocalInSkinWindow = staticCompositionLocalOf { false }
  */
 @Composable
 private fun NowPlayingToolbar(screen: NowPlaying) {
-    val connect by screen.state.connect.collectAsState()
+    val connect = screen.connect
     val sleepTimer by screen.state.sleepTimer.collectAsState()
     val hidden = screen.hidden
     Row(Modifier.fillMaxWidth().height(46.dp).padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -258,7 +264,7 @@ private fun NowPlayingToolbar(screen: NowPlaying) {
             modifier = Modifier.weight(1f),
         )
         if (showsPlayerButton(hidden, PlayerButton.DEVICES, inUse = connect.target != null)) {
-            ConnectButton(screen.state, screen.haptics)
+            DevicesButton(screen.state, screen.haptics, screen.openConnect)
         }
         if (showsPlayerButton(hidden, PlayerButton.SLEEP_TIMER, inUse = sleepTimer != null)) {
             SleepTimerButton(screen.state, screen.haptics)
@@ -297,7 +303,14 @@ internal class NowPlaying(
     val close: () -> Unit,
     /** The opt-in buttons asked for, such as Stop: see [PlayerButton.optIn]. */
     val shown: Set<PlayerButton> = emptySet(),
+    /** The devices, and which this phone is driving or is driven by: see [ConnectLine]. */
+    val connect: ConnectState = ConnectState(),
+    /** Opens the Connect tab, from the devices button's picker and from the line saying where the song is playing. */
+    val openConnect: () -> Unit = {},
 ) {
+    /** Whether the song is another device's, this phone being its remote control. */
+    val remote: Boolean get() = connect.target != null
+
     /** Back or forward by the double tap's step, from where the song is now, and never past either end. */
     fun jump(forward: Boolean) {
         val step = settings.preferences.phone.seekStepSeconds * 1_000L
@@ -368,7 +381,7 @@ internal fun NowPlayingColumn(content: @Composable ColumnScope.() -> Unit) {
 internal fun NowPlayingTopBar(screen: NowPlaying) {
     // A skin's window has these on its title bar and its toolbar instead.
     if (LocalInSkinWindow.current) return
-    val connect by screen.state.connect.collectAsState()
+    val connect = screen.connect
     val sleepTimer by screen.state.sleepTimer.collectAsState()
     val hidden = screen.hidden
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -381,7 +394,7 @@ internal fun NowPlayingTopBar(screen: NowPlaying) {
         )
         Spacer(Modifier.weight(1f))
         if (showsPlayerButton(hidden, PlayerButton.DEVICES, inUse = connect.target != null)) {
-            ConnectButton(screen.state, screen.haptics)
+            DevicesButton(screen.state, screen.haptics, screen.openConnect)
         }
         if (showsPlayerButton(hidden, PlayerButton.SLEEP_TIMER, inUse = sleepTimer != null)) {
             SleepTimerButton(screen.state, screen.haptics)
@@ -443,6 +456,7 @@ internal fun TrackHeading(screen: NowPlaying, title: Boolean = true, centred: Bo
             )
         }
         if (screen.onSpotify) OnSpotifyLine(spotifyDeviceName(screen.settings.spotify), Modifier.padding(top = 4.dp))
+        ConnectLine(screen.connect, screen.openConnect, Modifier.padding(top = 4.dp))
         PhoneFollowArtistChip(track, screen.state, Modifier.padding(top = 4.dp))
         screen.playback.errorMessage?.let {
             Spacer(Modifier.height(6.dp))
@@ -530,8 +544,9 @@ internal fun ToolsRow(screen: NowPlaying) {
     Box(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
         // Not for a song Spotify is playing, which plays at Spotify's own speed whatever is set here; and put away
         // only while the speed is normal, so a song is never quietly playing fast with no button to say so.
+        // Nor for another device's song: the speed is this phone's, and goes with the music nowhere.
         val speed = screen.settings.preferences.playbackSpeed
-        if (!screen.onSpotify && showsPlayerButton(hidden, PlayerButton.SPEED, inUse = speed != 1f)) {
+        if (!screen.onSpotify && !screen.remote && showsPlayerButton(hidden, PlayerButton.SPEED, inUse = speed != 1f)) {
             SpeedButton(screen.settings.preferences.playbackSpeed, state, Modifier.align(Alignment.CenterStart))
         }
         Row(
@@ -576,6 +591,25 @@ internal fun OnSpotifyLine(device: String?, modifier: Modifier = Modifier) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * Where the song is when it is not simply this phone's, in the accent, under the artist: "Playing on Desk" while
+ * this phone is that device's remote control, "Controlled from Desk" while that device is driving this one.
+ * Tapping it opens the Connect tab. Nothing at all otherwise.
+ */
+@Composable
+internal fun ConnectLine(connect: ConnectState, open: () -> Unit, modifier: Modifier = Modifier) {
+    val text = connectStrip(connect) ?: return
+    val accent = MaterialTheme.colorScheme.primary
+    Row(
+        modifier.clickable(onClickLabel = "Open Connect", onClick = open),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon((connect.target?.kind?.glyph() ?: Glyph.DEVICES).image, null, Modifier.size(15.dp), tint = accent)
+        Spacer(Modifier.width(5.dp))
+        Text(text, color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

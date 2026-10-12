@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -187,14 +188,15 @@ fun noctoriumColors(theme: ThemeColours, accent: Color): ColorScheme {
 fun NoctoriumPhone(state: AppState) {
     val ui by state.ui.collectAsState()
     val reported by state.playback.collectAsState()
-    val queue by state.queue.state.collectAsState()
-    // The queue kept from the last session puts its song in the player at launch, paused, so the music
-    // is where it was left rather than nowhere; play picks it up at the place it stopped.
-    val playback = shownPlayback(reported, queue)
+    // What the player shows: this phone's own playback, or -- while it is the remote control of another device --
+    // that device's. The queue kept from the last session puts its song in the player at launch, paused, so the
+    // music is where it was left rather than nowhere; play picks it up at the place it stopped.
+    val playback = state.playerPlayback()
     val library by state.library.collectAsState()
     val settings by state.settings.collectAsState()
-    // Asked once, the first time something plays on a phone that could stop it when the screen locks.
-    KeepPlayingPrompt(state, playing = playback.isPlaying)
+    // Asked once, the first time something plays on a phone that could stop it when the screen locks: playing
+    // here, which music on another device is not.
+    KeepPlayingPrompt(state, playing = reported.isPlaying)
     /*
      * Start page, including the one the phone was quietly dropping.
      *
@@ -253,6 +255,7 @@ fun NoctoriumPhone(state: AppState) {
                         if (hasSignInPage(provider)) signingInTo = provider
                     }
                     Destination.QUEUE -> QueueScreen(state)
+                    Destination.CONNECT -> ConnectScreen(state)
                     // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
                     // Home with the sheet open instead of on an empty screen.
                     Destination.HOME, Destination.NOW_PLAYING -> HomeScreen(state)
@@ -261,117 +264,129 @@ fun NoctoriumPhone(state: AppState) {
         }
     }
     val screens: @Composable () -> Unit = { movableScreens(ui.destination, !overlaid && !nowPlayingOpen) }
-    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize()) {
-            /*
-             * The player bar at the head of the screen, for anyone who asked for it there.
-             *
-             * The desktop has offered this all along and the phone quietly did not, on the theory that a
-             * phone has no top to speak of. It has one: it is where the thumb is not, which for a bar
-             * that is mostly looked at is a reasonable place. Up here it takes the status-bar inset itself
-             * and tells the screens beneath that the inset is spent, or each would pad for it again.
-             */
-            val barAtTop = settings.preferences.playerBarPosition == PlayerBarPosition.TOP && playback.track != null
-            if (glass) {
-                GlassChrome(
-                    state = state,
-                    playback = playback,
-                    settings = settings,
-                    destination = ui.destination,
-                    barAtTop = barAtTop,
-                    openNowPlaying = { nowPlayingOpen = true },
-                    screens = screens,
-                )
-            } else Column(Modifier.fillMaxSize()) {
-                if (barAtTop) {
-                    Column(Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
-                        PlayerBar(
-                            playback,
-                            state,
-                            settings.preferences.progressBarStyle,
-                            settings.preferences.phone.swipeToChangeTrack,
-                            settings.preferences.phone.playerBarStyle,
-                        ) { nowPlayingOpen = true }
+    // A setting on a tab that the settings search led to: see TabSettingRequest.
+    val tabSetting = remember { TabSettingRequest() }
+    CompositionLocalProvider(LocalTabSetting provides tabSetting) {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize()) {
+                /*
+                 * The player bar at the head of the screen, for anyone who asked for it there.
+                 *
+                 * The desktop has offered this all along and the phone quietly did not, on the theory that a
+                 * phone has no top to speak of. It has one: it is where the thumb is not, which for a bar
+                 * that is mostly looked at is a reasonable place. Up here it takes the status-bar inset itself
+                 * and tells the screens beneath that the inset is spent, or each would pad for it again.
+                 */
+                val barAtTop = settings.preferences.playerBarPosition == PlayerBarPosition.TOP && playback.track != null
+                // The strip on the player bar, and Now playing's "Playing on", lead to the Connect tab.
+                val openConnect = {
+                    nowPlayingOpen = false
+                    state.navigate(Destination.CONNECT)
+                }
+                if (glass) {
+                    GlassChrome(
+                        state = state,
+                        playback = playback,
+                        settings = settings,
+                        destination = ui.destination,
+                        barAtTop = barAtTop,
+                        openNowPlaying = { nowPlayingOpen = true },
+                        openConnect = openConnect,
+                        screens = screens,
+                    )
+                } else Column(Modifier.fillMaxSize()) {
+                    if (barAtTop) {
+                        Column(Modifier.windowInsetsPadding(WindowInsets.statusBars)) {
+                            PlayerBar(
+                                playback,
+                                state,
+                                settings.preferences.progressBarStyle,
+                                settings.preferences.phone.swipeToChangeTrack,
+                                settings.preferences.phone.playerBarStyle,
+                                openConnect = openConnect,
+                            ) { nowPlayingOpen = true }
+                        }
+                    }
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .then(if (barAtTop) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
+                    ) { screens() }
+
+                    Column(Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))) {
+                        if (playback.track != null && !barAtTop) {
+                            PlayerBar(
+                                playback,
+                                state,
+                                settings.preferences.progressBarStyle,
+                                settings.preferences.phone.swipeToChangeTrack,
+                                settings.preferences.phone.playerBarStyle,
+                                openConnect = openConnect,
+                            ) { nowPlayingOpen = true }
+                        }
+                        val skin = LocalSkin.current
+                        if (skin == ThemeSkin.STANDARD) {
+                            PhoneNavigation(
+                                ui.destination,
+                                settings.preferences.phone.navigationLabels,
+                                // A hidden tab is only off the bar. Its page is still drawn when something leads
+                                // there -- a shared link opening Link, a playlist on Home opening Library -- and
+                                // simply has no tab lit while it is showing.
+                                visibleTabs(settings.preferences.phone.hiddenDestinations),
+                                state::navigate,
+                            )
+                        } else {
+                            // The Windows themes' tabs are their taskbar. A taskbar player bar right above it has the
+                            // clock already, and one clock is enough; put away, neither has one.
+                            SkinTaskbar(
+                                state,
+                                ui.destination,
+                                settings.preferences.phone.navigationLabels,
+                                visibleTabs(settings.preferences.phone.hiddenDestinations),
+                                clock = settings.preferences.taskbarClock && (
+                                    playback.track == null || barAtTop ||
+                                        settings.preferences.phone.playerBarStyle != PhonePlayerBarStyle.TASKBAR
+                                    ),
+                                icon = { it.tabIcon() },
+                                go = state::navigate,
+                            )
+                        }
                     }
                 }
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .then(if (barAtTop) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier),
-                ) { screens() }
 
-                Column(Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))) {
-                    if (playback.track != null && !barAtTop) {
-                        PlayerBar(
-                            playback,
-                            state,
-                            settings.preferences.progressBarStyle,
-                            settings.preferences.phone.swipeToChangeTrack,
-                            settings.preferences.phone.playerBarStyle,
-                        ) { nowPlayingOpen = true }
-                    }
-                    val skin = LocalSkin.current
-                    if (skin == ThemeSkin.STANDARD) {
-                        PhoneNavigation(
-                            ui.destination,
-                            settings.preferences.phone.navigationLabels,
-                            // A hidden tab is only off the bar. Its page is still drawn when something leads
-                            // there -- a shared link opening Link, a playlist on Home opening Library -- and
-                            // simply has no tab lit while it is showing.
-                            visibleTabs(settings.preferences.phone.hiddenDestinations),
-                            state::navigate,
-                        )
+                // The service's own sign-in page, over everything including the tabs. A half-finished login
+                // that can be tabbed away from leaves a session nobody knows the state of.
+                signingInTo?.let { provider ->
+                    SignInScreen(provider, state) { signingInTo = null }
+                }
+
+                // Over everything too: while a track is open it is the only thing being looked at, and a row
+                // of tabs underneath it is just somewhere to lose your place.
+                // Up from the bar it was opened from and back down to it, easing to a stop; instant with animations off.
+                val moving = LocalMotion.current
+                AnimatedVisibility(
+                    visible = signingInTo == null && nowPlayingOpen && playback.track != null,
+                    enter = if (moving) {
+                        slideInVertically(tween(MotionTiming.STANDARD + 60, easing = FastOutSlowInEasing)) { it } +
+                            fadeIn(tween(MotionTiming.STANDARD))
                     } else {
-                        // The Windows themes' tabs are their taskbar. A taskbar player bar right above it has the
-                        // clock already, and one clock is enough; put away, neither has one.
-                        SkinTaskbar(
-                            state,
-                            ui.destination,
-                            settings.preferences.phone.navigationLabels,
-                            visibleTabs(settings.preferences.phone.hiddenDestinations),
-                            clock = settings.preferences.taskbarClock && (
-                                playback.track == null || barAtTop ||
-                                    settings.preferences.phone.playerBarStyle != PhonePlayerBarStyle.TASKBAR
-                                ),
-                            icon = { it.tabIcon() },
-                            go = state::navigate,
-                        )
-                    }
+                        EnterTransition.None
+                    },
+                    exit = if (moving) {
+                        slideOutVertically(tween(MotionTiming.STANDARD, easing = FastOutSlowInEasing)) { it } +
+                            fadeOut(tween(MotionTiming.STANDARD))
+                    } else {
+                        ExitTransition.None
+                    },
+                ) {
+                    NowPlayingScreen(state, openConnect = openConnect) { nowPlayingOpen = false }
                 }
-            }
 
-            // The service's own sign-in page, over everything including the tabs. A half-finished login
-            // that can be tabbed away from leaves a session nobody knows the state of.
-            signingInTo?.let { provider ->
-                SignInScreen(provider, state) { signingInTo = null }
+                // Last, so it sits over the sheet as well: the launch check found something newer and this is
+                // the once it gets to say so. Not while signing in, though -- that page is somebody halfway
+                // through handing over a password, and it is no moment to put a dialog in front of them.
+                if (signingInTo == null) UpdatePrompt(state)
             }
-
-            // Over everything too: while a track is open it is the only thing being looked at, and a row
-            // of tabs underneath it is just somewhere to lose your place.
-            // Up from the bar it was opened from and back down to it, easing to a stop; instant with animations off.
-            val moving = LocalMotion.current
-            AnimatedVisibility(
-                visible = signingInTo == null && nowPlayingOpen && playback.track != null,
-                enter = if (moving) {
-                    slideInVertically(tween(MotionTiming.STANDARD + 60, easing = FastOutSlowInEasing)) { it } +
-                        fadeIn(tween(MotionTiming.STANDARD))
-                } else {
-                    EnterTransition.None
-                },
-                exit = if (moving) {
-                    slideOutVertically(tween(MotionTiming.STANDARD, easing = FastOutSlowInEasing)) { it } +
-                        fadeOut(tween(MotionTiming.STANDARD))
-                } else {
-                    ExitTransition.None
-                },
-            ) {
-                NowPlayingScreen(state) { nowPlayingOpen = false }
-            }
-
-            // Last, so it sits over the sheet as well: the launch check found something newer and this is
-            // the once it gets to say so. Not while signing in, though -- that page is somebody halfway
-            // through handing over a password, and it is no moment to put a dialog in front of them.
-            if (signingInTo == null) UpdatePrompt(state)
         }
     }
 }
@@ -396,6 +411,7 @@ private fun BoxScope.GlassChrome(
     destination: Destination,
     barAtTop: Boolean,
     openNowPlaying: () -> Unit,
+    openConnect: () -> Unit,
     screens: @Composable () -> Unit,
 ) {
     val backdrop = rememberGlassBackdrop()
@@ -438,6 +454,7 @@ private fun BoxScope.GlassChrome(
                     settings.preferences.phone.swipeToChangeTrack,
                     settings.preferences.phone.playerBarStyle,
                     glass = true,
+                    openConnect = openConnect,
                     open = openNowPlaying,
                 )
             }
@@ -462,6 +479,7 @@ private fun BoxScope.GlassChrome(
                     settings.preferences.phone.swipeToChangeTrack,
                     settings.preferences.phone.playerBarStyle,
                     glass = true,
+                    openConnect = openConnect,
                     open = openNowPlaying,
                 )
             }
@@ -495,6 +513,7 @@ private fun Destination.tabIcon(): Glyph = when (this) {
     Destination.LIBRARY -> Glyph.LIBRARY_MUSIC
     Destination.DOWNLOADS -> Glyph.DOWNLOAD_FOR_OFFLINE
     Destination.QUEUE -> Glyph.QUEUE_MUSIC
+    Destination.CONNECT -> Glyph.DEVICES
     Destination.SETTINGS -> Glyph.SETTINGS
 }
 
@@ -574,7 +593,9 @@ private fun PhoneNavigation(current: Destination, labels: Boolean, tabs: List<De
                 onClick = { go(destination) },
                 icon = { Icon(icon, label) },
                 label = if (labels) {
-                    { Text(label, fontSize = 10.sp, maxLines = 1, softWrap = false) }
+                    // Whole, even where the tab is narrower than its name: with eight tabs only the chosen one is
+                    // named, and its name may run out over its unnamed neighbours rather than being cut to "Connec".
+                    { Text(label, fontSize = 10.sp, maxLines = 1, softWrap = false, modifier = Modifier.wrapContentWidth(unbounded = true)) }
                 } else {
                     null
                 },
@@ -612,16 +633,20 @@ private fun PlayerBar(
      * the cover round, so it sits in the pill's end rather than jutting into it.
      */
     glass: Boolean = false,
+    /** Opens the Connect tab, from the strip along the bar's foot while the music is not simply this phone's. */
+    openConnect: () -> Unit = {},
     open: () -> Unit,
 ) {
     val track = playback.track ?: return
     val haptics = rememberHaptics(state)
     val settings by state.settings.collectAsState()
-    val queue by state.queue.state.collectAsState()
+    // The queue the player shows: this phone's, or the driven device's.
+    val queue = state.playerQueue()
     // Next is greyed where it would go nowhere: the end of a queue with nothing lined up after it.
     val hasNext = queue.hasNext
     // A song the account's own Spotify app is playing says so, or the bar would read as this phone playing it.
-    val onSpotify = playsOnSpotify(track, settings.spotify)
+    // Not while the song is another device's, which plays it however that device does.
+    val onSpotify = state.connectNow().target == null && playsOnSpotify(track, settings.spotify)
     // The line along the edge, for the bars without one of their own: Controls carries a seek bar, and a
     // line under a seek bar is the same thing twice -- and so does the Toolbar, with its slider; Line is little
     // more than its line, Taskbar keeps it in the song's button, and Floating along the foot of its card --
@@ -659,29 +684,33 @@ private fun PlayerBar(
         Box(if (dressed) Modifier.skinPanel() else Modifier) {
             if (layout == PhonePlayerBarStyle.SPOTLIGHT) SpotlightBackdrop(track.artworkUrl, glass)
             if (floating) {
-                FloatingBar(track, playback, state, style, onSpotify, hasNext, gestures)
+                FloatingBar(track, playback, state, style, onSpotify, hasNext, gestures) { ConnectStrip(state, glass = false, openConnect) }
                 return@Box
             }
-            Column(gestures) {
-                if (!glass && line) PlaybackLine(playback, style)
-                when (layout) {
-                    PhonePlayerBarStyle.CLASSIC, PhonePlayerBarStyle.FLOATING -> ClassicBar(track, playback, state, glass, onSpotify, hasNext)
-                    PhonePlayerBarStyle.SLIM -> SlimBar(track, playback, state, glass, onSpotify = onSpotify)
-                    PhonePlayerBarStyle.SLIM_LEFT -> SlimBar(track, playback, state, glass, controlsFirst = true, onSpotify = onSpotify)
-                    PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass, onSpotify, hasNext)
-                    PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass, onSpotify, hasNext)
-                    PhonePlayerBarStyle.LINE -> LineBar(track, playback, state, style, glass, onSpotify)
-                    PhonePlayerBarStyle.RECORD -> RecordBar(track, playback, state, glass, onSpotify, hasNext)
-                    PhonePlayerBarStyle.TASKBAR -> TaskbarBar(track, playback, state, style, glass, settings.preferences.taskbarClock, open)
-                    PhonePlayerBarStyle.TOOLBAR -> ToolbarBar(track, playback, state, glass, onSpotify, hasNext)
-                }
-                // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
-                // rounded ends would be cut off at an angle, which reads as a mistake.
-                if (glass && line) {
-                    Box(Modifier.padding(start = 28.dp, end = 28.dp, bottom = 5.dp).clip(RoundedCornerShape(50))) {
-                        PlaybackLine(playback, style)
+            Column {
+                Column(gestures) {
+                    if (!glass && line) PlaybackLine(playback, style)
+                    when (layout) {
+                        PhonePlayerBarStyle.CLASSIC, PhonePlayerBarStyle.FLOATING -> ClassicBar(track, playback, state, glass, onSpotify, hasNext)
+                        PhonePlayerBarStyle.SLIM -> SlimBar(track, playback, state, glass, onSpotify = onSpotify)
+                        PhonePlayerBarStyle.SLIM_LEFT -> SlimBar(track, playback, state, glass, controlsFirst = true, onSpotify = onSpotify)
+                        PhonePlayerBarStyle.CONTROLS -> ControlsBar(track, playback, state, style, glass, onSpotify, hasNext)
+                        PhonePlayerBarStyle.SPOTLIGHT -> SpotlightBar(track, playback, state, glass, onSpotify, hasNext)
+                        PhonePlayerBarStyle.LINE -> LineBar(track, playback, state, style, glass, onSpotify)
+                        PhonePlayerBarStyle.RECORD -> RecordBar(track, playback, state, glass, onSpotify, hasNext)
+                        PhonePlayerBarStyle.TASKBAR -> TaskbarBar(track, playback, state, style, glass, settings.preferences.taskbarClock, open)
+                        PhonePlayerBarStyle.TOOLBAR -> ToolbarBar(track, playback, state, glass, onSpotify, hasNext)
+                    }
+                    // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
+                    // rounded ends would be cut off at an angle, which reads as a mistake.
+                    if (glass && line) {
+                        Box(Modifier.padding(start = 28.dp, end = 28.dp, bottom = 5.dp).clip(RoundedCornerShape(50))) {
+                            PlaybackLine(playback, style)
+                        }
                     }
                 }
+                // "Playing on Desk" or "Controlled from Desk", along the foot: the Connect tab is a tap away.
+                ConnectStrip(state, glass, openConnect)
             }
         }
     }
@@ -780,7 +809,7 @@ private fun SlimBar(
 @Composable
 private fun SlimControls(playback: PlaybackState, state: AppState) {
     val haptics = rememberHaptics(state)
-    val queue by state.queue.state.collectAsState()
+    val queue = state.playerQueue()
     val settings by state.settings.collectAsState()
     val hidden = settings.preferences.phone.hiddenPlayerButtons
     val lit = MaterialTheme.colorScheme.primary
