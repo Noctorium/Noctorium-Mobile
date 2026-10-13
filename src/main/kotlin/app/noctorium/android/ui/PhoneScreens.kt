@@ -65,6 +65,8 @@ import app.noctorium.domain.pageUrl
 import app.noctorium.domain.pluralTracks
 import app.noctorium.domain.Playlist
 import app.noctorium.domain.editableOnService
+import app.noctorium.domain.PlaylistVisibility
+import app.noctorium.domain.shownVisibility
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
 import app.noctorium.downloads.DownloadStage
@@ -560,7 +562,7 @@ internal fun LibraryScreen(state: AppState) {
         val local = rememberLast(library.openLocalPlaylist?.takeIf { "local:${it.id}" == shown })
         when {
             shown.startsWith("playlist:") -> service?.let {
-                PlaylistScreen(it, library.openPlaylistLoading, library.openPlaylistError, library.notice, state)
+                PlaylistScreen(it, library.openPlaylistLoading, library.openPlaylistError, library.notice, library.noticeIsProblem, state)
             }
             shown.startsWith("local:") -> local?.let { LocalPlaylistScreen(it, library.notice, services, state) }
             else -> LibraryList(library, downloads, services, state)
@@ -658,7 +660,7 @@ private fun LibraryList(
                             title = playlist.title,
                             detail = listOfNotNull(
                                 playlist.provider.displayName,
-                                "Private".takeIf { playlist.isPublic == false },
+                                playlist.shownVisibility?.takeIf { it != PlaylistVisibility.PUBLIC }?.displayName,
                                 playlist.trackCount?.let(::pluralTracks),
                                 ownerWorthNaming(playlist),
                             ).joinToString(" · "),
@@ -705,7 +707,7 @@ private fun PlaylistRow(title: String, detail: String, artworkUrl: String?, open
 
 /** One playlist, opened. Loads in two passes the way the desktop does, so it appears before it is complete. */
 @Composable
-private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?, notice: String?, state: AppState) {
+private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?, notice: String?, noticeIsProblem: Boolean, state: AppState) {
     val playback by state.playback.collectAsState()
     val downloads by state.downloadState.collectAsState()
 
@@ -751,13 +753,22 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
             }
         }
 
-        // The account's own playlists can be made public or private, renamed and deleted from here.
-        if (playlist.editableOnService()) ServicePlaylistControls(playlist, notice, state)
+        // The account's own playlists can have who sees them changed, be renamed and deleted from here. A YouTube
+        // playlist's own page says whether it is the listener's, and that page is what is loading, so its controls
+        // wait for it rather than standing on somebody else's playlist for the second it takes.
+        val youTube = playlist.provider == ProviderType.YOUTUBE_MUSIC || playlist.provider == ProviderType.YOUTUBE_VIDEO
+        if (playlist.editableOnService() && !(youTube && loading)) ServicePlaylistControls(playlist, notice, state)
         servicePage(playlist.provider, playlist.sourceUrl)?.let { page ->
             ServicePageAction(openOnLabel(playlist.provider), page, state)
         }
         notice?.let {
-            Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+            Text(
+                it,
+                // A change the service turned down reads as one, not in the colour of one that went through.
+                color = if (noticeIsProblem) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+            )
         }
 
         error?.let {
