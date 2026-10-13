@@ -122,16 +122,16 @@ internal fun PlayerButtonsCard(settings: SettingsState, state: AppState) {
 
 /** Where on the phone's player each button sits, so switching it off is not a guess at what goes. */
 private fun playerButtonWhere(button: PlayerButton): String = when (button) {
-    PlayerButton.SHUFFLE -> "On the full screen, and on the Slim player bars."
-    PlayerButton.REPEAT -> "On the full screen, and on the Slim player bars."
-    PlayerButton.LIKE -> "The heart under the track on the full screen."
+    PlayerButton.SHUFFLE -> "On the full screen, and on the Slim and Toolbar player bars."
+    PlayerButton.REPEAT -> "On the full screen, and on the Slim and Toolbar player bars."
+    PlayerButton.LIKE -> "The heart under the track on the full screen, and on the Toolbar 2 player bar."
     PlayerButton.LYRICS -> "The Aa at the top of the full screen."
     PlayerButton.SLEEP_TIMER -> "The moon at the top of the full screen."
     PlayerButton.DEVICES -> "Noctorium Connect, at the top of the full screen."
     PlayerButton.VOLUME -> "Volume, mute and the boost, beside the heart on the full screen."
     PlayerButton.SPEED -> "The dial under the seek bar on the full screen. It stays while the speed is not normal."
-    PlayerButton.QUEUE -> "Beside the Aa at the top of the full screen; it opens the queue over the song."
-    PlayerButton.STOP -> "Back to the start of the song, beside play on the full screen. Off until asked for; the Toolbar player bar always has it."
+    PlayerButton.QUEUE -> "Beside the Aa at the top of the full screen; it opens the queue over the song. On Toolbar 2, the Queue tab."
+    PlayerButton.STOP -> "Back to the start of the song, beside play on the full screen and on Toolbar 2. Off until asked for; the Toolbar player bar always has it."
 }
 
 /** What Noctorium calls you, on the home screen's greeting. */

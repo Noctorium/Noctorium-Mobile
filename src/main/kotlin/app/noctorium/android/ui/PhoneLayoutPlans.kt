@@ -192,7 +192,43 @@ private fun DrawScope.drawPlayerBarPlan(layout: PhonePlayerBarStyle, c: PlanColo
             drawCircle(c.faint, 1.3f * u, Offset(82 * u, row))
             drawCircle(c.faint, 1.3f * u, Offset(91 * u, row))
         }
+        PhonePlayerBarStyle.TOOLBAR_2 -> {
+            // The song, a row of seven flat buttons -- the heart lit, play one button -- then the slider and the time.
+            val top = bar(30f)
+            planCover(c, 4 * u, top + 2.5f * u, 8 * u)
+            planText(c, 15 * u, top + 3.2f * u, 34 * u, 21 * u, u, thin = true)
+            val row = top + 15.5f * u
+            val at = { i: Int -> (5 + 90 * (i + .5f) / 7) * u }
+            planHeart(c, at(0), row, 2.1f * u)
+            planPrevious(c, at(1), row, 2.3f * u)
+            planPlay(c, at(2), row, 2.3f * u)
+            planNext(c, at(3), row, 2.3f * u)
+            repeat(3) { line -> drawRect(c.ink, Offset(at(4) - 1.9f * u, row + (line - 1) * 1.5f * u - .35f * u), Size(3.8f * u, .7f * u)) }
+            drawCircle(c.faint, 1.3f * u, Offset(at(5), row))
+            drawCircle(c.faint, 1.3f * u, Offset(at(6), row))
+            val groove = top + 25 * u
+            drawRoundRect(c.faint, Offset(5 * u, groove - .55f * u), Size(71 * u, 1.1f * u), CornerRadius(u, u))
+            drawRoundRect(c.accent, Offset(5 * u, groove - .55f * u), Size(71 * u * .38f, 1.1f * u), CornerRadius(u, u))
+            val handle = Offset((5 + 71 * .38f) * u, groove)
+            drawCircle(c.panel, 2.1f * u, handle)
+            drawCircle(c.accent, 1.8f * u, handle, style = Stroke(.6f * u))
+            drawRoundRect(c.faint, Offset(79 * u, groove - .9f * u), Size(16 * u, 1.8f * u), CornerRadius(u, u))
+        }
     }
+}
+
+/** A heart, filled in the accent: a like that has landed. */
+private fun DrawScope.planHeart(c: PlanColours, centreX: Float, centreY: Float, half: Float) {
+    val lobe = half * .52f
+    drawCircle(c.accent, lobe, Offset(centreX - lobe * .92f, centreY - half * .3f))
+    drawCircle(c.accent, lobe, Offset(centreX + lobe * .92f, centreY - half * .3f))
+    val point = Path().apply {
+        moveTo(centreX - half * .96f, centreY - half * .1f)
+        lineTo(centreX + half * .96f, centreY - half * .1f)
+        lineTo(centreX, centreY + half * .95f)
+        close()
+    }
+    drawPath(point, c.accent)
 }
 
 private fun DrawScope.planCover(c: PlanColours, x: Float, y: Float, side: Float, corner: Float = side * .16f) {

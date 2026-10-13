@@ -16,6 +16,9 @@ import app.noctorium.android.ui.SettingIds
 import app.noctorium.android.ui.SettingsPage
 import app.noctorium.android.ui.SettingsPageScreen
 import app.noctorium.android.ui.SettingsScreen
+import app.noctorium.core.AppState
+import app.noctorium.core.LikeState
+import app.noctorium.domain.Track
 import app.noctorium.playback.SavedQueue
 import app.noctorium.settings.BadgePolicy
 import app.noctorium.settings.IconSet
@@ -41,7 +44,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * The desktop-music-player look and what came with it: the Toolbar bar, the Slider, the Playlist layout with its
+ * The desktop-music-player look and what came with it: the Toolbar bars, the Slider, the Playlist layout with its
  * visualiser and status bar, the volume booster, Stop, the icon sets, the services' badges with their marks, Clear
  * all but this song, and Settings with
  * its sections and search -- each in a dark theme, a light one, 98, Noctorium 98 and XP, at the ordinary text
@@ -63,7 +66,7 @@ class NewLooksScreenshots(private val look: Look) {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
         fun looks(): List<Array<Any>> = (
-            toolbarLooks() + sliderLooks() + playlistLooks() + boosterLooks() + stopLooks() + iconLooks() +
+            toolbarLooks() + toolbar2Looks() + sliderLooks() + playlistLooks() + boosterLooks() + stopLooks() + iconLooks() +
                 badgeLooks() + queueLooks() + settingsLooks()
             ).only().map { arrayOf(it) }
     }
@@ -89,7 +92,7 @@ class NewSettingsPagesScreenshots(private val look: Look) {
     }
 }
 
-/** The narrowest phone still sold, for the bar with the most buttons on it. */
+/** The narrowest phone still sold, for the bars with the most buttons on them. */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "w320dp-h760dp-xxhdpi", application = Application::class)
@@ -111,7 +114,7 @@ class NewNarrowScreenshots(private val look: Look) {
             Look("new-playlist-narrow-night", playlist(NoctoriumPreferences()), playing = { Covers.on(Still.queue[2]) }, kept = { SavedQueue(Covers.on(Still.queue), 2, 83_000) }) { _, state ->
                 NowPlayingScreen(state) {}
             },
-        ).only().map { arrayOf(it) }
+        ).plus(toolbar2NarrowLooks()).only().map { arrayOf(it) }
     }
 }
 
@@ -150,6 +153,77 @@ private fun toolbarLooks(): List<Look> = KINDS_AND_SIZES.map { (kind, preference
     Look(
         "new-toolbar-night-fewer-buttons",
         toolbar(NoctoriumPreferences()).let { it.copy(phone = it.phone.copy(hiddenPlayerButtons = setOf(PlayerButton.STOP, PlayerButton.SHUFFLE))) },
+    ) { _, state -> NoctoriumPhone(state) },
+)
+
+private fun toolbar2(preferences: NoctoriumPreferences) =
+    still(preferences).copy(phone = preferences.phone.copy(playerBarStyle = PhonePlayerBarStyle.TOOLBAR_2))
+
+/** Toolbar 2 with Stop asked for as well: the most buttons its row can have. */
+private fun toolbar2WithStop(preferences: NoctoriumPreferences) =
+    toolbar2(preferences).let { it.copy(phone = it.phone.copy(shownPlayerButtons = setOf(PlayerButton.STOP))) }
+
+/** A title too long for any bar, playing, so the song's line is seen to give way and nothing else. */
+private val longPlaying: () -> Track? = { Covers.on(Still.longTitle) }
+
+/** The same song kept from the last session and so paused, a minute and a half in, with the queue after it. */
+private val longPaused: () -> SavedQueue? = { SavedQueue(listOf(Covers.on(Still.longTitle)) + Covers.on(Still.queue), 0, 83_000) }
+
+/**
+ * Every toggle on: shuffle, repeat, and a like for the long title. The still life is signed in to nothing, so the
+ * heart cannot be given the ordinary way, which would ask YouTube Music; the likes are set as a signed-in account's
+ * would read instead, with the song among them.
+ */
+private val allLit: (AppState) -> Unit = { state ->
+    state.toggleShuffle()
+    state.cycleRepeat()
+    likedWithoutAsking(state, Covers.on(Still.longTitle))
+}
+
+private fun likedWithoutAsking(state: AppState, track: Track) {
+    val likes = AppState::class.java.getDeclaredField("mutableLikes").apply { isAccessible = true }.get(state)
+    @Suppress("UNCHECKED_CAST")
+    (likes as kotlinx.coroutines.flow.MutableStateFlow<LikeState>).value =
+        LikeState(likedKeys = setOf("yt:${track.id}"), youTubeReady = true)
+}
+
+/** Toolbar 2 in each kind of theme at both text sizes, paused, with every toggle lit, under glass, at the top, and with fewer buttons. */
+private fun toolbar2Looks(): List<Look> = KINDS_AND_SIZES.map { (kind, preferences) ->
+    Look("new-toolbar-2-$kind", toolbar2(preferences), playing = longPlaying) { _, state -> NoctoriumPhone(state) }
+} + KINDS.flatMap { (kind, preferences) ->
+    listOf(
+        Look("new-toolbar-2-$kind-paused", toolbar2(preferences), playing = { null }, kept = longPaused) { _, state -> NoctoriumPhone(state) },
+        Look("new-toolbar-2-$kind-lit", toolbar2WithStop(preferences), playing = longPlaying, prepare = allLit) { _, state -> NoctoriumPhone(state) },
+    )
+} + listOf(
+    Look("new-toolbar-2-night-glass", toolbar2(NoctoriumPreferences(surfaceStyle = SurfaceStyle.GLASS)), playing = longPlaying) { _, state ->
+        NoctoriumPhone(state)
+    },
+    Look(
+        "new-toolbar-2-night-top",
+        toolbar2(NoctoriumPreferences(playerBarPosition = app.noctorium.settings.PlayerBarPosition.TOP)),
+        playing = longPlaying,
+    ) { _, state -> NoctoriumPhone(state) },
+    // The like and the queue put away: the buttons left share the row.
+    Look(
+        "new-toolbar-2-night-fewer-buttons",
+        toolbar2(NoctoriumPreferences()).let { it.copy(phone = it.phone.copy(hiddenPlayerButtons = setOf(PlayerButton.LIKE, PlayerButton.QUEUE))) },
+    ) { _, state -> NoctoriumPhone(state) },
+)
+
+/** Toolbar 2 on the narrowest phone, playing and paused, and with all eight buttons -- under glass, the least room. */
+private fun toolbar2NarrowLooks(): List<Look> = KINDS.filter { (kind, _) -> kind != "noctorium-98" }.flatMap { (kind, preferences) ->
+    listOf(
+        Look("new-toolbar-2-narrow-$kind", toolbar2(preferences), playing = longPlaying) { _, state -> NoctoriumPhone(state) },
+        Look("new-toolbar-2-narrow-$kind-paused", toolbar2(preferences), playing = { null }, kept = longPaused) { _, state -> NoctoriumPhone(state) },
+        Look("new-toolbar-2-narrow-$kind-lit", toolbar2WithStop(preferences), playing = longPlaying, prepare = allLit) { _, state -> NoctoriumPhone(state) },
+    )
+} + listOf(
+    Look(
+        "new-toolbar-2-narrow-night-glass-lit",
+        toolbar2WithStop(NoctoriumPreferences(surfaceStyle = SurfaceStyle.GLASS)),
+        playing = longPlaying,
+        prepare = allLit,
     ) { _, state -> NoctoriumPhone(state) },
 )
 

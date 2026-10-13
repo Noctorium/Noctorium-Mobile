@@ -280,8 +280,8 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
     ),
     PhoneSetting(
         SettingIds.PLAYER_BAR_LAYOUT, "Player bar layout", SettingsPage.PLAYER_BAR, "player-bar",
-        "Classic, Slim, Controls, Spotlight, Floating, Line, Record, Taskbar or Toolbar.",
-        listOf("mini player", "toolbar", "slim", "floating", "taskbar", "controls", "now playing bar"),
+        "Classic, Slim, Controls, Spotlight, Floating, Line, Record, Taskbar, Toolbar or Toolbar 2.",
+        listOf("mini player", "toolbar", "toolbar 2", "slim", "floating", "taskbar", "controls", "now playing bar"),
         stores = listOf("phone.playerBarStyle"),
     ),
     PhoneSetting(

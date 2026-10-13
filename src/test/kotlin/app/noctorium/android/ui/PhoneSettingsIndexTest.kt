@@ -102,6 +102,13 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingsPage.ICONS, first("marks").page)
     }
 
+    @Test
+    fun `each Toolbar is found by its name`() {
+        for (words in listOf("toolbar", "toolbar 2", "toolbar2")) {
+            assertEquals(SettingIds.PLAYER_BAR_LAYOUT, first(words).id, words)
+        }
+    }
+
     /** The Connect tab is found by what people call it, and opened where it is: on its tab, not in Settings. */
     @Test
     fun `the Connect tab is found by the words for it, and opens the tab`() {

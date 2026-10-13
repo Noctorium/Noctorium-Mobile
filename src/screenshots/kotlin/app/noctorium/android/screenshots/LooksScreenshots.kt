@@ -267,6 +267,10 @@ private fun pickerLooks(): List<Look> = THEMES.flatMap { (theme, preferences) ->
         Look("picker-player-bar-taskbar-$theme", preferences.copy(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TASKBAR))) { settings, state ->
             Card { PlayerBarCard(settings, state) }
         },
+        // Toolbar 2 chosen, so its plan is the one lit and its description the one under the plans.
+        Look("picker-player-bar-toolbar-2-$theme", preferences.copy(phone = PhonePreferences(playerBarStyle = PhonePlayerBarStyle.TOOLBAR_2))) { settings, state ->
+            Card { PlayerBarCard(settings, state) }
+        },
         Look("picker-now-playing-$theme", preferences.copy(phone = PhonePreferences(nowPlayingLayout = PhoneNowPlayingLayout.COVER_FLOW))) { settings, state ->
             Card { NowPlayingLookCard(settings, state) }
         },

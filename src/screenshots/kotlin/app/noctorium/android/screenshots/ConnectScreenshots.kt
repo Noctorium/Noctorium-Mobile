@@ -264,7 +264,13 @@ internal fun connectLooks(): List<Look> {
             screen = seeing(ConnectStill.driving) { NoctoriumPhone(it) },
         )
     } + THEMES.drop(1).flatMap { (theme, preferences) ->
-        listOf(PhonePlayerBarStyle.CLASSIC, PhonePlayerBarStyle.FLOATING, PhonePlayerBarStyle.TOOLBAR, PhonePlayerBarStyle.TASKBAR).map { bar ->
+        listOf(
+            PhonePlayerBarStyle.CLASSIC,
+            PhonePlayerBarStyle.FLOATING,
+            PhonePlayerBarStyle.TOOLBAR,
+            PhonePlayerBarStyle.TOOLBAR_2,
+            PhonePlayerBarStyle.TASKBAR,
+        ).map { bar ->
             Look(
                 "connect-bar-${slug(bar.name)}-$theme",
                 preferences.copy(taskbarClock = false, phone = PhonePreferences(playerBarStyle = bar)),

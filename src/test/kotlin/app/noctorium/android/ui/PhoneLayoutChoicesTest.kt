@@ -73,6 +73,61 @@ class PhoneLayoutChoicesTest {
         assertFalse(showsPlayerButton(setOf(PlayerButton.QUEUE), PlayerButton.QUEUE))
     }
 
+    @Test
+    fun `Toolbar 2 has like, previous, play, next, the queue, shuffle and repeat, in that order`() {
+        assertEquals(
+            listOf(
+                Toolbar2Button.LIKE,
+                Toolbar2Button.PREVIOUS,
+                Toolbar2Button.PLAY,
+                Toolbar2Button.NEXT,
+                Toolbar2Button.QUEUE,
+                Toolbar2Button.SHUFFLE,
+                Toolbar2Button.REPEAT,
+            ),
+            toolbar2Buttons(emptySet(), emptySet(), slots = 8),
+        )
+    }
+
+    /** Not built around Stop, as the Toolbar is: it waits to be asked for, and then sits beside play. */
+    @Test
+    fun `Toolbar 2 has Stop beside play once it is asked for, and never otherwise`() {
+        assertFalse(Toolbar2Button.STOP in toolbar2Buttons(emptySet(), emptySet(), slots = 8))
+        val asked = toolbar2Buttons(emptySet(), setOf(PlayerButton.STOP), slots = 8)
+        assertEquals(asked.indexOf(Toolbar2Button.PLAY) + 1, asked.indexOf(Toolbar2Button.STOP))
+        assertFalse(Toolbar2Button.STOP in toolbar2Buttons(setOf(PlayerButton.STOP), setOf(PlayerButton.STOP), slots = 8))
+    }
+
+    @Test
+    fun `Toolbar 2's buttons put away in Customization leave its row, and the rest stay`() {
+        val buttons = toolbar2Buttons(setOf(PlayerButton.LIKE, PlayerButton.QUEUE, PlayerButton.VOLUME), emptySet(), slots = 8)
+        assertEquals(
+            listOf(Toolbar2Button.PREVIOUS, Toolbar2Button.PLAY, Toolbar2Button.NEXT, Toolbar2Button.SHUFFLE, Toolbar2Button.REPEAT),
+            buttons,
+        )
+    }
+
+    /** The queue goes first, being a tab as well; previous, play and next never go, however narrow the row. */
+    @Test
+    fun `on a row too narrow for them all Toolbar 2's buttons give way in their order, never running off its end`() {
+        val stop = setOf(PlayerButton.STOP)
+        assertEquals(8, toolbar2Buttons(emptySet(), stop, slots = 8).size)
+        assertFalse(Toolbar2Button.QUEUE in toolbar2Buttons(emptySet(), stop, slots = 7))
+        assertEquals(
+            listOf(Toolbar2Button.LIKE, Toolbar2Button.PREVIOUS, Toolbar2Button.PLAY, Toolbar2Button.STOP, Toolbar2Button.NEXT),
+            toolbar2Buttons(emptySet(), stop, slots = 5),
+        )
+        assertEquals(
+            listOf(Toolbar2Button.LIKE, Toolbar2Button.PREVIOUS, Toolbar2Button.PLAY, Toolbar2Button.NEXT),
+            toolbar2Buttons(emptySet(), stop, slots = 4),
+        )
+        assertEquals(listOf(Toolbar2Button.PREVIOUS, Toolbar2Button.PLAY, Toolbar2Button.NEXT), toolbar2Buttons(emptySet(), stop, slots = 1))
+        for (slots in 0..8) {
+            val buttons = toolbar2Buttons(emptySet(), stop, slots)
+            assertTrue(buttons.size <= maxOf(slots, 3), "$slots slots took $buttons")
+        }
+    }
+
     /** A sleep timer about to stop the music, or music sent to another device, can always be reached. */
     @Test
     fun `a hidden button comes back while the thing it controls is in use`() {

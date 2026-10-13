@@ -498,9 +498,12 @@ private fun BoxScope.GlassChrome(
 
 /**
  * The corners of the glass pane the player bar floats in: a pill's for the bars of a row or two, and plain rounded
- * corners for the Toolbar's three rows, which a pill's ends would cut into at either side of its buttons.
+ * corners for the Toolbars' three rows, which a pill's ends would cut into at either side of their buttons.
  */
-private fun barPaneCorner(layout: PhonePlayerBarStyle): Dp? = if (layout == PhonePlayerBarStyle.TOOLBAR) 28.dp else null
+private fun barPaneCorner(layout: PhonePlayerBarStyle): Dp? = when (layout) {
+    PhonePlayerBarStyle.TOOLBAR, PhonePlayerBarStyle.TOOLBAR_2 -> 28.dp
+    else -> null
+}
 
 /**
  * Each place's icon, shared by the ordinary tab bar and the glass one so they cannot drift apart. Which
@@ -618,7 +621,8 @@ private fun PhoneNavigation(current: Destination, labels: Boolean, tabs: List<De
  * [layout] it is in. The layouts are what the strip is for: Classic is the cover, the track, play and next;
  * Slim gives the list above it as much of the screen as it can; Controls adds previous and a seek bar for
  * somebody who drives the music from here rather than from the full screen; Spotlight is about the record.
- * Floating lifts Classic off the edge; Line is the least a bar can be; Record turns; Taskbar is a desktop's.
+ * Floating lifts Classic off the edge; Line is the least a bar can be; Record turns; Taskbar is a desktop's,
+ * and the Toolbars a desktop music player's row of buttons, Toolbar 2 with the most of them.
  */
 @Composable
 private fun PlayerBar(
@@ -648,11 +652,12 @@ private fun PlayerBar(
     // Not while the song is another device's, which plays it however that device does.
     val onSpotify = state.connectNow().target == null && playsOnSpotify(track, settings.spotify)
     // The line along the edge, for the bars without one of their own: Controls carries a seek bar, and a
-    // line under a seek bar is the same thing twice -- and so does the Toolbar, with its slider; Line is little
+    // line under a seek bar is the same thing twice -- and so do the Toolbars, with their slider; Line is little
     // more than its line, Taskbar keeps it in the song's button, and Floating along the foot of its card --
     // which under glass is the pane's foot.
     val line = when (layout) {
-        PhonePlayerBarStyle.CONTROLS, PhonePlayerBarStyle.LINE, PhonePlayerBarStyle.TASKBAR, PhonePlayerBarStyle.TOOLBAR -> false
+        PhonePlayerBarStyle.CONTROLS, PhonePlayerBarStyle.LINE, PhonePlayerBarStyle.TASKBAR,
+        PhonePlayerBarStyle.TOOLBAR, PhonePlayerBarStyle.TOOLBAR_2 -> false
         PhonePlayerBarStyle.FLOATING -> glass
         else -> true
     }
@@ -700,6 +705,7 @@ private fun PlayerBar(
                         PhonePlayerBarStyle.RECORD -> RecordBar(track, playback, state, glass, onSpotify, hasNext)
                         PhonePlayerBarStyle.TASKBAR -> TaskbarBar(track, playback, state, style, glass, settings.preferences.taskbarClock, open)
                         PhonePlayerBarStyle.TOOLBAR -> ToolbarBar(track, playback, state, glass, onSpotify, hasNext)
+                        PhonePlayerBarStyle.TOOLBAR_2 -> Toolbar2Bar(track, playback, state, glass, onSpotify, hasNext)
                     }
                     // Along the bottom and kept clear of the curve at each end: a line that ran into the pill's
                     // rounded ends would be cut off at an angle, which reads as a mistake.
