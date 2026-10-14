@@ -176,6 +176,29 @@ class PhoneConnectTest {
     }
 
     @Test
+    fun `the switch says what on and off mean, and what switching off would end`() {
+        assertEquals("This phone finds your other devices, and they can find it.", connectSwitchLine(on = true))
+        assertEquals("Off: this phone is not looking for your other devices, and they cannot see it.", connectSwitchLine(on = false))
+        assertEquals(
+            "Switching it off ends this phone's control of Desk. The music plays on there.",
+            connectSwitchEnds(ConnectState(target = desk)),
+        )
+        assertEquals("Switching it off ends Desk's control of this phone.", connectSwitchEnds(ConnectState(controlledBy = "Desk")))
+        assertNull(connectSwitchEnds(ConnectState(devices = listOf(desk, laptop))), "nothing is driven, so nothing ends")
+    }
+
+    /** Base's stop forgets the device this phone drove, but not the one that drove it; switched off, it is not said. */
+    @Test
+    fun `switched off, nothing is said to be controlling this phone`() {
+        val driven = ConnectState(controlledBy = "Desk", controlledById = "desk")
+        assertEquals(driven, driven.asSwitched(on = true))
+        assertNull(driven.asSwitched(on = false).controlledBy)
+        assertNull(driven.asSwitched(on = false).controlledById)
+        assertNull(connectStrip(driven.asSwitched(on = false)))
+        assertEquals(ConnectState(), ConnectState().asSwitched(on = false))
+    }
+
+    @Test
     fun `the music is somewhere else while a device is driven or playing by itself`() {
         assertTrue(MusicPlace.Driving(desk).isElsewhere())
         assertTrue(MusicPlace.Elsewhere(desk).isElsewhere())

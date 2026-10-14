@@ -601,10 +601,16 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         listOf("device name", "phone name"),
         stores = listOf("connect.deviceName"),
     ),
+    // The switch, by its own name, and by every way of saying "turn it off": the one thing people come looking for
+    // Connect in Settings to do, which is why it is first among Connect's when all they type is "connect".
     PhoneSetting(
-        SettingIds.CONNECT_ENABLED, "Let my other devices find this one", SettingsPage.CONNECT, "connect",
-        "Noctorium Connect: your devices handing the music to each other on the same wifi.",
-        listOf("noctorium connect", "cast", "remote control", "other devices", "handoff"),
+        SettingIds.CONNECT_ENABLED, "Noctorium Connect", SettingsPage.CONNECT, "connect",
+        "On or off. On, this phone finds your other devices on the same Wi-Fi, and they can find it.",
+        listOf(
+            "turn off connect", "turn on connect", "disable connect", "enable connect", "switch off connect", "switch on connect",
+            "connect off", "connect on", "stop announcing", "hide this phone", "let my other devices find this one", "cast",
+            "remote control", "other devices", "handoff",
+        ),
         stores = listOf("connect.enabled", "connect.deviceId"),
     ),
     PhoneSetting(

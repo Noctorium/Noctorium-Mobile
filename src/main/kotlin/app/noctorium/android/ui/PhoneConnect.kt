@@ -3,6 +3,7 @@ package app.noctorium.android.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,11 +11,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -76,13 +79,105 @@ internal data class ConnectPicture(
     val nowMs: Long = 0,
     val onWifi: Boolean = true,
     val backgroundUnrestricted: Boolean = true,
+    /**
+     * Whether Connect is switched on here. A picture's own, because the still life starts every state with Connect
+     * switched off in its settings -- so that nothing goes looking for real devices -- whatever the picture shows.
+     */
+    val switchedOn: Boolean = true,
 )
 
 internal val LocalConnectPicture = staticCompositionLocalOf<ConnectPicture?> { null }
 
 /** The devices, and which is being driven or driving this one. */
 @Composable
-internal fun AppState.connectNow(): ConnectState = LocalConnectPicture.current?.connect ?: connect.collectAsState().value
+internal fun AppState.connectNow(): ConnectState {
+    LocalConnectPicture.current?.let { return it.connect }
+    val connect by connect.collectAsState()
+    return connect.asSwitched(connectSwitchedOn())
+}
+
+/** Whether Noctorium Connect is switched on on this phone: the switch at the top of the Connect tab, and in Settings. */
+@Composable
+internal fun AppState.connectSwitchedOn(): Boolean =
+    LocalConnectPicture.current?.switchedOn ?: settings.collectAsState().value.preferences.connect.enabled
+
+/**
+ * [this], less the device that was driving this phone once Connect is switched off.
+ *
+ * Switching off ends the remote control either way round. Base's stop lets go of a device this phone drives, but it
+ * stops listening without forgetting the name of one that was driving it -- the upkeep that forgets a quiet driver
+ * stops with everything else -- so the strip on the player bar would go on saying "Controlled from Desk" for as long
+ * as Connect stayed off. Nothing can drive a phone that is not listening, so it is not said.
+ */
+internal fun ConnectState.asSwitched(on: Boolean): ConnectState =
+    if (on || controlledBy == null) this else copy(controlledBy = null, controlledById = null)
+
+/** What the Connect switch says Connect does, on or off: the desktop's words, with a phone in them. */
+internal fun connectSwitchLine(on: Boolean): String =
+    if (on) {
+        "This phone finds your other devices, and they can find it."
+    } else {
+        "Off: this phone is not looking for your other devices, and they cannot see it."
+    }
+
+/**
+ * What switching Connect off would end, said under the switch while there is something: this phone's control of the
+ * device it is the remote of -- whose music plays on there -- or another device's control of this phone. Null the
+ * rest of the time.
+ */
+internal fun connectSwitchEnds(connect: ConnectState): String? = when {
+    connect.target != null -> "Switching it off ends this phone's control of ${connect.target?.name}. The music plays on there."
+    connect.controlledBy != null -> "Switching it off ends ${connect.controlledBy}'s control of this phone."
+    else -> null
+}
+
+/**
+ * Connect on or off, with what that means under it: at the top of the Connect tab, where somebody looking for the
+ * switch looks, and at the head of its card in Settings. The whole row is the switch, the words as good to tap as
+ * the switch itself; under the Windows skins it is a checkbox, the box first and the words after it, as theirs were.
+ *
+ * Off stops Connect outright -- nothing is announced on the network, nothing looked for, nothing listened to -- and
+ * the remote control with it, either way round. The music itself plays on wherever it is.
+ */
+@Composable
+internal fun ConnectSwitch(on: Boolean, connect: ConnectState, switch: (Boolean) -> Unit) {
+    val skinned = LocalSkin.current != ThemeSkin.STANDARD
+    val accent = MaterialTheme.colorScheme.primary
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .toggleable(on, role = if (skinned) Role.Checkbox else Role.Switch, onValueChange = switch)
+            .padding(vertical = 4.dp),
+        verticalAlignment = if (skinned) Alignment.Top else Alignment.CenterVertically,
+    ) {
+        if (skinned) {
+            Box(Modifier.padding(top = 3.dp, end = 10.dp)) { Checkbox(on) }
+        } else {
+            Icon(Glyph.DEVICES.image, null, Modifier.size(22.dp), tint = if (on) accent else MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                "Noctorium Connect",
+                fontSize = if (skinned) 13.sp else 15.sp,
+                fontWeight = if (skinned) FontWeight.Normal else FontWeight.SemiBold,
+            )
+            // Set close, as a line under a title is: the theme's own spacing is for paragraphs, and on a narrow phone
+            // it stood the two lines of a wrapped sentence a line apart.
+            val size = if (skinned) 11.sp else 12.sp
+            val spacing = if (skinned) 15.sp else 16.sp
+            Text(connectSwitchLine(on), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = size, lineHeight = spacing)
+            connectSwitchEnds(connect)?.takeIf { on }?.let {
+                Text(it, color = accent, fontSize = size, lineHeight = spacing, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        if (!skinned) {
+            // A gap before the switch, as Toggle keeps, so the last word of the line does not read as printed on it.
+            Spacer(Modifier.width(12.dp))
+            Switch(on, onCheckedChange = null)
+        }
+    }
+}
 
 /**
  * Where the music is: as Base says, except that the song the kept queue was left on counts as music here. Base
@@ -336,26 +431,36 @@ internal fun parseConnectAddress(text: String): Pair<String, Int>? {
     return host.takeIf { it.isNotBlank() && it.none(Char::isWhitespace) }?.let { it to number }
 }
 
-/** Naming this phone, and switching Connect off for people who would rather it did not announce itself. */
+/**
+ * Connect switched on or off -- the same switch, in the same words, as the top of the Connect tab -- and naming this
+ * phone. The switch heads the card, so the card has no heading of its own saying the same name again.
+ */
 @Composable
 internal fun ConnectCard(settings: SettingsState, state: AppState) {
     val connect = state.connectNow()
+    val on = state.connectSwitchedOn()
     var name by remember(settings.preferences.connect.deviceName) {
         mutableStateOf(settings.preferences.connect.deviceName)
     }
 
     SettingsCardShell {
-        CardHeading(Glyph.DEVICES.image, "Noctorium Connect")
-        Text(
-            if (connect.available) {
-                "Your devices on this Wi-Fi can hand the music to each other. " +
-                    "This one appears as \"${connect.thisDevice}\"."
-            } else {
-                "Sign in to your Noctorium account, and your devices will find each other on this Wi-Fi."
-            },
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp,
-        )
+        SettingAnchor(SettingIds.CONNECT_ENABLED) {
+            ConnectSwitch(on, connect, state::setConnectEnabled)
+            if (on) {
+                Text(
+                    if (connect.available) {
+                        "Your devices on this Wi-Fi can hand the music to each other. This one appears as " +
+                            "\"${connect.thisDevice}\". " +
+                            if (connect.devices.isEmpty()) "Nothing else is found yet." else "${pluralDevices(connect.devices.size)} found on this network."
+                    } else {
+                        "Sign in to your Noctorium account, and your devices will find each other on this Wi-Fi."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
         Spacer(Modifier.height(10.dp))
 
         SettingAnchor(SettingIds.CONNECT_NAME) {
@@ -369,20 +474,6 @@ internal fun ConnectCard(settings: SettingsState, state: AppState) {
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End) {
                 SkinnedTextButton({ state.renameThisDevice(name) }) { Text("Save") }
-            }
-        }
-
-        SettingAnchor(SettingIds.CONNECT_ENABLED) {
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
-                    Text("Let my other devices find this one", fontSize = 13.sp)
-                    Text(
-                        if (connect.devices.isEmpty()) "Nothing else found yet." else pluralDevices(connect.devices.size) + " on this network.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp,
-                    )
-                }
-                SkinnedSwitch(settings.preferences.connect.enabled, state::setConnectEnabled)
             }
         }
 

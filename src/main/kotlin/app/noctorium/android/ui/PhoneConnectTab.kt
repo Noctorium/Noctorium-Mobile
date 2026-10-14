@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -64,14 +65,16 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
 /**
- * The Connect tab: where the music is, every one of the listener's devices on this network with what each is
- * playing, and moving the music between them.
+ * The Connect tab: Connect switched on or off, where the music is, every one of the listener's devices on this
+ * network with what each is playing, and moving the music between them.
  *
- * It reads as the desktop's Connect page does, section for section and word for word: the music first, big, with
- * the device it is on; then each device -- this phone, then the others -- with what it is playing or "Idle", who is
- * controlling whom, and its one action, "Play here" for this phone and "Play on" for any other, which moves the
- * music there from wherever it is, at the same second and with the whole queue; then, when a device is not found,
- * the honest reasons it may not be, and a way to name one by its address.
+ * It reads as the desktop's Connect page does, section for section and word for word: the switch first, saying what
+ * on and off mean; the music, big, with the device it is on; then each device -- this phone, then the others -- with
+ * what it is playing or "Idle", who is controlling whom, and its one action, "Play here" for this phone and "Play on"
+ * for any other, which moves the music there from wherever it is, at the same second and with the whole queue; then,
+ * when a device is not found, the honest reasons it may not be, and a way to name one by its address. Switched off,
+ * the switch is all there is, over a calm word that Connect is off: none of the reasons a device may not be found
+ * apply to Connect that was turned off on purpose.
  *
  * Nothing on it is a remote control. While the music is on another device the player bar and Now playing are that
  * device's player, as they would be for a song playing here.
@@ -79,6 +82,7 @@ import kotlinx.coroutines.delay
 @Composable
 internal fun ConnectScreen(state: AppState) {
     val connect = state.connectNow()
+    val on = state.connectSwitchedOn()
     val place = state.musicPlaceNow()
     val here = state.playbackHere()
     val shown = state.playerPlayback()
@@ -109,17 +113,21 @@ internal fun ConnectScreen(state: AppState) {
         ScreenTitle("Connect", "Your devices, and where the music is")
         CompositionLocalProvider(LocalSettingHighlight provides highlight) {
             LazyColumn(state = list, contentPadding = chromePadding(24.dp)) {
+                item(key = "switch") {
+                    SettingsCardShell {
+                        ConnectSwitch(on, connect) { haptics.tick(); state.setConnectEnabled(it) }
+                    }
+                }
+                if (!on) {
+                    item(key = "off") { ConnectOff() }
+                    return@LazyColumn
+                }
                 item(key = "music") {
                     MusicCard(place, connect, song, style, state, haptics)
                 }
                 if (!connect.available) {
                     item(key = "unavailable") {
-                        UnavailableCard(
-                            switchedOn = settings.preferences.connect.enabled,
-                            signedIn = account.signedIn,
-                            onWifi = onWifi,
-                            state = state,
-                        )
+                        UnavailableCard(signedIn = account.signedIn, onWifi = onWifi, state = state)
                     }
                     return@LazyColumn
                 }
@@ -135,8 +143,8 @@ internal fun ConnectScreen(state: AppState) {
     }
 }
 
-/** Where the address card is in the tab's list: the music, the devices, the help, then it. */
-private const val ADDRESS_ITEM = 3
+/** Where the address card is in the tab's list: the switch, the music, the devices, the help, then it. */
+private const val ADDRESS_ITEM = 4
 
 /** Long enough for the list to reach the card and the card to be lit and fade. */
 private const val TAB_HIGHLIGHT_MS = 3_500L
@@ -499,18 +507,38 @@ private fun DeviceRow(
 }
 
 /**
- * Why the music cannot go anywhere yet, and the one thing to do about it: Connect switched off here, no account
+ * Connect switched off: what that means, said once and quietly, with the switch above to turn it back on. None of
+ * the troubleshooting -- the Wi-Fi, the account, the firewall -- since nothing is wrong.
+ */
+@Composable
+private fun ConnectOff() {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 36.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(Glyph.DEVICES.image, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .6f))
+        Spacer(Modifier.height(12.dp))
+        Text("Noctorium Connect is off", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "This phone plays only its own music, and your computers and other phones do not see it. Switch Connect " +
+                "on above to find them again.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
+ * Why the music cannot go anywhere yet, with Connect switched on, and the one thing to do about it: no account
  * signed in for the devices to know each other by, or the account's key not fetched yet.
  */
 @Composable
-private fun UnavailableCard(switchedOn: Boolean, signedIn: Boolean, onWifi: Boolean, state: AppState) {
+private fun UnavailableCard(signedIn: Boolean, onWifi: Boolean, state: AppState) {
     SettingsCardShell {
         when {
-            !switchedOn -> {
-                CardHeading(Glyph.DEVICES.image, "Connect is off")
-                Note("Your other devices cannot see this phone, and it cannot see them.")
-                SkinnedButton({ state.setConnectEnabled(true) }, Modifier.padding(top = 8.dp)) { Text("Switch it on") }
-            }
             !signedIn -> {
                 CardHeading(Glyph.ACCOUNT_CIRCLE.image, "Sign in to use Connect")
                 Note(

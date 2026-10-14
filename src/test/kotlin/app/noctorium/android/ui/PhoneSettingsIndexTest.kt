@@ -124,6 +124,22 @@ class PhoneSettingsIndexTest {
         assertEquals(null, first("dark mode").tab)
     }
 
+    /** The switch is found by its name and by every way of saying "turn it off", and opens in Settings, at its card. */
+    @Test
+    fun `the Connect switch is found by its name, and by turning it off`() {
+        for (words in listOf("connect", "noctorium connect", "turn off connect", "disable connect", "switch off connect", "enable connect", "turn on connect")) {
+            val (setting, _) = searchPhoneSettings(words).first()
+            assertEquals(SettingIds.CONNECT_ENABLED, setting.id, words)
+            assertEquals(SettingsPage.CONNECT, setting.page, words)
+            assertEquals(null, setting.tab, words)
+        }
+        val (setting, match) = searchPhoneSettings("disable connect").first()
+        assertEquals("This phone › Noctorium Connect · also “disable connect”", resultDetail(setting, match))
+        // The tab is still found by the words for it, and the address still by its own.
+        assertEquals(SettingIds.CONNECT_TAB, first("devices").id)
+        assertEquals(SettingIds.CONNECT_ADDRESS, first("ip address").id)
+    }
+
     @Test
     fun `a setting is found by the start of its name before anything else`() {
         val found = searchPhoneSettings("vol")

@@ -141,7 +141,7 @@ internal object ConnectStill {
     }
 
     /** Connect switched off on this phone. */
-    val off = here(ConnectState(thisDevice = "Pocket"), place = MusicPlace.Here)
+    val off = here(ConnectState(thisDevice = "Pocket"), place = MusicPlace.Here).copy(switchedOn = false)
 
     /**
      * The music sent to the desk, with this phone its remote control: what the desk last said about itself, a moment
@@ -209,11 +209,11 @@ private val THEMES = listOf(
 private val SIZES = listOf("" to TextSize.DEFAULT, "-largest" to TextSize.LARGEST)
 
 /** [screen] with [picture] handed to it in place of the state's own Connect. */
-private fun seeing(picture: ConnectPicture, screen: @Composable (AppState) -> Unit): @Composable (SettingsState, AppState) -> Unit = { _, state ->
+internal fun seeing(picture: ConnectPicture, screen: @Composable (AppState) -> Unit): @Composable (SettingsState, AppState) -> Unit = { _, state ->
     CompositionLocalProvider(LocalConnectPicture provides picture) { screen(state) }
 }
 
-private val goToConnect: (AppState) -> Unit = { it.navigate(Destination.CONNECT) }
+internal val goToConnect: (AppState) -> Unit = { it.navigate(Destination.CONNECT) }
 
 /** Opens the devices button's picker on Now playing, and lets it finish opening. */
 private val openPicker: ComposeContentTestRule.() -> Unit = {
