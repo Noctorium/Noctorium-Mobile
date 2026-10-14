@@ -8,6 +8,7 @@ import app.noctorium.domain.Track
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.QueueManager
 import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.PhoneNowPlayingLayout
 import app.noctorium.settings.QueueColumn
 import app.noctorium.settings.SettingsState
 import app.noctorium.settings.TimeDisplay
@@ -62,6 +63,29 @@ class PlaylistLookTest {
             playQueue(listOf(song("1", 180), song("2", 200)), 0, PlaybackContext(ProviderType.SOUNDCLOUD, PlaybackOrigin.HOME))
         }.state.value
         assertEquals("Queue · 2 songs · 6:20", queueTabName(queue, 2))
+    }
+
+    @Test
+    fun `the lyrics' tab stands straight after the queue's, whatever the queue says`() {
+        val queue = QueueManager().apply {
+            playQueue(listOf(song("1", 180), song("2", 200)), 0, PlaybackContext(ProviderType.SOUNDCLOUD, PlaybackOrigin.HOME))
+        }.state.value
+        assertEquals(listOf(PlaylistTab.QUEUE, PlaylistTab.LYRICS), PlaylistTab.entries)
+        assertEquals(listOf("Queue · 2 songs · 6:20", "Lyrics"), PlaylistTab.entries.map { playlistTabName(it, queue, 2) })
+        assertEquals("Lyrics", playlistTabName(PlaylistTab.LYRICS, QueueManager().state.value, 1))
+    }
+
+    @Test
+    fun `the Playlist layout's tab opens and closes the lyrics whether or not the lyrics button is shown`() {
+        assertTrue(lyricsShown(PhoneNowPlayingLayout.PLAYLIST, asked = true, button = false))
+        assertTrue(lyricsShown(PhoneNowPlayingLayout.PLAYLIST, asked = true, button = true))
+        assertFalse(lyricsShown(PhoneNowPlayingLayout.PLAYLIST, asked = false, button = true))
+        // Every other layout closes them with the button hidden, since nothing else could; Sing along opens on them.
+        assertFalse(lyricsShown(PhoneNowPlayingLayout.CLASSIC, asked = true, button = false))
+        assertTrue(lyricsShown(PhoneNowPlayingLayout.CLASSIC, asked = true, button = true))
+        assertTrue(lyricsShown(PhoneNowPlayingLayout.SING_ALONG, asked = false, button = true))
+        assertFalse(lyricsShown(PhoneNowPlayingLayout.SING_ALONG, asked = true, button = true))
+        assertTrue(lyricsShown(PhoneNowPlayingLayout.SING_ALONG, asked = true, button = false))
     }
 
     @Test

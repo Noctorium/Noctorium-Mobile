@@ -118,11 +118,8 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
     val layout = settings.preferences.phone.nowPlayingLayout
 
     val hidden = settings.preferences.phone.hiddenPlayerButtons
-    // A hidden lyrics button closes the lyrics too, or they would be open with no way of closing them. Sing
-    // along is the one layout that opens on the lyrics, and there the button puts the cover in their place.
     var lyricsAsked by remember { mutableStateOf(false) }
-    val lyricsButton = showsPlayerButton(hidden, PlayerButton.LYRICS)
-    val showLyrics = if (layout == PhoneNowPlayingLayout.SING_ALONG) !(lyricsAsked && lyricsButton) else lyricsAsked && lyricsButton
+    val showLyrics = lyricsShown(layout, lyricsAsked, button = showsPlayerButton(hidden, PlayerButton.LYRICS))
     val haptics = rememberHaptics(state)
     // The queue, opened over the song from its button and closed again by back or its own close, so a look
     // at what is next never costs the screen it was looked at from.
@@ -215,6 +212,20 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
         QueueOverNowPlaying(queueOpen, state) { queueOpen = false }
       }
     }
+}
+
+/**
+ * Whether [layout] shows the lyrics, [asked] being whether they have been asked for -- by the lyrics button, or the
+ * Playlist layout's tab -- and [button] whether the lyrics button is on the screen at all.
+ *
+ * A hidden lyrics button closes the lyrics too, or they would be open with no way of closing them. Sing along is the
+ * one layout that opens on the lyrics, and there the button puts the cover in their place. The Playlist layout has a
+ * tab for them beside the queue's, which opens and closes them whether or not the button is there.
+ */
+internal fun lyricsShown(layout: PhoneNowPlayingLayout, asked: Boolean, button: Boolean): Boolean = when (layout) {
+    PhoneNowPlayingLayout.SING_ALONG -> !(asked && button)
+    PhoneNowPlayingLayout.PLAYLIST -> asked
+    else -> asked && button
 }
 
 /**

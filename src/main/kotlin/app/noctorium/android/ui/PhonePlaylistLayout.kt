@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -34,6 +35,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -52,11 +54,13 @@ import app.noctorium.settings.ThemeSkin
  *
  * An info bar across the top -- the cover, the title set large, the artist and the album, and the visualiser --
  * then the queue as a table, under its tab, in the columns the listener chose and with the song playing marked
- * and lit; the seek bar and the controls every layout has; and the status bar along the foot, saying what is
- * playing as a player reports it ("Opus, stereo, 48 kHz, 128 kbit/s") and how far into the whole queue.
+ * and lit, and the song's lyrics under the tab beside it; the seek bar and the controls every layout has; and the
+ * status bar along the foot, saying what is playing as a player reports it ("Opus, stereo, 48 kHz, 128 kbit/s")
+ * and how far into the whole queue.
  *
  * Under the Windows skins the table is their list view -- white, sunk into the window, its headings raised
- * buttons, the song playing in the selection's blue -- and the status bar is theirs, in sunken panels.
+ * buttons, the song playing in the selection's blue -- under their tabs, and the status bar is theirs, in sunken
+ * panels.
  */
 @Composable
 internal fun PlaylistNowPlaying(screen: NowPlaying) {
@@ -66,13 +70,11 @@ internal fun PlaylistNowPlaying(screen: NowPlaying) {
         InfoBar(screen)
         TrackHeading(screen, title = false)
         Spacer(Modifier.height(10.dp))
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (screen.showLyrics) {
-                LyricsPane(screen.lyrics, screen.playback.positionMs, screen.track, screen.state)
-            } else {
-                QueueTable(screen, tableColumns(preferences.queueColumns, screen.queue.tracks.ifEmpty { listOf(screen.track) }), Modifier.fillMaxSize())
-            }
-        }
+        TabbedTable(
+            screen,
+            tableColumns(preferences.queueColumns, screen.queue.tracks.ifEmpty { listOf(screen.track) }),
+            Modifier.weight(1f).fillMaxWidth(),
+        )
         Spacer(Modifier.height(8.dp))
         NowPlayingSeekbar(screen)
         TransportRow(screen)
@@ -113,36 +115,94 @@ private fun InfoBar(screen: NowPlaying) {
 }
 
 /**
- * The queue as a table: a tab saying what it is and how long, the headings of the chosen columns, and a row for
- * each song -- the one playing marked with play and lit, the rest in a quiet alternating shade. Tapping a row plays
- * it. It opens at the song playing, not at the top, since in a long queue that is where the next songs are.
+ * The tabs over the table, in the order they stand: the queue's first, as it always was, and the lyrics' straight
+ * after it. The desktop's table has tabs after these that come and go -- a playlist's, autoplay's -- and any the
+ * phone's gains go after these two as well, so the lyrics' tab never moves from under the thumb.
+ */
+internal enum class PlaylistTab { QUEUE, LYRICS }
+
+/** What a tab says: "Queue · 12 songs · 48:20" for the queue's, and "Lyrics". */
+internal fun playlistTabName(tab: PlaylistTab, queue: QueueState, count: Int): String = when (tab) {
+    PlaylistTab.QUEUE -> queueTabName(queue, count)
+    PlaylistTab.LYRICS -> "Lyrics"
+}
+
+/**
+ * The table under its tabs: the queue, or the lyrics of the song shown.
+ *
+ * The lyrics' tab is the lyrics button's own doing by another way in -- choosing it is pressing the button, and the
+ * button, pressed, chooses it -- so the bar along the top says "Lyrics" while it is chosen, and the lyrics are asked
+ * for only then, as they are in every layout.
  */
 @Composable
-private fun QueueTable(screen: NowPlaying, columns: List<QueueColumn>, modifier: Modifier) {
+private fun TabbedTable(screen: NowPlaying, columns: List<QueueColumn>, modifier: Modifier) {
     val queue = screen.queue
     val rows = queue.tracks.ifEmpty { listOf(screen.track) }
-    val playing = if (queue.tracks.isEmpty()) 0 else queue.currentIndex
+    val chosen = if (screen.showLyrics) PlaylistTab.LYRICS else PlaylistTab.QUEUE
     val skin = LocalSkin.current
     Column(modifier) {
-        TableTab(queueTabName(queue, rows.size))
+        TableTabs(PlaylistTab.entries.map { playlistTabName(it, queue, rows.size) }, chosen.ordinal) { index ->
+            if (index != chosen.ordinal) {
+                screen.haptics.tick()
+                screen.toggleLyrics()
+            }
+        }
+        // The page under the tabs is joined to the chosen one, so its corner under the first tab is square only
+        // while the first is chosen.
+        val corner = if (chosen == PlaylistTab.QUEUE) 0.dp else 10.dp
         Column(
             Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .then(if (skin == ThemeSkin.STANDARD) Modifier.clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp, topEnd = 10.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .35f)) else Modifier.skinList()),
+                .then(
+                    if (skin == ThemeSkin.STANDARD) {
+                        Modifier
+                            .clip(RoundedCornerShape(topStart = corner, topEnd = 10.dp, bottomStart = 10.dp, bottomEnd = 10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .35f))
+                    } else {
+                        Modifier.skinList()
+                    },
+                ),
         ) {
-            TableHeadings(columns)
-            val list = rememberLazyListState(initialFirstVisibleItemIndex = (playing - 1).coerceAtLeast(0))
-            LaunchedEffect(playing) { if (playing >= 0) list.animateScrollToItem((playing - 1).coerceAtLeast(0)) }
-            LazyColumn(Modifier.fillMaxSize(), state = list) {
-                itemsIndexed(rows, key = { index, track -> "$index:${track.queueKey}" }) { index, track ->
-                    TableRow(index, track, columns, current = index == playing, odd = index % 2 == 1) {
-                        screen.haptics.tick()
-                        if (queue.tracks.isNotEmpty()) screen.state.jumpToQueueItem(index)
-                    }
-                }
+            when (chosen) {
+                PlaylistTab.QUEUE -> QueueRows(screen, columns, rows)
+                PlaylistTab.LYRICS -> LyricsPage(screen)
             }
         }
+    }
+}
+
+/**
+ * The queue as a table: the headings of the chosen columns, and a row for each song -- the one playing marked with
+ * play and lit, the rest in a quiet alternating shade. Tapping a row plays it. It opens at the song playing, not at
+ * the top, since in a long queue that is where the next songs are.
+ */
+@Composable
+private fun QueueRows(screen: NowPlaying, columns: List<QueueColumn>, rows: List<Track>) {
+    val queue = screen.queue
+    val playing = if (queue.tracks.isEmpty()) 0 else queue.currentIndex
+    TableHeadings(columns)
+    val list = rememberLazyListState(initialFirstVisibleItemIndex = (playing - 1).coerceAtLeast(0))
+    LaunchedEffect(playing) { if (playing >= 0) list.animateScrollToItem((playing - 1).coerceAtLeast(0)) }
+    LazyColumn(Modifier.fillMaxSize(), state = list) {
+        itemsIndexed(rows, key = { index, track -> "$index:${track.queueKey}" }) { index, track ->
+            TableRow(index, track, columns, current = index == playing, odd = index % 2 == 1) {
+                screen.haptics.tick()
+                if (queue.tracks.isNotEmpty()) screen.state.jumpToQueueItem(index)
+            }
+        }
+    }
+}
+
+/**
+ * The lyrics' tab: the lyrics as every layout shows them -- the sources to choose between above, the line being sung
+ * kept in the middle of the page -- for the song shown. While this phone is another device's remote control that is
+ * the other device's song, at the place it has reached there, so the lines keep time with what is heard in that room.
+ */
+@Composable
+private fun LyricsPage(screen: NowPlaying) {
+    Box(Modifier.fillMaxSize().padding(start = 10.dp, end = 4.dp, top = 8.dp)) {
+        LyricsPane(screen.lyrics, screen.playback.positionMs, screen.track, screen.state)
     }
 }
 
@@ -162,43 +222,79 @@ internal fun queueTabName(queue: QueueState, count: Int): String = listOfNotNull
     queue.durationMs.takeIf { it > 0 }?.let(::formatDuration),
 ).joinToString(" · ")
 
-/** The table's one tab: the queue's, joined to the table under it. */
+/**
+ * The table's tabs, [names] in order with the [chosen] one joined to the table under it; [choose] is told the place
+ * of the one tapped. The first gives way, ending in an ellipsis, before the others are cut: the queue's says the most,
+ * and the most of it can go.
+ */
 @Composable
-private fun TableTab(name: String) {
+private fun TableTabs(names: List<String>, chosen: Int, choose: (Int) -> Unit) {
+    val skin = LocalSkin.current
+    Row(
+        Modifier.fillMaxWidth().padding(start = if (skin == ThemeSkin.STANDARD) 0.dp else 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (skin == ThemeSkin.STANDARD) 4.dp else 0.dp),
+        // A tab not chosen stands a little lower than the one that is, as Windows' did.
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        names.forEachIndexed { index, name ->
+            TableTab(
+                name,
+                chosen = index == chosen,
+                modifier = if (index == 0) Modifier.weight(1f, fill = false) else Modifier,
+            ) { choose(index) }
+        }
+    }
+}
+
+/**
+ * One tab over the table. The chosen one is joined to the table -- in its colour in the ordinary themes, taller and
+ * standing on it under 98, white with Luna's orange along its top under XP -- and the others sit back from it.
+ */
+@Composable
+private fun TableTab(name: String, chosen: Boolean, modifier: Modifier, choose: () -> Unit) {
     val skin = LocalSkin.current
     val win98 = Win98
+    val tab = modifier.selectable(chosen, role = Role.Tab, onClick = choose)
     val text: @Composable () -> Unit = {
-        Text(name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            name,
+            color = if (chosen || skin != ThemeSkin.STANDARD) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
+    // The tabs not chosen are this much shorter, so they stand lower than the chosen one.
+    val lower = if (chosen) 0.dp else 2.dp
     when (skin) {
         ThemeSkin.STANDARD -> Box(
-            Modifier
+            tab
                 .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .35f))
-                .padding(horizontal = 14.dp, vertical = 7.dp),
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (chosen) .35f else .18f))
+                .padding(horizontal = 14.dp, vertical = 9.dp),
         ) { text() }
         ThemeSkin.WINDOWS_98 -> Box(
-            Modifier
-                .padding(start = 8.dp)
+            tab
                 .background(win98.Face)
                 .drawWithContent {
                     drawContent()
-                    // A tab is a raised edge without its foot, standing on the panel it opens.
-                    drawEdge98(Edge98.RAISED, win98, size = size.copy(height = size.height + 2f))
+                    // The chosen tab is a raised edge without its foot, standing on the panel it opens; the others
+                    // keep theirs, behind it.
+                    drawEdge98(Edge98.RAISED, win98, size = if (chosen) size.copy(height = size.height + 2f) else size)
                 }
-                .padding(horizontal = 12.dp, vertical = 5.dp),
+                .padding(start = 12.dp, end = 12.dp, top = 5.dp - lower, bottom = 5.dp),
         ) { text() }
         ThemeSkin.WINDOWS_XP -> Box(
-            Modifier
-                .padding(start = 8.dp)
+            tab
                 .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                .background(Brush.verticalGradient(listOf(Color.White, Luna.TabChosen)))
+                .background(Brush.verticalGradient(listOf(Color.White, if (chosen) Luna.TabChosen else Luna.Face)))
                 .border(1.dp, Luna.TabEdge, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
                 .drawWithContent {
                     drawContent()
-                    drawRect(Luna.Hot, size = size.copy(height = 3.dp.toPx()))
+                    if (chosen) drawRect(Luna.Hot, size = size.copy(height = 3.dp.toPx()))
                 }
-                .padding(horizontal = 12.dp, vertical = 5.dp),
+                .padding(start = 12.dp, end = 12.dp, top = 5.dp - lower, bottom = 5.dp),
         ) { text() }
     }
 }
