@@ -187,17 +187,6 @@ class PhoneConnectTest {
         assertNull(connectSwitchEnds(ConnectState(devices = listOf(desk, laptop))), "nothing is driven, so nothing ends")
     }
 
-    /** Base's stop forgets the device this phone drove, but not the one that drove it; switched off, it is not said. */
-    @Test
-    fun `switched off, nothing is said to be controlling this phone`() {
-        val driven = ConnectState(controlledBy = "Desk", controlledById = "desk")
-        assertEquals(driven, driven.asSwitched(on = true))
-        assertNull(driven.asSwitched(on = false).controlledBy)
-        assertNull(driven.asSwitched(on = false).controlledById)
-        assertNull(connectStrip(driven.asSwitched(on = false)))
-        assertEquals(ConnectState(), ConnectState().asSwitched(on = false))
-    }
-
     @Test
     fun `the music is somewhere else while a device is driven or playing by itself`() {
         assertTrue(MusicPlace.Driving(desk).isElsewhere())

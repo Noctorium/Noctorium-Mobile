@@ -93,24 +93,13 @@ internal val LocalConnectPicture = staticCompositionLocalOf<ConnectPicture?> { n
 internal fun AppState.connectNow(): ConnectState {
     LocalConnectPicture.current?.let { return it.connect }
     val connect by connect.collectAsState()
-    return connect.asSwitched(connectSwitchedOn())
+    return connect
 }
 
 /** Whether Noctorium Connect is switched on on this phone: the switch at the top of the Connect tab, and in Settings. */
 @Composable
 internal fun AppState.connectSwitchedOn(): Boolean =
     LocalConnectPicture.current?.switchedOn ?: settings.collectAsState().value.preferences.connect.enabled
-
-/**
- * [this], less the device that was driving this phone once Connect is switched off.
- *
- * Switching off ends the remote control either way round. Base's stop lets go of a device this phone drives, but it
- * stops listening without forgetting the name of one that was driving it -- the upkeep that forgets a quiet driver
- * stops with everything else -- so the strip on the player bar would go on saying "Controlled from Desk" for as long
- * as Connect stayed off. Nothing can drive a phone that is not listening, so it is not said.
- */
-internal fun ConnectState.asSwitched(on: Boolean): ConnectState =
-    if (on || controlledBy == null) this else copy(controlledBy = null, controlledById = null)
 
 /** What the Connect switch says Connect does, on or off: the desktop's words, with a phone in them. */
 internal fun connectSwitchLine(on: Boolean): String =
