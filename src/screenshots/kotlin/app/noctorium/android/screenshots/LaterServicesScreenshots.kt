@@ -30,8 +30,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Apple Music, Deezer and Tidal on the phone: each one's page in Settings, set up and not, and their badges on Home
- * and on a Hybrid search's albums and artists -- in a dark theme, a light one, 98 and XP, on an ordinary phone and the
+ * Apple Music, Deezer and Tidal on the phone: each one's page in Settings, set up and not; the beta warning at the top
+ * of theirs and of Spotify's, Bandcamp's and VK's, and not of YouTube Music's; and their badges on Home and on a
+ * Hybrid search's albums and artists -- in a dark theme, a light one, 98 and XP, on an ordinary phone and the
  * narrowest. Every account and every song is made up, and nothing asks Apple, Deezer or Tidal anything: their
  * providers answer from memory, and what a sign-in would leave is handed to the settings. Opt-in, as the others:
  *
@@ -56,7 +57,7 @@ class LaterServicesScreenshots(private val look: Look) {
     }
 }
 
-/** The same on the narrowest phone still sold, where the Tidal app's address and the chips have the least room. */
+/** The same on the narrowest phone still sold, where the warning and the Tidal app's address have the least room. */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = NARROW_PHONE, application = Application::class)
@@ -146,7 +147,7 @@ private val tidalConnected: (AppState) -> Unit = { state ->
     }
 }
 
-/** Each page, set up and not, and the badges on Home and in a search, in each of the four. */
+/** Each page, set up and not, and the warning on the older services' pages, in each of the four. */
 private fun pageLooks(size: String): List<Look> = FOUR.flatMap { (kind, preferences) ->
     val none = { null }
     listOf(
@@ -175,6 +176,10 @@ private fun pageLooks(size: String): List<Look> = FOUR.flatMap { (kind, preferen
             prepare = tidalConnected,
             screen = page(SettingsPage.TIDAL),
         ),
+        Look("spotify-beta-$kind$size", preferences, playing = none, screen = page(SettingsPage.SPOTIFY)),
+        Look("bandcamp-beta-$kind$size", preferences, playing = none, screen = page(SettingsPage.BANDCAMP)),
+        Look("vk-beta-$kind$size", preferences, playing = none, screen = page(SettingsPage.VK)),
+        Look("youtube-no-beta-$kind$size", preferences, playing = none, screen = page(SettingsPage.YOUTUBE)),
         Look(
             "home-later-$kind$size",
             preferences,

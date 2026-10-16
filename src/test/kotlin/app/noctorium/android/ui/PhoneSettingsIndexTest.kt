@@ -1,5 +1,8 @@
 package app.noctorium.android.ui
 
+import app.noctorium.domain.ProviderType
+import app.noctorium.domain.betaWarning
+import app.noctorium.domain.inBeta
 import app.noctorium.settings.ConnectPreferences
 import app.noctorium.settings.NoctoriumPreferences
 import app.noctorium.settings.PhonePreferences
@@ -138,6 +141,19 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingIds.TIDAL_APP, first("client secret").id)
         assertEquals(SettingsPage.TIDAL, first("client secret").page)
         assertEquals(SettingIds.TIDAL_APP, first("developer.tidal.com").id)
+    }
+
+    /** Base decides which services are in beta; the pages that sign in to them are the ones that warn. */
+    @Test
+    fun `every service in beta has a page, and only those pages carry the warning`() {
+        val warned = SettingsPage.entries.filter { it.service?.betaWarning != null }
+        assertEquals(
+            listOf(SettingsPage.SPOTIFY, SettingsPage.BANDCAMP, SettingsPage.VK, SettingsPage.APPLE_MUSIC, SettingsPage.DEEZER, SettingsPage.TIDAL),
+            warned,
+        )
+        assertTrue(ProviderType.entries.filter { it.inBeta }.all { service -> SettingsPage.entries.any { it.service == service } })
+        assertEquals(null, SettingsPage.YOUTUBE.service?.betaWarning)
+        assertEquals(null, SettingsPage.SOUNDCLOUD.service?.betaWarning)
     }
 
     @Test

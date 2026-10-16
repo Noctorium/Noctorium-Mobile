@@ -163,6 +163,7 @@ private fun lineVector(glyph: Glyph): ImageVector = when (glyph) {
     Glyph.VOLUME_DOWN -> line("volume-1")
     Glyph.VOLUME_OFF -> line("volume-x")
     Glyph.VOLUME_UP -> line("volume-2")
+    Glyph.WARNING -> line("triangle-alert")
     Glyph.WAVES -> line("waves")
     Glyph.WIFI -> line("wifi")
 }
@@ -637,6 +638,11 @@ private val LUCIDE: Map<String, List<String>> = mapOf(
     ),
     "headphones" to listOf(
         "M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3",
+    ),
+    "triangle-alert" to listOf(
+        "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3",
+        "M12 9v4",
+        "M12 17h.01",
     ),
     "waves" to listOf(
         "M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",

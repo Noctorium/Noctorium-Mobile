@@ -5,6 +5,7 @@ import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.bandcamp.BandcampSource
 import app.noctorium.core.SearchMode
 import app.noctorium.domain.Artist
+import app.noctorium.domain.BETA_WARNING
 import app.noctorium.domain.Playlist
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
@@ -458,6 +459,15 @@ class PhoneServiceRulesTest {
         assertEquals(ProviderType.APPLE_MUSIC.badgeColour(), readableOn(ProviderType.APPLE_MUSIC.badgeColour(), night, text))
         assertEquals(1f, contrast(night, night))
         assertTrue(contrast(Color.Black, Color.White) > 20f)
+    }
+
+    @Test
+    fun `the beta warning says what it is before it says why`() {
+        val warning = leadInBold(BETA_WARNING)
+        assertEquals(BETA_WARNING, warning.text)
+        assertEquals(1, warning.spanStyles.size)
+        assertEquals("In beta:", warning.text.substring(warning.spanStyles.single().start, warning.spanStyles.single().end))
+        assertTrue(leadInBold("No colon near the start here at all, so: nothing is bold").spanStyles.isEmpty())
     }
 
     @Test

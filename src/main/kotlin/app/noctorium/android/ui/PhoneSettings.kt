@@ -60,6 +60,7 @@ import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.domain.ProviderType
+import app.noctorium.domain.betaWarning
 import app.noctorium.settings.HYBRID_SEARCH_SERVICES
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.ThemePreset
@@ -435,11 +436,14 @@ internal fun SettingsPageScreen(
     val history = if (page == SettingsPage.PROFILE) rememberHistoryDays(state, historyFilter) else null
     val list = rememberLazyListState()
     val target = PHONE_SETTINGS.firstOrNull { it.id == highlight && it.page == page }
+    // Above the sign-in or setup of every service still in beta, which Base decides; nowhere else.
+    val beta = page.service?.betaWarning
     LaunchedEffect(target) {
         val card = target?.card ?: return@LaunchedEffect
         val index = cards.indexOfFirst { it.first == card }.takeIf { it >= 0 } ?: return@LaunchedEffect
-        // The heading, and the note from the last thing done when there is one, come before the cards.
-        list.scrollToItem(index + 1 + if (settings.message != null) 1 else 0)
+        // The heading, the beta warning on a page that has one, and the note from the last thing done when there is
+        // one, come before the cards.
+        list.scrollToItem(index + 1 + (if (beta != null) 1 else 0) + if (settings.message != null) 1 else 0)
     }
 
     CompositionLocalProvider(LocalSettingHighlight provides target?.id) {
@@ -465,6 +469,7 @@ internal fun SettingsPageScreen(
                     Text(page.title, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 }
             }
+            beta?.let { warning -> item(key = "beta") { BetaNotice(warning) } }
             settingsMessage(settings, state)
             items(cards, key = { it.first }) { (_, card) -> card() }
             history?.let { historyLines(it, historyFilter, { typed -> historyFilter = typed }, state) }

@@ -141,6 +141,7 @@ internal enum class Glyph {
     VOLUME_DOWN,
     VOLUME_OFF,
     VOLUME_UP,
+    WARNING,
     WAVES,
     WIFI,
     ;
@@ -257,6 +258,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Filled.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Filled.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Filled.VolumeUp
+        WARNING -> Icons.Filled.Warning
         WAVES -> Icons.Filled.Waves
         WIFI -> Icons.Filled.Wifi
     }
@@ -357,6 +359,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Rounded.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Rounded.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Rounded.VolumeUp
+        WARNING -> Icons.Rounded.Warning
         WAVES -> Icons.Rounded.Waves
         WIFI -> Icons.Rounded.Wifi
     }
@@ -457,6 +460,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Outlined.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Outlined.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Outlined.VolumeUp
+        WARNING -> Icons.Outlined.Warning
         WAVES -> Icons.Outlined.Waves
         WIFI -> Icons.Outlined.Wifi
     }
@@ -557,6 +561,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Sharp.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Sharp.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Sharp.VolumeUp
+        WARNING -> Icons.Sharp.Warning
         WAVES -> Icons.Sharp.Waves
         WIFI -> Icons.Sharp.Wifi
     }
@@ -657,6 +662,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.TwoTone.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.TwoTone.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.TwoTone.VolumeUp
+        WARNING -> Icons.TwoTone.Warning
         WAVES -> Icons.TwoTone.Waves
         WIFI -> Icons.TwoTone.Wifi
     }

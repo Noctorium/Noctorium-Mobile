@@ -1,6 +1,7 @@
 package app.noctorium.android.ui
 
 import app.noctorium.core.Destination
+import app.noctorium.domain.ProviderType
 import app.noctorium.settings.SettingEntry
 import app.noctorium.settings.SettingMatch
 import app.noctorium.settings.SettingsSearch
@@ -27,8 +28,16 @@ internal enum class SettingsSection(val title: String) {
  * Laid out the way the desktop's are: a short list of tiles, each saying where it stands, and one page behind
  * each. What was one long page of everything about the look -- a dozen cards, the length of several screens -- is
  * a page for each part of it now, and the playback page's autoplay has a page of its own.
+ *
+ * [service] is the service a page signs in to or sets up, for the pages that do: what decides, through Base's
+ * [app.noctorium.domain.betaWarning], whether the page opens with the beta warning.
  */
-internal enum class SettingsPage(val title: String, val section: SettingsSection, val glyph: Glyph) {
+internal enum class SettingsPage(
+    val title: String,
+    val section: SettingsSection,
+    val glyph: Glyph,
+    val service: ProviderType? = null,
+) {
     ACCOUNT("Noctorium account", SettingsSection.YOU, Glyph.INSIGHTS),
     /** The name Noctorium calls the listener by, and the history of what has been played on this phone. */
     PROFILE("Your profile", SettingsSection.YOU, Glyph.ACCOUNT_CIRCLE),
@@ -44,14 +53,14 @@ internal enum class SettingsPage(val title: String, val section: SettingsSection
     SOUND("Sound", SettingsSection.LISTENING, Glyph.EQUALIZER),
     LYRICS("Lyrics", SettingsSection.LISTENING, Glyph.LYRICS),
     SCROBBLING("Scrobbling", SettingsSection.LISTENING, Glyph.HISTORY),
-    YOUTUBE("YouTube Music", SettingsSection.SERVICES, Glyph.PLAY_CIRCLE),
-    SOUNDCLOUD("SoundCloud", SettingsSection.SERVICES, Glyph.CLOUD),
-    SPOTIFY("Spotify", SettingsSection.SERVICES, Glyph.LIBRARY_MUSIC),
-    BANDCAMP("Bandcamp", SettingsSection.SERVICES, Glyph.ALBUM),
-    VK("VK Music", SettingsSection.SERVICES, Glyph.AUDIOTRACK),
-    APPLE_MUSIC("Apple Music", SettingsSection.SERVICES, Glyph.MUSIC_NOTE),
-    DEEZER("Deezer", SettingsSection.SERVICES, Glyph.HEADPHONES),
-    TIDAL("Tidal", SettingsSection.SERVICES, Glyph.WAVES),
+    YOUTUBE("YouTube Music", SettingsSection.SERVICES, Glyph.PLAY_CIRCLE, ProviderType.YOUTUBE_MUSIC),
+    SOUNDCLOUD("SoundCloud", SettingsSection.SERVICES, Glyph.CLOUD, ProviderType.SOUNDCLOUD),
+    SPOTIFY("Spotify", SettingsSection.SERVICES, Glyph.LIBRARY_MUSIC, ProviderType.SPOTIFY),
+    BANDCAMP("Bandcamp", SettingsSection.SERVICES, Glyph.ALBUM, ProviderType.BANDCAMP),
+    VK("VK Music", SettingsSection.SERVICES, Glyph.AUDIOTRACK, ProviderType.VK),
+    APPLE_MUSIC("Apple Music", SettingsSection.SERVICES, Glyph.MUSIC_NOTE, ProviderType.APPLE_MUSIC),
+    DEEZER("Deezer", SettingsSection.SERVICES, Glyph.HEADPHONES, ProviderType.DEEZER),
+    TIDAL("Tidal", SettingsSection.SERVICES, Glyph.WAVES, ProviderType.TIDAL),
     SEARCH("Search", SettingsSection.SERVICES, Glyph.SEARCH),
     PHONE("On this phone", SettingsSection.PHONE, Glyph.PHONE_ANDROID),
     CONNECT("Noctorium Connect", SettingsSection.PHONE, Glyph.DEVICES),
