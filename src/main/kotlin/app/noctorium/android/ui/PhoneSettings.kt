@@ -870,9 +870,12 @@ internal fun SpotifyCards(settings: app.noctorium.settings.SettingsState, state:
                 // Not "your playlists are here" while the line below says Spotify will not hand them over.
                 spotify.connected && spotify.message != null -> "Signed in$who."
                 spotify.connected -> "Signed in$who. Your playlists, liked songs and search are here."
-                else -> "Any Spotify account brings its playlists, liked songs and search here, with hearts " +
-                    "that save to Liked Songs and two rows on Home. Its songs play matched to the same " +
-                    "recordings on YouTube Music."
+                // Not "any account": Spotify refuses the sign-in's reads unless the app's owner has Premium, so the
+                // two ways in that need no sign-in are named here rather than left for the bottom of the page.
+                else -> "Signing in brings your playlists, liked songs and search here, with hearts that save to " +
+                    "Liked Songs and two rows on Home. Its songs play matched to the same recordings on YouTube " +
+                    "Music. No sign-in is needed to follow public playlists by their links, or to import your " +
+                    "playlists and Liked Songs from Spotify's data download: both are further down."
             },
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
