@@ -14,6 +14,9 @@ import app.noctorium.settings.DEFAULT_HYBRID_SEARCH
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.NoctoriumPreferences
 import app.noctorium.settings.PhonePreferences
+import app.noctorium.settings.ScrobbleConnectionStatus
+import app.noctorium.settings.ScrobbleServiceState
+import app.noctorium.settings.ScrobbleState
 import app.noctorium.settings.SpotifyConnectionState
 import app.noctorium.settings.VkConnectionState
 import app.noctorium.spotify.SpotifyDevice
@@ -370,6 +373,37 @@ class PhoneServiceRulesTest {
         assertEquals("Checking with VK…", vkSummary(VkConnectionState(checking = true)))
         assertEquals("Signed in as Odile", vkSummary(VkConnectionState(connected = true, accountName = "Odile")))
         assertEquals("Signed in", vkSummary(VkConnectionState(connected = true)))
+    }
+
+    // --- Scrobbling ---
+
+    private fun connected(name: String?) = ScrobbleServiceState(ScrobbleConnectionStatus.CONNECTED, username = name)
+
+    @Test
+    fun `the Scrobbling tile names who is connected, each name once, and Libre fm among them`() {
+        assertEquals("Connect Last.fm, Libre.fm or ListenBrainz", scrobblingSummary(ScrobbleState()))
+        assertFalse(scrobblingAnywhere(ScrobbleState()))
+        val libreOnly = ScrobbleState(libreFm = connected("sample-listener"))
+        assertEquals("Connected: sample-listener", scrobblingSummary(libreOnly))
+        assertTrue(scrobblingAnywhere(libreOnly))
+        // The same listener on Last.fm and Libre.fm is said once; somebody else on ListenBrainz is said too.
+        assertEquals(
+            "Connected: sample-listener, another-listener",
+            scrobblingSummary(
+                ScrobbleState(lastFm = connected("sample-listener"), libreFm = connected("sample-listener"), listenBrainz = connected("another-listener")),
+            ),
+        )
+    }
+
+    @Test
+    fun `the Scrobbling tile says first what needs connecting again, and what waits to be allowed when nothing is connected`() {
+        val refused = ScrobbleServiceState(ScrobbleConnectionStatus.ERROR, message = "Libre.fm needs connecting again")
+        assertEquals("Libre.fm needs connecting again", scrobblingSummary(ScrobbleState(lastFm = connected("sample-listener"), libreFm = refused)))
+        val waiting = ScrobbleServiceState(ScrobbleConnectionStatus.AWAITING_APPROVAL, approvalUrl = "https://www.last.fm/api/auth/?api_key=key&token=t")
+        assertEquals("Last.fm sign-in waiting for you", scrobblingSummary(ScrobbleState(lastFm = waiting)))
+        assertFalse(scrobblingAnywhere(ScrobbleState(lastFm = waiting)))
+        // Connected somewhere counts for more than a sign-in still waiting elsewhere.
+        assertEquals("Connected: sample-listener", scrobblingSummary(ScrobbleState(lastFm = waiting, listenBrainz = connected("sample-listener"))))
     }
 
     // --- Home ---

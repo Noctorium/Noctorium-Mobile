@@ -103,6 +103,23 @@ class PhoneSettingsIndexTest {
     }
 
     @Test
+    fun `Libre fm is found by its name and by scrobbling, after Last fm`() {
+        for (words in listOf("libre.fm", "libre", "librefm", "libre fm", "gnu fm")) {
+            assertEquals(SettingIds.LIBRE_FM, first(words).id, words)
+        }
+        assertEquals(SettingsPage.SCROBBLING, first("libre").page)
+        val scrobblers = searchPhoneSettings("scrobble").map { it.first.id }
+        assertEquals(listOf(SettingIds.LAST_FM, SettingIds.LIBRE_FM, SettingIds.LISTENBRAINZ), scrobblers.take(3))
+    }
+
+    /** The link kept while a sign-in waits, for a browser that did not open, is found by what its button says. */
+    @Test
+    fun `copy link finds the scrobblers whose sign-in page can be copied`() {
+        assertEquals(listOf(SettingIds.LAST_FM, SettingIds.LIBRE_FM), searchPhoneSettings("copy link").map { it.first.id })
+        assertEquals(SettingIds.LAST_FM, first("browser did not open").id)
+    }
+
+    @Test
     fun `each Toolbar is found by its name`() {
         for (words in listOf("toolbar", "toolbar 2", "toolbar2")) {
             assertEquals(SettingIds.PLAYER_BAR_LAYOUT, first(words).id, words)

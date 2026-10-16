@@ -136,6 +136,7 @@ internal object SettingIds {
     const val LYRICS_ALIGNMENT = "lyrics-alignment"
     const val LYRICS_DIM = "lyrics-dim"
     const val LAST_FM = "lastfm"
+    const val LIBRE_FM = "librefm"
     const val LISTENBRAINZ = "listenbrainz"
     const val YOUTUBE_SIGN_IN = "youtube-sign-in"
     const val YOUTUBE_HISTORY = "youtube-history"
@@ -468,11 +469,19 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         listOf("highlight current line", "karaoke", "fade lines"),
         stores = listOf("lyrics"),
     ),
+    // Last.fm and Libre.fm sign in on a page of their own, and both cards keep that page to copy while the sign-in
+    // waits -- for a browser that did not open it -- so both are found by what the button there says.
     PhoneSetting(
         SettingIds.LAST_FM, "Last.fm", SettingsPage.SCROBBLING, "lastfm",
         "Counts what you listen to, wherever you listen.",
-        listOf("scrobble", "scrobbling", "lastfm", "last fm"),
+        listOf("scrobble", "scrobbling", "lastfm", "last fm", "copy link", "sign-in link", "browser did not open"),
         stores = listOf("lastFmUsername"),
+    ),
+    PhoneSetting(
+        SettingIds.LIBRE_FM, "Libre.fm", SettingsPage.SCROBBLING, "librefm",
+        "The free scrobbling service, signed in to on its own page as Last.fm is.",
+        listOf("scrobble", "scrobbling", "librefm", "libre fm", "gnu fm", "open source", "copy link", "sign-in link", "browser did not open"),
+        stores = listOf("libreFmUsername"),
     ),
     PhoneSetting(
         SettingIds.LISTENBRAINZ, "ListenBrainz", SettingsPage.SCROBBLING, "listenbrainz",

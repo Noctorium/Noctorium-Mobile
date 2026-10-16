@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -26,11 +28,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.lyrics.LyricsProviderId
+import app.noctorium.scrobble.AudioscrobblerSite
 import app.noctorium.settings.AccentPreset
 import app.noctorium.settings.ArtworkShape
 import app.noctorium.settings.FontChoice
@@ -53,6 +57,7 @@ import app.noctorium.settings.SurfaceStyle
 import app.noctorium.settings.TextSize
 import app.noctorium.settings.PlayerBarPosition
 import app.noctorium.settings.ScrobbleConnectionStatus
+import app.noctorium.settings.ScrobbleServiceState
 import app.noctorium.settings.SettingsState
 import app.noctorium.settings.StartPage
 import app.noctorium.settings.TimeDisplay
@@ -516,39 +521,136 @@ private fun ChoiceRow(label: String, chips: @Composable () -> Unit) {
 }
 
 /**
- * Last.fm and ListenBrainz, which count what is listened to wherever it is listened to.
+ * Last.fm, Libre.fm and ListenBrainz, which count what is listened to wherever it is listened to.
  *
- * Both are the desktop's own flows: Last.fm approves in a browser and then wants the button pressed again,
- * ListenBrainz takes a token pasted in. Neither needed changing for a phone.
+ * Last.fm and Libre.fm sign in the one way, since Libre.fm speaks Last.fm's own protocol: the service's page opens
+ * in the browser, the listener allows Noctorium there, and the sign-in here finishes by itself. So they are one card
+ * with two names ([AudioscrobblerCard]). ListenBrainz takes a token pasted in, as on the desktop.
  */
 @Composable
-internal fun LastFmCard(settings: SettingsState, state: AppState) {
-    val scrobbling = settings.scrobbling
+internal fun LastFmCard(settings: SettingsState, state: AppState) = AudioscrobblerCard(
+    AudioscrobblerSite.LAST_FM,
+    settings.scrobbling.lastFm,
+    anchor = SettingIds.LAST_FM,
+    about = "Counts what you listen to, wherever you listen. You sign in on Last.fm's own page.",
+    connect = state::beginLastFmLogin,
+    finish = state::finishLastFmLogin,
+    disconnect = state::disconnectLastFm,
+    state = state,
+)
 
-    SettingsCardShell(anchor = SettingIds.LAST_FM) {
-        CardHeading(Glyph.HISTORY.image, "Last.fm")
-        Spacer(Modifier.height(6.dp))
+@Composable
+internal fun LibreFmCard(settings: SettingsState, state: AppState) = AudioscrobblerCard(
+    AudioscrobblerSite.LIBRE_FM,
+    settings.scrobbling.libreFm,
+    anchor = SettingIds.LIBRE_FM,
+    about = "The free scrobbling service. You sign in on its own page, as with Last.fm.",
+    connect = state::beginLibreFmLogin,
+    finish = state::finishLibreFmLogin,
+    disconnect = state::disconnectLibreFm,
+    state = state,
+)
+
+/**
+ * A service that signs in the way Last.fm does, [site], as [service] stands: not connected, starting, waiting for
+ * Noctorium to be allowed on its page, connected, or refused.
+ *
+ * Whatever went wrong is said in the error colour, with the button to connect again under it, so a sign-in the
+ * service stopped taking -- which keeps the scrobbles to send once it is back -- does not read as a quiet "not
+ * connected".
+ */
+@Composable
+private fun AudioscrobblerCard(
+    site: AudioscrobblerSite,
+    service: ScrobbleServiceState,
+    anchor: String,
+    about: String,
+    connect: () -> Unit,
+    finish: () -> Unit,
+    disconnect: () -> Unit,
+    state: AppState,
+) {
+    SettingsCardShell(anchor = anchor) {
+        CardHeading(Glyph.HISTORY.image, site.displayName)
         Text(
-            scrobbling.lastFm.username?.let { "Connected as $it" }
-                ?: when (scrobbling.lastFm.status) {
-                    ScrobbleConnectionStatus.AWAITING_APPROVAL ->
-                        "Approve Noctorium in the browser, then press Finish."
-                    ScrobbleConnectionStatus.ERROR -> scrobbling.lastFm.message ?: "Something went wrong."
-                    else -> "Not connected."
-                },
+            about,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
         )
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            when (scrobbling.lastFm.status) {
-                ScrobbleConnectionStatus.CONNECTED ->
-                    SkinnedOutlinedButton(state::disconnectLastFm) { Text("Disconnect") }
-                ScrobbleConnectionStatus.AWAITING_APPROVAL ->
-                    SkinnedButton(state::finishLastFmLogin) { Text("Finish") }
-                else -> SkinnedButton(state::beginLastFmLogin) { Text("Connect") }
+        when (service.status) {
+            ScrobbleConnectionStatus.CONNECTED -> {
+                Text(service.username?.let { "Connected as $it" } ?: "Connected.", fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                SkinnedOutlinedButton(disconnect) { Text("Disconnect") }
+            }
+            ScrobbleConnectionStatus.AWAITING_APPROVAL -> ScrobblerWaiting(site, service, finish, cancel = disconnect, state)
+            ScrobbleConnectionStatus.CONNECTING -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(service.message ?: "Starting ${site.displayName} sign-in…", fontSize = 12.sp)
+            }
+            ScrobbleConnectionStatus.ERROR -> {
+                Text(service.message ?: "Something went wrong.", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                SkinnedButton(connect) { Text("Connect again") }
+            }
+            ScrobbleConnectionStatus.DISCONNECTED -> {
+                Text(service.message ?: "Not connected.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                SkinnedButton(connect) { Text("Connect") }
             }
         }
+    }
+}
+
+/**
+ * A sign-in waiting for Noctorium to be allowed on [site]'s page.
+ *
+ * Allowing it there, in whichever browser, finishes the sign-in here by itself; Finish sign-in is for a wait that
+ * has stopped looking, or one carried over from before Noctorium was last closed. The page is kept for as long as
+ * the wait lasts, for a phone whose browser did not open it or a page closed too soon: Copy link and Open again
+ * reach it, and its address is set out in words that can be selected, to be read or pressed on.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ScrobblerWaiting(
+    site: AudioscrobblerSite,
+    service: ScrobbleServiceState,
+    finish: () -> Unit,
+    cancel: () -> Unit,
+    state: AppState,
+) {
+    Text(service.message ?: "Allow Noctorium on ${site.displayName}'s page, and it connects by itself.", fontSize = 12.sp)
+    service.approvalUrl?.let { page ->
+        Spacer(Modifier.height(6.dp))
+        SelectionContainer {
+            Text(
+                page,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                lineHeight = 13.sp,
+            )
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SkinnedButton(finish) { Text("Finish sign-in") }
+        service.approvalUrl?.let { page ->
+            SkinnedOutlinedButton({ state.copyScrobblerSignInLink(site) }) {
+                Icon(Glyph.CONTENT_COPY.image, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Copy link")
+            }
+            SkinnedOutlinedButton({ state.openExternalUrl(page) }) {
+                Icon(Glyph.OPEN_IN_NEW.image, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Open again")
+            }
+        }
+        // Centred on its row: under the Windows themes a text button is the smaller push button of a dialog's Cancel.
+        SkinnedTextButton(cancel, Modifier.align(Alignment.CenterVertically)) { Text("Cancel") }
     }
 }
 

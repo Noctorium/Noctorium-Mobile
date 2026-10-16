@@ -11,6 +11,9 @@ import app.noctorium.settings.BandcampConnectionState
 import app.noctorium.settings.DEFAULT_HYBRID_SEARCH
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.ScrobbleConnectionStatus
+import app.noctorium.settings.ScrobbleServiceState
+import app.noctorium.settings.ScrobbleState
 import app.noctorium.settings.SpotifyConnectionState
 import app.noctorium.settings.VkConnectionState
 import app.noctorium.spotify.SpotifyDevice
@@ -296,6 +299,35 @@ internal fun vkSummary(vk: VkConnectionState): String = when {
     vk.connected && vk.accountName.isNotBlank() -> "Signed in as ${vk.accountName}"
     vk.connected -> "Signed in"
     else -> "Not signed in"
+}
+
+/** The scrobblers by name, in the order the Scrobbling page has them. */
+private fun scrobblers(scrobbling: ScrobbleState): List<Pair<String, ScrobbleServiceState>> =
+    listOf("Last.fm" to scrobbling.lastFm, "Libre.fm" to scrobbling.libreFm, "ListenBrainz" to scrobbling.listenBrainz)
+
+/** Whether anything is being scrobbled to, which is when the Scrobbling tile is lit. */
+internal fun scrobblingAnywhere(scrobbling: ScrobbleState): Boolean =
+    scrobblers(scrobbling).any { it.second.status == ScrobbleConnectionStatus.CONNECTED }
+
+/**
+ * Where scrobbling stands, in the few words a Settings tile has room for: a service that needs connecting again
+ * first, since what is played is being kept back for it, then who is connected, then a sign-in still waiting to be
+ * allowed. Each name once, though a listener is often the same name on Last.fm and on Libre.fm.
+ */
+internal fun scrobblingSummary(scrobbling: ScrobbleState): String {
+    val services = scrobblers(scrobbling)
+    val refused = services.firstOrNull { it.second.status == ScrobbleConnectionStatus.ERROR }?.first
+    val connected = services.map { it.second }
+        .filter { it.status == ScrobbleConnectionStatus.CONNECTED }
+        .mapNotNull { it.username }
+        .distinct()
+    val waiting = services.firstOrNull { it.second.status == ScrobbleConnectionStatus.AWAITING_APPROVAL }?.first
+    return when {
+        refused != null -> "$refused needs connecting again"
+        connected.isNotEmpty() -> "Connected: ${connected.joinToString()}"
+        waiting != null -> "$waiting sign-in waiting for you"
+        else -> "Connect Last.fm, Libre.fm or ListenBrainz"
+    }
 }
 
 /** The parts of Home that are the listener's own rather than a service's rows. */

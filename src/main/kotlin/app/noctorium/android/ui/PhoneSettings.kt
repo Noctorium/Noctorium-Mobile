@@ -62,7 +62,6 @@ import app.noctorium.core.Destination
 import app.noctorium.domain.ProviderType
 import app.noctorium.settings.DEFAULT_HYBRID_SEARCH
 import app.noctorium.settings.HomePart
-import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.ThemePreset
 import app.noctorium.settings.ThemeSkin
 
@@ -264,19 +263,11 @@ private fun SettingsHome(
             ) { open(SettingsPage.LYRICS, null) }
         }
         item {
-            val scrobbling = settings.scrobbling
-            val connected = listOf(scrobbling.lastFm, scrobbling.listenBrainz)
-                .filter { it.status == ScrobbleConnectionStatus.CONNECTED }
-                .mapNotNull { it.username }
             SettingsTile(
                 SettingsPage.SCROBBLING.glyph.image,
                 "Scrobbling",
-                when {
-                    scrobbling.lastFm.status == ScrobbleConnectionStatus.ERROR -> "Last.fm needs connecting again"
-                    connected.isNotEmpty() -> "Connected: ${connected.joinToString()}"
-                    else -> "Connect Last.fm or ListenBrainz"
-                },
-                active = connected.isNotEmpty(),
+                scrobblingSummary(settings.scrobbling),
+                active = scrobblingAnywhere(settings.scrobbling),
             ) { open(SettingsPage.SCROBBLING, null) }
         }
 
@@ -496,6 +487,7 @@ private fun pageCards(
     )
     SettingsPage.SCROBBLING -> listOf(
         "lastfm" to { LastFmCard(settings, state) },
+        "librefm" to { LibreFmCard(settings, state) },
         "listenbrainz" to { ListenBrainzCard(settings, state) },
     )
     SettingsPage.YOUTUBE -> listOf("youtube" to { ServiceCard(ProviderType.YOUTUBE_MUSIC, settings, likes, state, signIn) })
