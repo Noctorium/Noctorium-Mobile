@@ -143,6 +143,38 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingIds.TIDAL_APP, first("developer.tidal.com").id)
     }
 
+    /**
+     * The two ways into Spotify that need no sign-in are found by what somebody whose sign-in Spotify refuses types --
+     * that they have no Premium, the playlist they want, or the file Spotify sent them by its name -- and are on
+     * Spotify's page, at their own cards, under the sign-in, which "spotify" alone still finds first.
+     */
+    @Test
+    fun `Spotify's public playlists and its data download are found by the words for them, on Spotify's page`() {
+        assertEquals(SettingIds.SPOTIFY_PUBLIC_PLAYLISTS, first("spotify public playlist").id)
+        assertEquals(SettingIds.SPOTIFY_PUBLIC_PLAYLISTS, first("public playlist").id)
+        assertEquals(SettingIds.SPOTIFY_PUBLIC_PLAYLISTS, first("follow playlist").id)
+        assertEquals(SettingIds.SPOTIFY_PUBLIC_PLAYLISTS, first("without premium").id)
+        assertEquals(SettingIds.SPOTIFY_IMPORT, first("import spotify").id)
+        assertEquals(SettingIds.SPOTIFY_IMPORT, first("spotify data").id)
+        assertEquals(SettingIds.SPOTIFY_IMPORT, first("liked songs").id)
+        assertEquals(SettingIds.SPOTIFY_IMPORT, first("my_spotify_data").id)
+        assertEquals(SettingIds.SPOTIFY_IMPORT, first("my_spotify_data.zip").id)
+        assertEquals(SettingIds.SPOTIFY_IMPORT, first("download your data").id)
+        for (words in listOf("spotify public playlist", "import spotify", "spotify data", "liked songs", "without premium", "my_spotify_data")) {
+            assertEquals(SettingsPage.SPOTIFY, first(words).page, words)
+        }
+        // Both, for somebody who has no Premium and has not said which way they want.
+        val withoutPremium = searchPhoneSettings("without premium").map { it.first.id }
+        assertEquals(listOf(SettingIds.SPOTIFY_PUBLIC_PLAYLISTS, SettingIds.SPOTIFY_IMPORT), withoutPremium.take(2))
+        assertEquals("spotify-public", first("public playlist").card)
+        assertEquals("spotify-import", first("import spotify").card)
+        // The sign-in is still what "spotify" finds first, and Premium still finds it.
+        assertEquals(SettingIds.SPOTIFY_SIGN_IN, first("spotify").id)
+        assertEquals(SettingIds.SPOTIFY_SIGN_IN, first("premium").id)
+        // And the followed playlists are the setting that keeps them.
+        assertTrue("spotifyPublicPlaylists" in PHONE_SETTINGS.first { it.id == SettingIds.SPOTIFY_PUBLIC_PLAYLISTS }.stores)
+    }
+
     /** Base decides which services are in beta; the pages that sign in to them are the ones that warn. */
     @Test
     fun `every service in beta has a page, and only those pages carry the warning`() {

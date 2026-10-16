@@ -188,7 +188,7 @@ private fun LazyListScope.phoneLinkOutcome(link: LinkState, playback: PlaybackSt
                 }
             }
             if (link.link?.kind == LinkKind.PLAYLIST) {
-                item { PhonePlaylistActions(link.tracks, state) }
+                item { PhonePlaylistActions(link.tracks, state, keep = link.link?.url?.takeIf { link.canKeepInLibrary }) }
                 items(link.tracks, key = { it.queueKey }) { track ->
                     TrackRow(track, state, isCurrent = playback.track?.queueKey == track.queueKey) {
                         state.play(track, PlaybackOrigin.PLAYLIST, link.tracks)
@@ -253,13 +253,26 @@ private fun PhoneLinkTrackCard(track: Track, playing: Boolean, state: AppState) 
     }
 }
 
-/** Wrapped rather than squeezed: at a large font size three buttons do not fit a row, and a squeezed one breaks its label letter by letter. */
+/**
+ * Wrapped rather than squeezed: at a large font size three buttons do not fit a row, and a squeezed one breaks its label letter by letter.
+ *
+ * [keep] is the link of a public Spotify playlist the library does not follow yet, which Keep in library follows,
+ * with nobody signed in: from then on it is in the library, read again whenever the library is. Once it is kept the
+ * button goes, and what core said of it is said here, as it is in Settings.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PhonePlaylistActions(tracks: List<Track>, state: AppState) {
+private fun PhonePlaylistActions(tracks: List<Track>, state: AppState, keep: String? = null) {
+    val settings by state.settings.collectAsState()
+    val adding = settings.spotify.addingPublicPlaylist
+    // Whether Keep in library was pressed for the playlist on screen, so what came of it is said under this one and
+    // not under whichever playlist is open when one is added in Settings.
+    var kept by remember(tracks) { mutableStateOf(false) }
     FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        // A gap between the rows they wrap onto, which the Windows push buttons, having no margin of their own, need.
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         SkinnedButton({ tracks.firstOrNull()?.let { state.play(it, PlaybackOrigin.PLAYLIST, tracks) } }) {
             Icon(Glyph.PLAY_ARROW.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Play all", maxLines = 1)
@@ -267,10 +280,27 @@ private fun PhonePlaylistActions(tracks: List<Track>, state: AppState) {
         SkinnedTonalButton({ tracks.forEach(state::addToQueue) }) {
             Icon(Glyph.PLAYLIST_ADD.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Queue all", maxLines = 1)
         }
+        if (keep != null) {
+            SkinnedTonalButton({ kept = true; state.addSpotifyPublicPlaylist(keep) }, enabled = !adding) {
+                Icon(Glyph.LIBRARY_MUSIC.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Keep in library", maxLines = 1)
+            }
+        }
         // A Bandcamp album has nothing in it that may be kept, nor a VK playlist, so neither is offered it.
         if (tracks.any(state::canKeep)) {
             SkinnedTonalButton({ state.downloadAll(tracks) }) {
                 Icon(Glyph.DOWNLOAD.image, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Download all", maxLines = 1)
+            }
+        }
+    }
+    if (kept) {
+        when {
+            adding -> Row(Modifier.padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Keeping it in your library…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+            else -> settings.spotify.publicMessage?.let { said ->
+                Text(said, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
             }
         }
     }

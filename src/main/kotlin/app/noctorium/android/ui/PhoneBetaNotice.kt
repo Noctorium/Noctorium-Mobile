@@ -2,6 +2,8 @@ package app.noctorium.android.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +17,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -23,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -82,6 +86,58 @@ internal fun BetaNotice(text: String) {
             Spacer(Modifier.width(10.dp))
             Text(words, color = ink, fontSize = 12.sp, lineHeight = 17.sp)
         }
+    }
+}
+
+/**
+ * A warning about what one way in cannot do, inside the card that offers it: following Spotify's public playlists,
+ * which reaches only the public ones and only their first hundred songs, and importing its data download, which is
+ * a copy as of the day Spotify made it. Base's words, as the beta warning's are, and drawn as a warning too -- but
+ * not as that one is, since both are on one page and say different things: the beta warning is about the whole
+ * service, this about one way into it, and the eye should not take one for the other.
+ *
+ * On the ordinary themes it is a panel in amber rather than in the error colours, with the same sign, a little
+ * smaller, as fits inside a card. Under the Windows themes it is the message box's yellow triangle on a field's
+ * white -- sunk into the face in 98, lined in a field's blue in XP -- where the beta warning is a tooltip's yellow.
+ */
+@Composable
+internal fun LimitsNotice(text: String) {
+    val skin = LocalSkin.current
+    val words = leadInBold(text)
+    val described = Modifier.semantics(mergeDescendants = true) {}
+    if (skin == ThemeSkin.STANDARD) {
+        // Fixed for a light page and for a dark one, as the error colours are, so it reads the same in every theme.
+        val pale = MaterialTheme.colorScheme.background.luminance() > .5f
+        val amber = if (pale) Color(0xFF8A5A00) else Color(0xFFFFC857)
+        Surface(
+            color = if (pale) Color(0xFFFFF1CC) else Color(0xFF3A2C08),
+            shape = RoundedCornerShape(10.dp),
+            border = BorderStroke(1.dp, amber.copy(alpha = .6f)),
+            modifier = Modifier.fillMaxWidth().then(described),
+        ) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Icon(Glyph.WARNING.image, null, Modifier.size(18.dp), tint = amber)
+                Spacer(Modifier.width(10.dp))
+                Text(words, color = if (pale) Color(0xFF3D2800) else Color(0xFFFFE8B5), fontSize = 12.sp, lineHeight = 17.sp)
+            }
+        }
+        return
+    }
+    val xp = skin == ThemeSkin.WINDOWS_XP
+    val win98 = Win98
+    val ink = if (xp) Luna.Text else win98.Text
+    val edged = if (xp) {
+        Modifier.background(Luna.Window).border(1.dp, Luna.FieldEdge)
+    } else {
+        Modifier.background(win98.Window).drawWithContent {
+            drawContent()
+            drawEdge98(Edge98.SUNKEN, win98)
+        }
+    }
+    Row(Modifier.fillMaxWidth().then(described).then(edged).padding(horizontal = 10.dp, vertical = 9.dp)) {
+        WarningTriangle(xp, Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(words, color = ink, fontSize = 12.sp, lineHeight = 17.sp)
     }
 }
 

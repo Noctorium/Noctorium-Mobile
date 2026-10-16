@@ -132,6 +132,8 @@ private fun SettingsHome(
     val account by state.account.collectAsState()
     val connect by state.connect.collectAsState()
     val updates by state.updates.collectAsState()
+    // For the playlists made from Spotify's data download, which Spotify's tile counts.
+    val library by state.library.collectAsState()
     val preferences = settings.preferences
     val found = remember(query) { searchPhoneSettings(query) }
     val tabSetting = LocalTabSetting.current
@@ -293,7 +295,7 @@ private fun SettingsHome(
             SettingsTile(
                 SettingsPage.SPOTIFY.glyph.image,
                 "Spotify",
-                spotifySummary(settings.spotify),
+                spotifySummary(settings.spotify, imported = importedFromSpotify(library.localPlaylists)),
                 tint = ProviderType.SPOTIFY.badgeColour(),
                 active = settings.spotify.connected,
             ) { open(SettingsPage.SPOTIFY, null) }
@@ -524,7 +526,13 @@ private fun pageCards(
     )
     SettingsPage.YOUTUBE -> listOf("youtube" to { ServiceCard(ProviderType.YOUTUBE_MUSIC, settings, likes, state, signIn) })
     SettingsPage.SOUNDCLOUD -> listOf("soundcloud" to { ServiceCard(ProviderType.SOUNDCLOUD, settings, likes, state, signIn) })
-    SettingsPage.SPOTIFY -> listOf("spotify" to { SpotifyCards(settings, state) })
+    // The sign-in, Spotify Connect and the listener's own app as they always were, and under them the two ways in
+    // that need no sign-in, for whoever's sign-in Spotify refuses.
+    SettingsPage.SPOTIFY -> listOf(
+        "spotify" to { SpotifyCards(settings, state) },
+        "spotify-public" to { SpotifyPublicPlaylistsCard(settings, state) },
+        "spotify-import" to { SpotifyImportCard(settings, state) },
+    )
     SettingsPage.BANDCAMP -> listOf(
         "bandcamp" to { BandcampCard(settings, state) },
         "bandcamp-genres" to { BandcampGenresCard(settings, state) },

@@ -157,6 +157,8 @@ internal object SettingIds {
     const val SPOTIFY_SIGN_IN = "spotify-sign-in"
     const val SPOTIFY_PLAYBACK = "spotify-playback"
     const val SPOTIFY_OWN_APP = "spotify-own-app"
+    const val SPOTIFY_PUBLIC_PLAYLISTS = "spotify-public-playlists"
+    const val SPOTIFY_IMPORT = "spotify-import"
     const val BANDCAMP_NAME = "bandcamp-name"
     const val BANDCAMP_GENRES = "bandcamp-genres"
     const val VK_SIGN_IN = "vk-sign-in"
@@ -549,6 +551,26 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "Sign in through a Spotify app of your own, with its Client ID.",
         listOf("client id", "developer", "dashboard", "redirect"),
         stores = listOf("spotifyClientId"),
+    ),
+    // The two ways in that need no sign-in, found by what somebody whose sign-in Spotify refuses would type: that
+    // they have no Premium, the playlist they want, or the file Spotify sent them by its name.
+    PhoneSetting(
+        SettingIds.SPOTIFY_PUBLIC_PLAYLISTS, "Spotify public playlists", SettingsPage.SPOTIFY, "spotify-public",
+        "Follow public Spotify playlists by their links, with no sign-in and no Premium; their first 100 songs.",
+        listOf(
+            "public playlist", "playlist link", "follow playlist", "follow a playlist", "share link", "spotify link",
+            "without premium", "no premium", "without signing in", "no sign-in", "without an account",
+        ),
+        stores = listOf("spotifyPublicPlaylists"),
+    ),
+    PhoneSetting(
+        SettingIds.SPOTIFY_IMPORT, "Import from Spotify's data download", SettingsPage.SPOTIFY, "spotify-import",
+        "Your Spotify playlists and Liked Songs, from the file Spotify sends you, as playlists of Noctorium's own.",
+        listOf(
+            "import spotify", "spotify import", "liked songs", "spotify liked songs", "my_spotify_data", "my_spotify_data.zip",
+            "download your data",
+            "account data", "privacy settings", "zip", "private playlists", "without premium", "no premium",
+        ),
     ),
     PhoneSetting(
         SettingIds.BANDCAMP_NAME, "Bandcamp name", SettingsPage.BANDCAMP, "bandcamp",

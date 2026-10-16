@@ -8,6 +8,9 @@ import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
 import app.noctorium.domain.isAlbumPage
 import app.noctorium.domain.isArtistPage
+import app.noctorium.domain.pluralTracks
+import app.noctorium.playlists.LocalPlaylist
+import app.noctorium.playlists.PlaylistImport
 import app.noctorium.settings.AppleMusicConnectionState
 import app.noctorium.settings.BandcampConnectionState
 import app.noctorium.settings.DeezerConnectionState
@@ -20,7 +23,10 @@ import app.noctorium.settings.ScrobbleState
 import app.noctorium.settings.SpotifyConnectionState
 import app.noctorium.settings.TidalConnectionState
 import app.noctorium.settings.VkConnectionState
+import app.noctorium.spotify.SPOTIFY_CUT_NOTE
+import app.noctorium.spotify.SPOTIFY_PUBLIC_NOTE
 import app.noctorium.spotify.SpotifyDevice
+import app.noctorium.spotify.SpotifyPublicPlaylistState
 import java.util.Locale
 import kotlin.math.abs
 
@@ -310,16 +316,98 @@ internal fun spotifyDeviceDetail(device: SpotifyDevice): String = listOfNotNull(
     "takes no commands from other apps".takeIf { device.isRestricted },
 ).joinToString(" · ")
 
-/** Where the Spotify account stands, in the few words a Settings tile has room for. */
-internal fun spotifySummary(spotify: SpotifyConnectionState): String {
+/**
+ * Where the Spotify account stands, in the few words a Settings tile has room for.
+ *
+ * Signed out, the Spotify music that is in the library all the same is said instead, where there is any: the
+ * public playlists followed by their links, and the [imported] playlists made from Spotify's data download -- so a
+ * listener whose sign-in Spotify refuses sees that the way round it worked, rather than an offer to sign in.
+ */
+internal fun spotifySummary(spotify: SpotifyConnectionState, imported: Int = 0): String {
     val who = spotify.accountName.ifBlank { "Connected" }
+    val followed = spotify.publicPlaylists.size
     return when {
         spotify.connecting -> "Waiting for Spotify…"
+        !spotify.connected && followed > 0 && imported > 0 ->
+            "${counted(followed, "public playlist")} followed · $imported imported"
+        !spotify.connected && followed > 0 -> "${counted(followed, "public playlist")} followed, no sign-in needed"
+        !spotify.connected && imported > 0 -> "${counted(imported, "playlist")} imported from Spotify's data download"
         !spotify.connected -> "Your library, search and likes; with Premium, songs play on Spotify"
         spotify.playsOnSpotify -> "$who · songs play on Spotify"
         else -> "$who · songs play matched on YouTube Music"
     }
 }
+
+/** "1 playlist", "3 playlists": [count] of [thing], as a sentence would say it. */
+private fun counted(count: Int, thing: String): String = "$count ${if (count == 1) thing else "${thing}s"}"
+
+/** Whether Spotify's data download made this playlist, rather than the listener. */
+internal val LocalPlaylist.fromSpotifyImport: Boolean get() = importedFrom?.source == PlaylistImport.SPOTIFY_DATA
+
+/** How many of the playlists made here came from Spotify's data download, Liked Songs among them. */
+internal fun importedFromSpotify(playlists: List<LocalPlaylist>): Int = playlists.count { it.fromSpotifyImport }
+
+/**
+ * The line under a followed public Spotify playlist on Spotify's page in Settings: whose it is, how many songs the
+ * last good read found, and -- as the library says it -- that those are only its first hundred when the page showed
+ * as many as it ever shows. "Not read yet" until it has been read once; what went wrong is said apart, in red.
+ */
+internal fun spotifyPublicLine(playlist: SpotifyPublicPlaylistState): String = listOfNotNull(
+    playlist.owner.takeIf(String::isNotBlank),
+    playlist.songCount?.let(::pluralTracks) ?: "Not read yet".takeIf { playlist.lastError == null },
+    SPOTIFY_CUT_NOTE.takeIf { playlist.mayBeLonger && playlist.songCount != null },
+).joinToString(" · ")
+
+/**
+ * The library's entry for a followed public playlist, to open it from Settings: the one the library lists, with its
+ * cover and its count, or -- before the library has been read -- one made from what Settings knows of it, which
+ * opens all the same.
+ */
+internal fun publicPlaylistToOpen(playlist: SpotifyPublicPlaylistState, listed: List<Playlist>): Playlist =
+    listed.firstOrNull { it.provider == ProviderType.SPOTIFY && it.id == playlist.id } ?: Playlist(
+        id = playlist.id,
+        title = playlist.title.ifBlank { playlist.id },
+        provider = ProviderType.SPOTIFY,
+        // As the library writes it: whose it is, that it is public, and that it is cut short when it may be.
+        ownerName = listOfNotNull(
+            playlist.owner.takeIf(String::isNotBlank),
+            SPOTIFY_PUBLIC_NOTE,
+            SPOTIFY_CUT_NOTE.takeIf { playlist.mayBeLonger },
+        ).joinToString(" · "),
+        artworkUrl = playlist.artworkUrl,
+        sourceUrl = playlist.url,
+        trackCount = playlist.songCount,
+        isPublic = true,
+        ownedByListener = false,
+    )
+
+/**
+ * What a playlist made here says of where it came from, after its count: "made here" in the library and "made in
+ * Noctorium" on its own page -- or, for one Spotify's data download made, "imported from Spotify" in both. That one
+ * is Noctorium's own all the same, listed with the rest.
+ */
+internal fun localPlaylistOrigin(playlist: LocalPlaylist, short: Boolean = true): String = when {
+    playlist.fromSpotifyImport -> "imported from Spotify"
+    short -> "made here"
+    else -> "made in Noctorium"
+}
+
+/**
+ * What the file chosen for the import is called, for what the import says while it runs and when it is done: the
+ * name the file picker gives it, or else the last part of its address, or else "the file", which reads as well in
+ * "Opening the file…" and "Could not read the file".
+ */
+internal fun importFileName(displayName: String?, lastPathSegment: String?): String =
+    displayName?.trim()?.takeIf(String::isNotBlank)
+        ?: lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.trim()?.takeIf(String::isNotBlank)
+        ?: "the file"
+
+/**
+ * What the file picker offers for Spotify's data download: the .zip Spotify sends, by either of the names a phone
+ * gives the kind, a .json from inside it -- and every other file, since some phones call a .zip nothing more
+ * particular than a file, and the import goes by what is in what it is given rather than by its name.
+ */
+internal val SPOTIFY_EXPORT_TYPES = arrayOf("application/zip", "application/x-zip-compressed", "application/json", "*/*")
 
 /** Where the VK account stands, in the few words a Settings tile has room for. */
 internal fun vkSummary(vk: VkConnectionState): String = when {

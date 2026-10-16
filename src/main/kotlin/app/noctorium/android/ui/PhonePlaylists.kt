@@ -364,6 +364,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    val subtitle = pluralTracks(playlist.trackCount) + " · " + localPlaylistOrigin(playlist, short = false)
 
     if (renaming) {
         PlaylistNameDialog("Rename", playlist.title, "Rename") { title ->
@@ -374,7 +375,12 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
     if (deleting) {
         DeletePlaylistDialog(
             title = playlist.title,
-            detail = "It was made here, so it is gone from Noctorium for good. The tracks themselves are untouched.",
+            detail = if (playlist.fromSpotifyImport) {
+                "It came from Spotify's data download, so it goes from Noctorium, and your playlist on Spotify is " +
+                    "untouched. Importing the file again brings it back."
+            } else {
+                "It was made here, so it is gone from Noctorium for good. The tracks themselves are untouched."
+            },
             dismiss = { deleting = false },
         ) {
             deleting = false
@@ -422,7 +428,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
         }
         // A window's title bar under the Windows skins, closed by its cross; the row it always was otherwise.
         if (LocalSkin.current != ThemeSkin.STANDARD) {
-            SkinScreenTitle(playlist.title, pluralTracks(playlist.trackCount) + " · made in Noctorium", state::closeLocalPlaylist) {
+            SkinScreenTitle(playlist.title, subtitle, state::closeLocalPlaylist) {
                 Row { actions() }
             }
         } else {
@@ -434,7 +440,7 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
                 Column(Modifier.weight(1f)) {
                     Text(playlist.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        pluralTracks(playlist.trackCount) + " · made in Noctorium",
+                        subtitle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                     )

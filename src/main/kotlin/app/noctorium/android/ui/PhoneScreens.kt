@@ -637,7 +637,7 @@ private fun LibraryList(
                 items(library.localPlaylists, key = { it.id }) { playlist ->
                     PlaylistRow(
                         title = playlist.title,
-                        detail = pluralTracks(playlist.trackCount) + " · made here",
+                        detail = pluralTracks(playlist.trackCount) + " · " + localPlaylistOrigin(playlist),
                         artworkUrl = null,
                     ) { state.openLocalPlaylist(playlist) }
                 }
@@ -710,11 +710,14 @@ private fun PlaylistRow(title: String, detail: String, artworkUrl: String?, open
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Two lines, so that a public Spotify playlist's note that it is only the first hundred songs, which comes
+            // last, after the service, the count and whose it is, is not the part cut off.
             Text(
                 detail,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
-                maxLines = 1,
+                lineHeight = 16.sp,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
