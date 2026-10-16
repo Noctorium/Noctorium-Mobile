@@ -84,6 +84,7 @@ internal enum class Glyph {
     FAVORITE_BORDER,
     FORMAT_SIZE,
     GRAPHIC_EQ,
+    HEADPHONES,
     HISTORY,
     HOME,
     ICONS,
@@ -140,6 +141,7 @@ internal enum class Glyph {
     VOLUME_DOWN,
     VOLUME_OFF,
     VOLUME_UP,
+    WAVES,
     WIFI,
     ;
 
@@ -198,6 +200,7 @@ internal enum class Glyph {
         FAVORITE_BORDER -> Icons.Filled.FavoriteBorder
         FORMAT_SIZE -> Icons.Filled.FormatSize
         GRAPHIC_EQ -> Icons.Filled.GraphicEq
+        HEADPHONES -> Icons.Filled.Headphones
         HISTORY -> Icons.Filled.History
         HOME -> Icons.Filled.Home
         ICONS -> Icons.Filled.Interests
@@ -254,6 +257,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Filled.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Filled.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Filled.VolumeUp
+        WAVES -> Icons.Filled.Waves
         WIFI -> Icons.Filled.Wifi
     }
 
@@ -296,6 +300,7 @@ internal enum class Glyph {
         FAVORITE_BORDER -> Icons.Rounded.FavoriteBorder
         FORMAT_SIZE -> Icons.Rounded.FormatSize
         GRAPHIC_EQ -> Icons.Rounded.GraphicEq
+        HEADPHONES -> Icons.Rounded.Headphones
         HISTORY -> Icons.Rounded.History
         HOME -> Icons.Rounded.Home
         ICONS -> Icons.Rounded.Interests
@@ -352,6 +357,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Rounded.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Rounded.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Rounded.VolumeUp
+        WAVES -> Icons.Rounded.Waves
         WIFI -> Icons.Rounded.Wifi
     }
 
@@ -394,6 +400,7 @@ internal enum class Glyph {
         FAVORITE_BORDER -> Icons.Outlined.FavoriteBorder
         FORMAT_SIZE -> Icons.Outlined.FormatSize
         GRAPHIC_EQ -> Icons.Outlined.GraphicEq
+        HEADPHONES -> Icons.Outlined.Headphones
         HISTORY -> Icons.Outlined.History
         HOME -> Icons.Outlined.Home
         ICONS -> Icons.Outlined.Interests
@@ -450,6 +457,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Outlined.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Outlined.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Outlined.VolumeUp
+        WAVES -> Icons.Outlined.Waves
         WIFI -> Icons.Outlined.Wifi
     }
 
@@ -492,6 +500,7 @@ internal enum class Glyph {
         FAVORITE_BORDER -> Icons.Sharp.FavoriteBorder
         FORMAT_SIZE -> Icons.Sharp.FormatSize
         GRAPHIC_EQ -> Icons.Sharp.GraphicEq
+        HEADPHONES -> Icons.Sharp.Headphones
         HISTORY -> Icons.Sharp.History
         HOME -> Icons.Sharp.Home
         ICONS -> Icons.Sharp.Interests
@@ -548,6 +557,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.Sharp.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.Sharp.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.Sharp.VolumeUp
+        WAVES -> Icons.Sharp.Waves
         WIFI -> Icons.Sharp.Wifi
     }
 
@@ -590,6 +600,7 @@ internal enum class Glyph {
         FAVORITE_BORDER -> Icons.TwoTone.FavoriteBorder
         FORMAT_SIZE -> Icons.TwoTone.FormatSize
         GRAPHIC_EQ -> Icons.TwoTone.GraphicEq
+        HEADPHONES -> Icons.TwoTone.Headphones
         HISTORY -> Icons.TwoTone.History
         HOME -> Icons.TwoTone.Home
         ICONS -> Icons.TwoTone.Interests
@@ -646,6 +657,7 @@ internal enum class Glyph {
         VOLUME_DOWN -> Icons.AutoMirrored.TwoTone.VolumeDown
         VOLUME_OFF -> Icons.AutoMirrored.TwoTone.VolumeOff
         VOLUME_UP -> Icons.AutoMirrored.TwoTone.VolumeUp
+        WAVES -> Icons.TwoTone.Waves
         WIFI -> Icons.TwoTone.Wifi
     }
 }

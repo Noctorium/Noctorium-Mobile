@@ -249,8 +249,8 @@ fun NoctoriumPhone(state: AppState) {
                     Destination.LINK -> LinkScreen(state)
                     Destination.LIBRARY -> LibraryScreen(state)
                     Destination.DOWNLOADS -> DownloadsScreen(state)
-                    // Only to a service with a sign-in page of its own: the page knows YouTube, SoundCloud and VK by
-                    // name, and anything else -- Bandcamp, which needs only a name -- would fall through to Google's.
+                    // Only to a service with a sign-in page of its own: the page knows YouTube, SoundCloud, VK and Apple
+                    // Music by name, and anything else -- Bandcamp, which needs only a name -- would fall through to Google's.
                     Destination.SETTINGS -> SettingsScreen(state, backEnabled = backEnabled) { provider ->
                         if (hasSignInPage(provider)) signingInTo = provider
                     }

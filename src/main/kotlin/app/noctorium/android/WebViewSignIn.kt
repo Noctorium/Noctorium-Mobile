@@ -10,8 +10,12 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import app.noctorium.auth.APPLE_MUSIC_SESSION_URLS
+import app.noctorium.auth.APPLE_MUSIC_SIGN_IN
+import app.noctorium.auth.APPLE_MUSIC_SITE
 import app.noctorium.auth.HarvestedCookie
 import app.noctorium.auth.SOUNDCLOUD_SESSION_URLS
+import app.noctorium.auth.appleMusicUserToken
 import app.noctorium.auth.isSoundCloudSignedIn
 import app.noctorium.auth.isYouTubeSignedIn
 import app.noctorium.auth.YOUTUBE_SESSION_URLS
@@ -75,7 +79,9 @@ internal fun cookieHostsFor(provider: ProviderType): List<String> = when (provid
     ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO -> (hostsOf(YOUTUBE_SESSION_URLS) + GOOGLE_SIGN_IN_HOSTS).distinct()
     ProviderType.SOUNDCLOUD -> hostsOf(SOUNDCLOUD_SESSION_URLS)
     ProviderType.VK -> VK_COOKIE_HOSTS
-    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.LOCAL -> emptyList()
+    // The web player, its sign-in window, and the Apple ID pages that window shows.
+    ProviderType.APPLE_MUSIC -> hostsOf(APPLE_MUSIC_SESSION_URLS)
+    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.DEEZER, ProviderType.TIDAL, ProviderType.LOCAL -> emptyList()
 }
 
 /**
@@ -116,6 +122,8 @@ object WebViewSignIn {
         ProviderType.SOUNDCLOUD -> "https://soundcloud.com/signin"
         // VK's own page, which leads on to VK ID and to whatever confirmation VK asks for.
         ProviderType.VK -> "https://vk.ru/login"
+        // Apple's web player at its sign-in, which opens Apple's own window for the Apple ID and its password.
+        ProviderType.APPLE_MUSIC -> APPLE_MUSIC_SIGN_IN
         // Google's sign-in directly, rather than the music site's own button.
         //
         // Starting at music.youtube.com was the obvious thing and it does not work: the page loads,
@@ -244,6 +252,12 @@ object WebViewSignIn {
             siteCookies = listOf(manager.getCookie("https://vk.ru"), manager.getCookie("https://m.vk.ru")),
         )
     }
+
+    /**
+     * The listener's Apple Music token, once Apple's web player has been signed in to and has set it; null until
+     * then. Read from the web player's own host and nowhere else, and never written to the log.
+     */
+    fun appleMusicToken(): String? = appleMusicUserToken(harvest(listOf(APPLE_MUSIC_SITE)))
 
     /**
      * The SoundCloud token, which its API needs in a header rather than as a cookie.

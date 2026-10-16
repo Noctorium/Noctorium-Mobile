@@ -139,6 +139,9 @@ class Look(
     private val whole: Boolean = false,
     /** Done to the screen once it has settled, such as holding something down; the whole screen is taken after. */
     private val act: (ComposeContentTestRule.() -> Unit)? = null,
+    /** Home's rows from the services, and what is pinned above them. */
+    private val shelves: List<app.noctorium.domain.HomeSection> = Still.shelves,
+    private val pinned: List<Track> = Still.pinned,
     private val screen: @Composable (SettingsState, AppState) -> Unit,
 ) {
     fun shoot(compose: ComposeContentTestRule) {
@@ -148,7 +151,18 @@ class Look(
             whole -> { {} }
             else -> null
         }
-        compose.shootPhone(screenshotFolder, name, preferences, playing(), kept = kept(), prepare = prepare, then = then, content = screen)
+        compose.shootPhone(
+            screenshotFolder,
+            name,
+            preferences,
+            playing(),
+            kept = kept(),
+            prepare = prepare,
+            then = then,
+            shelves = shelves,
+            pinned = pinned,
+            content = screen,
+        )
     }
 
     override fun toString() = name

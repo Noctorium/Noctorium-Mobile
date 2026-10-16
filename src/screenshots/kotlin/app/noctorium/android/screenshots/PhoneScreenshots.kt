@@ -720,9 +720,12 @@ internal fun ComposeContentTestRule.shootPhone(
     then: (() -> Unit)? = null,
     /** What the history on the profile page holds, newest first. */
     history: List<app.noctorium.history.HistoryEntry> = emptyList(),
+    /** Home's rows from the services, and what is pinned above them. */
+    shelves: List<app.noctorium.domain.HomeSection> = Still.shelves,
+    pinned: List<Track> = Still.pinned,
     content: @Composable (SettingsState, AppState) -> Unit,
 ) {
-    val state = stillState(preferences, playing, kept = kept, history = history)
+    val state = stillState(preferences, playing, pinned = pinned, shelves = shelves, kept = kept, history = history)
     try {
         prepare(state)
         // What the player shows is worked out from the queue a moment after it changes, on the state's own threads,

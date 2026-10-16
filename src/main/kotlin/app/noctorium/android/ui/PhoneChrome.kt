@@ -1,5 +1,6 @@
 package app.noctorium.android.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -9,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -19,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import app.noctorium.domain.ProviderType
+import app.noctorium.domain.ServiceMarks
 import app.noctorium.domain.Track
 import app.noctorium.settings.BadgePolicy
 import app.noctorium.settings.CardSize
@@ -45,10 +48,16 @@ internal fun CardSize.phoneWidth(): Dp = when (this) {
  * nothing useful by stamping YTM on all six, whereas a shelf with one SoundCloud track among them very
  * much does.
  */
-internal fun BadgePolicy.showsFor(tracks: List<Track>): Boolean = when (this) {
+internal fun BadgePolicy.showsFor(tracks: List<Track>): Boolean = showsForServices(tracks.map { it.provider })
+
+/**
+ * The same for a row of anything from [services], one each: the albums and artists a Hybrid search finds across
+ * Bandcamp, Spotify, Apple Music, Deezer and Tidal, which look alike until each says where it is from.
+ */
+internal fun BadgePolicy.showsForServices(services: List<ProviderType>): Boolean = when (this) {
     BadgePolicy.ALWAYS -> true
     BadgePolicy.NEVER -> false
-    BadgePolicy.AUTO -> tracks.map { it.provider }.distinct().size > 1
+    BadgePolicy.AUTO -> services.distinct().size > 1
 }
 
 /** How the badges are drawn, provided by [NoctoriumTheme] from the settings. Marks wherever nothing provides it. */
@@ -72,9 +81,11 @@ internal fun ProviderBadge(track: Track, modifier: Modifier = Modifier) = Provid
 @Composable
 internal fun ProviderBadge(provider: ProviderType, modifier: Modifier = Modifier) {
     val marks = LocalServiceBadgeStyle.current == ServiceBadgeStyle.MARKS
+    val shape = RoundedCornerShape(5.dp)
     Surface(
         color = provider.badgeColour().copy(alpha = .92f),
-        shape = RoundedCornerShape(5.dp),
+        shape = shape,
+        border = badgeOutline(provider.badgeColour(), MaterialTheme.colorScheme.background)?.let { BorderStroke(.75.dp, it) },
         modifier = if (marks) modifier.semantics(mergeDescendants = true) { contentDescription = provider.displayName } else modifier,
     ) {
         if (marks) {
@@ -114,7 +125,8 @@ private fun BadgeLetters(text: String, modifier: Modifier = Modifier) {
 
 /**
  * The same colours the desktop badges use, so a card reads identically on either screen. Bandcamp's Settings
- * tile is tinted with its own, the way Spotify's is with Spotify's green.
+ * tile is tinted with its own, the way Spotify's is with Spotify's green. Tidal's is its own black, which a dark
+ * theme cannot show on its own: see [badgeOutline] and [tint].
  */
 internal fun ProviderType.badgeColour(): Color = when (this) {
     ProviderType.YOUTUBE_MUSIC -> Color(0xFF8B5CF6)
@@ -123,15 +135,43 @@ internal fun ProviderType.badgeColour(): Color = when (this) {
     ProviderType.SPOTIFY -> Color(0xFF1DB954)
     ProviderType.BANDCAMP -> Color(0xFF408294)
     ProviderType.VK -> Color(0xFF0077FF)
+    ProviderType.APPLE_MUSIC -> Color(0xFFFA243C)
+    ProviderType.DEEZER -> Color(0xFFA238FF)
+    ProviderType.TIDAL -> Color(0xFF000000)
     ProviderType.LOCAL -> Color(0xFF5A5A6E)
 }
 
-private fun ProviderType.badgeLabel(): String = when (this) {
-    ProviderType.YOUTUBE_MUSIC -> "YTM"
-    ProviderType.YOUTUBE_VIDEO -> "YT"
-    ProviderType.SOUNDCLOUD -> "SC"
-    ProviderType.SPOTIFY -> "SP"
-    ProviderType.BANDCAMP -> "BC"
-    ProviderType.VK -> "VK"
-    ProviderType.LOCAL -> "FILE"
+/**
+ * [this] service's colour for an icon or a heading drawn straight on the page, as the Settings tiles are: its own,
+ * unless the page is too near that colour for it to be seen -- Tidal's black on a dark theme -- when it is drawn in
+ * the page's text colour instead.
+ */
+@Composable
+internal fun ProviderType.tint(): Color {
+    val colours = MaterialTheme.colorScheme
+    return readableOn(badgeColour(), colours.background, colours.onSurface)
 }
+
+/** [colour] where it stands apart from [page], and [otherwise] where the two are too near to tell apart. */
+internal fun readableOn(colour: Color, page: Color, otherwise: Color): Color =
+    if (contrast(colour, page) < LEAST_CONTRAST) otherwise else colour
+
+/**
+ * A hairline round a badge whose chip is lost against [page] -- Tidal's black on a dark theme -- so the chip still
+ * has an edge; null for every badge that stands out by itself. The mark on it is white either way.
+ */
+internal fun badgeOutline(chip: Color, page: Color): Color? =
+    Color.White.copy(alpha = .5f).takeIf { contrast(chip, page) < LEAST_CONTRAST }
+
+/** How far apart two colours are, as WCAG measures it: 1 for the same, 21 for black on white. */
+internal fun contrast(one: Color, other: Color): Float {
+    val (light, dark) = listOf(one.luminance(), other.luminance()).sortedDescending()
+    return (light + .05f) / (dark + .05f)
+}
+
+/** Below this, a colour does not stand out from the page: Tidal's black on Noctorium's night is about 1.1. */
+private const val LEAST_CONTRAST = 1.6f
+
+/** The letters, as Base decides them beside each mark, but a file's, which the phone has always written FILE. */
+private fun ProviderType.badgeLabel(): String =
+    if (this == ProviderType.LOCAL) "FILE" else ServiceMarks.letters(this)

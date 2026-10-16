@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 /**
  * The service's own sign-in page, inside Noctorium.
  *
- * The password is typed into Google's, SoundCloud's or VK's real page, never into anything of ours, and the
+ * The password is typed into Google's, SoundCloud's, VK's or Apple's real page, never into anything of ours, and the
  * session it produces is kept in this app's cookie store. That is the same bargain the desktop makes with
  * embedded Chromium; Android simply already has the browser.
  *
@@ -62,6 +62,11 @@ import kotlinx.coroutines.launch
  * VK is the exception, because its session cannot be mistaken: the two cookies it is made of are there
  * once VK has signed somebody in, and not before. So VK's is handed over the moment both appear, VK is asked
  * whether it is good, and the page closes itself once it is. Done is still there to ask again.
+ *
+ * Apple Music is the same kind of exception: its web player keeps the listener's token in one cookie,
+ * media-user-token, once Apple has signed them in, and not before. Apple's sign-in finishes in a window of its own
+ * which hands the answer back to the web player, so the cookie is looked for every few seconds as well as at each
+ * page, rather than only when a page in this window finishes.
  */
 @Composable
 internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> Unit) {
@@ -83,29 +88,48 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
     var lastUrl by remember { mutableStateOf<String?>(null) }
 
     val isVk = provider == ProviderType.VK
+    val isAppleMusic = provider == ProviderType.APPLE_MUSIC
+    // VK and Apple Music are handed over as soon as their cookies are there, and close the page themselves.
+    val byItself = isVk || isAppleMusic
     val vk = settings.vk
-    // The VK session last handed to Noctorium, so the same one is not handed over again with every page
-    // the sign-in passes through. Held here and nowhere else: never shown, never logged.
+    val appleMusic = settings.appleMusic
+    // Whether the service has been asked about what was handed over and is asking still, has said yes, and what
+    // it said otherwise.
+    val checking = (isVk && vk.checking) || (isAppleMusic && appleMusic.checking)
+    val accepted = (isVk && vk.connected) || (isAppleMusic && appleMusic.connected)
+    val refusal = if (isVk) vk.message else appleMusic.message
+    // The session last handed to Noctorium, so the same one is not handed over again with every page the sign-in
+    // passes through. Held here and nowhere else: never shown, never logged.
     var handedOver by remember { mutableStateOf<String?>(null) }
 
-    /** Hands VK's session over once both of its cookies are there; false while they are not. */
-    fun handOverVk(again: Boolean): Boolean {
-        val session = WebViewSignIn.vkSession() ?: return false
+    /** Hands the session over once the service has made one -- VK's two cookies, Apple's one -- and false before. */
+    fun handOver(again: Boolean): Boolean {
+        val session = (if (isVk) WebViewSignIn.vkSession() else WebViewSignIn.appleMusicToken()) ?: return false
         if (!again && session == handedOver) return true
         handedOver = session
-        state.completeVkSignIn(session)
+        if (isVk) state.completeVkSignIn(session) else state.completeAppleMusicSignIn(session)
         return true
     }
 
-    if (isVk) {
-        // Signed in once VK has said the session is good, and not before.
-        LaunchedEffect(vk.connected) { if (vk.connected) close() }
+    if (byItself) {
+        // Signed in once the service has said the session is good, and not before.
+        LaunchedEffect(accepted) { if (accepted) close() }
         // The WebView's copy of the session goes when this does, however it ends: Noctorium keeps its own,
-        // and two holders of one session is how a copy dies. Only VK's cookies, never the whole store.
-        DisposableEffect(Unit) { onDispose { WebViewSignIn.clearCookiesOf(ProviderType.VK) } }
+        // and two holders of one session is how a copy dies. Only this service's cookies, never the whole store.
+        DisposableEffect(Unit) { onDispose { WebViewSignIn.clearCookiesOf(provider) } }
     }
-    // VK's refusal, once VK has been asked and has answered; Noctorium's own words otherwise.
-    val shownProblem = problem ?: vk.message.takeIf { isVk && handedOver != null && !vk.checking && !vk.connected }
+    if (isAppleMusic) {
+        // Apple's window hands its answer to the web player behind it, whose page does not finish again: so the
+        // cookie is looked for every few seconds, not only as pages here finish.
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(APPLE_MUSIC_LOOK_EVERY_MS)
+                handOver(again = false)
+            }
+        }
+    }
+    // The service's refusal, once it has been asked and has answered; Noctorium's own words otherwise.
+    val shownProblem = problem ?: refusal.takeIf { byItself && handedOver != null && !checking && !accepted }
 
     // Back closes the popup first, the way a browser does: it is a window in front of the page, and the
     // page is still where the listener was.
@@ -137,23 +161,29 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                     )
                     Text(
                         when {
-                            isVk && vk.checking -> "Checking with VK…"
-                            isVk -> "Noctorium carries on by itself once you are in."
+                            isVk && checking -> "Checking with VK…"
+                            checking -> "Checking with Apple…"
+                            byItself -> "Noctorium carries on by itself once you are in."
                             else -> "Press Done when you are signed in."
                         },
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                     )
                 }
-                val busy = saving || (isVk && vk.checking)
+                val busy = saving || checking
                 SkinnedButton(
                     enabled = !busy,
                     onClick = {
                         problem = null
-                        if (isVk) {
-                            if (!handOverVk(again = true)) {
-                                problem = "VK has not given this page a session yet. Finish signing in, and Noctorium " +
-                                    "carries on by itself."
+                        if (byItself) {
+                            if (!handOver(again = true)) {
+                                problem = if (isVk) {
+                                    "VK has not given this page a session yet. Finish signing in, and Noctorium " +
+                                        "carries on by itself."
+                                } else {
+                                    "Apple has not signed this page in yet. Finish signing in, and Noctorium " +
+                                        "carries on by itself."
+                                }
                             }
                             return@SkinnedButton
                         }
@@ -216,8 +246,9 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                                 onPageFinished = { url ->
                                     loading = false
                                     lastUrl = url
-                                    // VK has made its session by the time a page after the sign-in finishes.
-                                    if (isVk) handOverVk(again = false)
+                                    // VK has made its session by the time a page after the sign-in finishes, and
+                                    // Apple's web player its token by the time it has gone back to itself.
+                                    if (byItself) handOver(again = false)
                                 },
                                 onPopup = { popup = it },
                             )
@@ -226,8 +257,8 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
                             // the same stale cookies again — the loop this project has already had once, from
                             // the desktop browser. Cleared here, before the page is asked for, rather than in
                             // an effect that ran once it was already loading. This service's own cookies only:
-                            // SoundCloud's writes are made from this store, and signing in to YouTube or VK
-                            // should not sign anybody out of it.
+                            // SoundCloud's writes are made from this store, and signing in to YouTube, VK or
+                            // Apple Music should not sign anybody out of it.
                             WebViewSignIn.clearCookiesOf(provider)
                             view.loadUrl(WebViewSignIn.startUrlFor(provider))
                             webView = view
@@ -254,3 +285,6 @@ internal fun SignInScreen(provider: ProviderType, state: AppState, close: () -> 
         }
     }
 }
+
+/** How often Apple Music's sign-in looks for the token Apple's web player keeps once it is signed in. */
+private const val APPLE_MUSIC_LOOK_EVERY_MS = 3_000L

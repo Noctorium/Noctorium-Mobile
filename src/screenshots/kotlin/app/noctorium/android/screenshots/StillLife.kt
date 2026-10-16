@@ -221,6 +221,84 @@ internal object Still {
         ),
     )
 
+    /**
+     * Apple Music's, Deezer's and Tidal's songs, albums and artists, with numbers for ids that are none of theirs.
+     * Nothing here ever asks any of the three for anything: their providers answer with these.
+     */
+    val appleMusicSong = track(ProviderType.APPLE_MUSIC, "1440000001", "Copper Skies", "Ilse Varga", 221)
+    val deezerSong = track(ProviderType.DEEZER, "3135556001", "Harbour Wall", "Odile Brandt", 226)
+    val tidalSong = track(ProviderType.TIDAL, "77000001", "Pier Lights at Four", "Pell Mell", 197)
+
+    /** Pinned from every service there is but Bandcamp and VK, so the row shows their badges: Tidal's first, to be seen. */
+    val pinnedEverywhere = listOf(
+        tidalSong,
+        deezerSong,
+        appleMusicSong,
+        track(ProviderType.YOUTUBE_MUSIC, "p1", "Paper Satellites", "Marrow & Fern", 212),
+        track(ProviderType.SOUNDCLOUD, "p2", "Low Tide Static", "Odile Brandt", 305),
+        spotifySong("sp-pin", "Lantern Light", "Juniper Kaye", 214),
+    )
+
+    /** Each of the three's own row on Home, as it has one once it is set up. */
+    val laterShelves = listOf(
+        HomeSection(
+            id = "dz-charts",
+            title = "Deezer charts",
+            provider = ProviderType.DEEZER,
+            subtitle = "What is played most on Deezer",
+            tracks = listOf(
+                deezerSong,
+                track(ProviderType.DEEZER, "3135556002", "Shingle", "Saltmarsh", 241),
+                track(ProviderType.DEEZER, "3135556003", "Undertow (Rough Mix)", "Ilse Varga", 263),
+            ),
+        ),
+        HomeSection(
+            id = "td-mixes",
+            title = "My Daily Discovery",
+            provider = ProviderType.TIDAL,
+            subtitle = "A mix Tidal made for you",
+            tracks = listOf(
+                tidalSong,
+                track(ProviderType.TIDAL, "77000002", "Weathervane", "Juniper Kaye", 199),
+                track(ProviderType.TIDAL, "77000003", "Glasshouse", "Northern Lights Committee", 198),
+            ),
+        ),
+        HomeSection(
+            id = "am-recent",
+            title = "Recently played",
+            provider = ProviderType.APPLE_MUSIC,
+            subtitle = "On Apple Music",
+            tracks = listOf(
+                appleMusicSong,
+                track(ProviderType.APPLE_MUSIC, "1440000002", "The Long Way Round", "Marrow & Fern", 256),
+                track(ProviderType.APPLE_MUSIC, "1440000003", "Signal Fires", "The Quiet Hours", 264),
+            ),
+        ),
+    )
+
+    /** What each of the three finds for "harbour": an album and an artist, and a song. */
+    val appleMusicFound = SearchResults(
+        tracks = listOf(appleMusicSong),
+        playlists = listOf(
+            Playlist(id = "album:1440000100", title = "Harbour Lights", provider = ProviderType.APPLE_MUSIC, ownerName = "Harbour Lights Ensemble"),
+            Playlist(id = "artist:1440000200", title = "Harbour Lights Ensemble", provider = ProviderType.APPLE_MUSIC, ownerName = "Artist"),
+        ),
+    )
+    val deezerFound = SearchResults(
+        tracks = listOf(deezerSong),
+        playlists = listOf(
+            Playlist(id = "album:3135556100", title = "Weather for Small Boats", provider = ProviderType.DEEZER, ownerName = "Harbour Lights Ensemble"),
+            Playlist(id = "artist:3135556200", title = "Odile Brandt", provider = ProviderType.DEEZER),
+        ),
+    )
+    val tidalFound = SearchResults(
+        tracks = listOf(tidalSong),
+        playlists = listOf(
+            Playlist(id = "album:77000100", title = "Harbour Wall (Single)", provider = ProviderType.TIDAL, ownerName = "Odile Brandt"),
+            Playlist(id = "artist:77000200", title = "Pell Mell", provider = ProviderType.TIDAL),
+        ),
+    )
+
     /** A queue of five, played from the top: what the queue's screens are drawn from. */
     val queue = listOf(
         track(ProviderType.SOUNDCLOUD, "q1", "Low Tide Static", "Odile Brandt", 305),
@@ -329,6 +407,10 @@ internal fun stillState(
             ),
             StillProvider(ProviderType.SPOTIFY, shelves, found = Still.spotifyFound),
             StillProvider(ProviderType.VK, shelves, listed = mapOf(Still.vkMyMusic.id to Still.vkTracks)),
+            // And Apple Music, Deezer and Tidal, which have rows only where a picture is given some.
+            StillProvider(ProviderType.APPLE_MUSIC, shelves, found = Still.appleMusicFound),
+            StillProvider(ProviderType.DEEZER, shelves, found = Still.deezerFound),
+            StillProvider(ProviderType.TIDAL, shelves, found = Still.tidalFound),
         ),
         settingsRepository = settings,
         pinnedRepository = PinnedTracksRepository(base.resolve("pinned.json")).also { it.save(pinned) },

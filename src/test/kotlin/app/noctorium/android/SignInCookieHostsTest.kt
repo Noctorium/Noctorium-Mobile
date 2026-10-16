@@ -1,5 +1,7 @@
 package app.noctorium.android
 
+import app.noctorium.auth.APPLE_MUSIC_SESSION_URLS
+import app.noctorium.auth.APPLE_MUSIC_SITE
 import app.noctorium.auth.SOUNDCLOUD_SESSION_URLS
 import app.noctorium.auth.YOUTUBE_SESSION_URLS
 import app.noctorium.domain.ProviderType
@@ -13,7 +15,7 @@ import kotlin.test.assertTrue
  */
 class SignInCookieHostsTest {
 
-    private val signedInHere = listOf(ProviderType.YOUTUBE_MUSIC, ProviderType.SOUNDCLOUD, ProviderType.VK)
+    private val signedInHere = listOf(ProviderType.YOUTUBE_MUSIC, ProviderType.SOUNDCLOUD, ProviderType.VK, ProviderType.APPLE_MUSIC)
 
     @Test
     fun `each service clears every host its session is read from`() {
@@ -25,6 +27,10 @@ class SignInCookieHostsTest {
         }
         assertTrue("login.vk.ru" in cookieHostsFor(ProviderType.VK))
         assertTrue("m.vk.ru" in cookieHostsFor(ProviderType.VK))
+        APPLE_MUSIC_SESSION_URLS.forEach { url ->
+            assertTrue(url.substringAfter("://").trimEnd('/') in cookieHostsFor(ProviderType.APPLE_MUSIC), url)
+        }
+        assertTrue(APPLE_MUSIC_SITE.substringAfter("://").trimEnd('/') in cookieHostsFor(ProviderType.APPLE_MUSIC), "where the token is read")
         assertEquals(cookieHostsFor(ProviderType.YOUTUBE_MUSIC), cookieHostsFor(ProviderType.YOUTUBE_VIDEO))
     }
 
@@ -39,11 +45,12 @@ class SignInCookieHostsTest {
         assertEquals(setOf("google.com", "youtube.com"), sites[ProviderType.YOUTUBE_MUSIC])
         assertEquals(setOf("soundcloud.com"), sites[ProviderType.SOUNDCLOUD])
         assertEquals(setOf("vk.ru", "vk.com"), sites[ProviderType.VK])
+        assertEquals(setOf("apple.com"), sites[ProviderType.APPLE_MUSIC])
     }
 
     @Test
     fun `services without a sign-in page clear nothing`() {
-        listOf(ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.LOCAL).forEach {
+        listOf(ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.DEEZER, ProviderType.TIDAL, ProviderType.LOCAL).forEach {
             assertEquals(emptyList(), cookieHostsFor(it), it.name)
         }
     }

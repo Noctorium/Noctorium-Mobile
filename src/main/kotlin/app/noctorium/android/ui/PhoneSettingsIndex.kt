@@ -49,6 +49,9 @@ internal enum class SettingsPage(val title: String, val section: SettingsSection
     SPOTIFY("Spotify", SettingsSection.SERVICES, Glyph.LIBRARY_MUSIC),
     BANDCAMP("Bandcamp", SettingsSection.SERVICES, Glyph.ALBUM),
     VK("VK Music", SettingsSection.SERVICES, Glyph.AUDIOTRACK),
+    APPLE_MUSIC("Apple Music", SettingsSection.SERVICES, Glyph.MUSIC_NOTE),
+    DEEZER("Deezer", SettingsSection.SERVICES, Glyph.HEADPHONES),
+    TIDAL("Tidal", SettingsSection.SERVICES, Glyph.WAVES),
     SEARCH("Search", SettingsSection.SERVICES, Glyph.SEARCH),
     PHONE("On this phone", SettingsSection.PHONE, Glyph.PHONE_ANDROID),
     CONNECT("Noctorium Connect", SettingsSection.PHONE, Glyph.DEVICES),
@@ -148,6 +151,11 @@ internal object SettingIds {
     const val BANDCAMP_NAME = "bandcamp-name"
     const val BANDCAMP_GENRES = "bandcamp-genres"
     const val VK_SIGN_IN = "vk-sign-in"
+    const val APPLE_MUSIC_SIGN_IN = "apple-music-sign-in"
+    const val APPLE_MUSIC_DEVELOPER_TOKEN = "apple-music-developer-token"
+    const val DEEZER_PROFILE = "deezer-profile"
+    const val TIDAL_SIGN_IN = "tidal-sign-in"
+    const val TIDAL_APP = "tidal-app"
     const val HYBRID_SEARCH = "hybrid-search"
     const val KEEP_PLAYING = "keep-playing"
     const val KEEP_SCREEN_ON = "keep-screen-on"
@@ -550,6 +558,38 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "Your music and playlists through a vk.ru session.",
         listOf("vk", "vkontakte", "russian", "cookies", "remixsid"),
         stores = listOf("vkAccountName"),
+    ),
+    // Apple Music signs in on Apple's own page, with pasting the web player's cookie as the way round it; the
+    // storefront is the account's, so it is found here too.
+    PhoneSetting(
+        SettingIds.APPLE_MUSIC_SIGN_IN, "Apple Music sign-in", SettingsPage.APPLE_MUSIC, "apple-music",
+        "Your library and Home's rows, through Apple's own sign-in page. Search and links work without it.",
+        listOf(
+            "apple", "apple id", "itunes", "log in", "cookie", "media-user-token", "paste cookie", "storefront", "country",
+        ),
+        stores = listOf("appleMusicSignedIn", "appleMusicStorefront"),
+    ),
+    PhoneSetting(
+        SettingIds.APPLE_MUSIC_DEVELOPER_TOKEN, "Apple Music developer token", SettingsPage.APPLE_MUSIC, "apple-music-token",
+        "Read Apple Music with a MusicKit developer token of your own, rather than the one its web player is served.",
+        listOf("musickit", "developer", "token", "jwt", "apple developer"),
+    ),
+    PhoneSetting(
+        SettingIds.DEEZER_PROFILE, "Deezer profile", SettingsPage.DEEZER, "deezer",
+        "Your public playlists, loved tracks and albums in the library, and Deezer's rows on Home; no sign-in needed.",
+        listOf("deezer", "loved tracks", "favourites", "favorites", "profile link", "profile number"),
+        stores = listOf("deezerProfileId", "deezerProfileName"),
+    ),
+    PhoneSetting(
+        SettingIds.TIDAL_SIGN_IN, "Tidal sign-in", SettingsPage.TIDAL, "tidal",
+        "Your collection and your mixes, through Tidal's own sign-in page in the browser.",
+        listOf("tidal", "connect tidal", "log in", "collection", "mixes"),
+        stores = listOf("tidalUserId", "tidalAccountName", "tidalCountry"),
+    ),
+    PhoneSetting(
+        SettingIds.TIDAL_APP, "Your Tidal app", SettingsPage.TIDAL, "tidal-app",
+        "The client id, and the secret if you like, of an app you register at developer.tidal.com.",
+        listOf("client id", "client secret", "secret", "developer", "dashboard", "redirect", "developer.tidal.com"),
     ),
     PhoneSetting(
         SettingIds.HYBRID_SEARCH, "Hybrid search", SettingsPage.SEARCH, "hybrid",

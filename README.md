@@ -7,7 +7,7 @@ on the desktop — the library, the queue, settings, scrobbling, lyrics, the acc
 [Noctorium-Base](https://github.com/Noctorium/Noctorium-Base), which this repository includes as `core`.
 
 > Noctorium is an independent third-party client. It is not affiliated with Google, YouTube, SoundCloud,
-> Spotify, Last.fm, ListenBrainz or Discord.
+> Spotify, Bandcamp, VK, Apple, Deezer, TIDAL, Last.fm, ListenBrainz or Discord.
 
 ## Getting the code
 

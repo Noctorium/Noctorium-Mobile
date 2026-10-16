@@ -119,6 +119,27 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingIds.LAST_FM, first("browser did not open").id)
     }
 
+    /** Apple Music, Deezer and Tidal by name, and the parts of their setting up people look for by name. */
+    @Test
+    fun `Apple Music, Deezer and Tidal are found by name, with the developer token and the client id`() {
+        assertEquals(SettingIds.APPLE_MUSIC_SIGN_IN, first("apple music").id)
+        assertEquals(SettingIds.APPLE_MUSIC_SIGN_IN, first("apple").id)
+        assertEquals(SettingsPage.APPLE_MUSIC, first("apple music").page)
+        assertEquals(SettingIds.DEEZER_PROFILE, first("deezer").id)
+        assertEquals(SettingsPage.DEEZER, first("deezer").page)
+        assertEquals(SettingIds.TIDAL_SIGN_IN, first("tidal").id)
+        assertEquals(SettingsPage.TIDAL, first("tidal").page)
+        assertEquals(SettingIds.APPLE_MUSIC_DEVELOPER_TOKEN, first("developer token").id)
+        assertEquals(SettingIds.APPLE_MUSIC_DEVELOPER_TOKEN, first("musickit").id)
+        assertEquals(SettingIds.APPLE_MUSIC_SIGN_IN, first("media-user-token").id)
+        // Spotify's own app and Tidal's both take a client id, and both are found by it.
+        val clientId = searchPhoneSettings("client id").map { it.first.id }
+        assertEquals(setOf(SettingIds.SPOTIFY_OWN_APP, SettingIds.TIDAL_APP), clientId.take(2).toSet())
+        assertEquals(SettingIds.TIDAL_APP, first("client secret").id)
+        assertEquals(SettingsPage.TIDAL, first("client secret").page)
+        assertEquals(SettingIds.TIDAL_APP, first("developer.tidal.com").id)
+    }
+
     @Test
     fun `each Toolbar is found by its name`() {
         for (words in listOf("toolbar", "toolbar 2", "toolbar2")) {

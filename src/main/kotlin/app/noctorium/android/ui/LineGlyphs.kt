@@ -106,6 +106,7 @@ private fun lineVector(glyph: Glyph): ImageVector = when (glyph) {
     Glyph.FAVORITE_BORDER -> line("heart")
     Glyph.FORMAT_SIZE -> line("a-large-small")
     Glyph.GRAPHIC_EQ -> line("audio-lines")
+    Glyph.HEADPHONES -> line("headphones")
     Glyph.HISTORY -> line("history")
     Glyph.HOME -> line("house")
     Glyph.ICONS -> line("shapes")
@@ -162,6 +163,7 @@ private fun lineVector(glyph: Glyph): ImageVector = when (glyph) {
     Glyph.VOLUME_DOWN -> line("volume-1")
     Glyph.VOLUME_OFF -> line("volume-x")
     Glyph.VOLUME_UP -> line("volume-2")
+    Glyph.WAVES -> line("waves")
     Glyph.WIFI -> line("wifi")
 }
 
@@ -632,5 +634,13 @@ private val LUCIDE: Map<String, List<String>> = mapOf(
         "M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z",
         "M16 9a5 5 0 0 1 0 6",
         "M19.364 18.364a9 9 0 0 0 0-12.728",
+    ),
+    "headphones" to listOf(
+        "M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3",
+    ),
+    "waves" to listOf(
+        "M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
+        "M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
+        "M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1",
     ),
 )

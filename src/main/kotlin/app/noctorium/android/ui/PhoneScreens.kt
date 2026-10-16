@@ -382,7 +382,8 @@ private fun playlistServices(state: AppState): List<ProviderType> {
  * also moves to the library -- that screen lives there, and opening something the listener cannot see
  * would be the same as doing nothing.
  *
- * An artist is a card too, from a Bandcamp or a Spotify search: opened, it is everything they have put out.
+ * An artist is a card too, from a search of Bandcamp, Spotify, Apple Music, Deezer or Tidal: opened, it is
+ * everything they have put out, or their most played.
  * It is drawn round and says "Artist", so it is not mistaken for one record of theirs.
  */
 @Composable
@@ -397,6 +398,8 @@ private fun PlaylistCarousel(
     val shown = remember(playlists) { playlists.distinctBy(Playlist::playlistKey) }
     if (shown.isEmpty()) return
     val width = preferences.cardSize.phoneWidth()
+    // A Hybrid search's albums and artists come from several services, as a mixed shelf's songs do.
+    val showBadges = preferences.badgePolicy.showsForServices(shown.map(Playlist::provider))
     Column(Modifier.padding(top = 14.dp)) {
         ShelfHeading(title, subtitle)
         Spacer(Modifier.height(10.dp))
@@ -414,7 +417,13 @@ private fun PlaylistCarousel(
                             state.navigate(Destination.LIBRARY)
                         },
                 ) {
-                    Artwork(playlist.artworkUrl, width, corner = if (artist) width / 2 else 10.dp)
+                    Box {
+                        Artwork(playlist.artworkUrl, width, corner = if (artist) width / 2 else 10.dp)
+                        // On a round artist, where the circle is, rather than out in the corner beyond it.
+                        if (showBadges) {
+                            ProviderBadge(playlist.provider, Modifier.padding(if (artist) width * ROUND_BADGE_INSET else 6.dp))
+                        }
+                    }
                     Spacer(Modifier.height(6.dp))
                     Text(
                         playlist.title,
@@ -439,6 +448,12 @@ private fun PlaylistCarousel(
 private fun HomeSection.matches(filter: ProviderFilter): Boolean = filter.matches(provider)
 
 private fun ProviderFilter.label(): String = displayName
+
+/**
+ * How far in from the corner of a round artist's card its badge sits, as a share of the card's width: about where
+ * the circle crosses the diagonal, a seventh of the way in, a little less so the badge rests on the rim.
+ */
+private const val ROUND_BADGE_INSET = .12f
 
 private fun greeting(): String = when (java.time.LocalTime.now().hour) {
     in 5..11 -> "Good morning"
@@ -497,10 +512,11 @@ internal fun SearchScreen(state: AppState) {
         Spacer(Modifier.height(8.dp))
 
         val results = ui.searchResults.tracks
-        // Albums and artists, from the services that answer with them -- Bandcamp's and Spotify's releases
-        // and the people behind them. They open as playlists, the way an album on Home does.
+        // Albums and artists, from the services that answer with them -- Bandcamp's, Spotify's, Apple Music's,
+        // Deezer's and Tidal's releases and the people behind them. They open as playlists, the way an album on
+        // Home does.
         val releases = ui.searchResults.playlists
-        val signInFirst = searchSignInHint(ui.searchMode, settings.spotify.connected, settings.vk.connected)
+        val signInFirst = searchSignInHint(ui.searchMode, settings.spotify.connected, settings.vk.connected, settings.tidal.readsCatalogue)
         when {
             ui.searchQuery.isBlank() -> EmptyNote(
                 "Find something",
@@ -637,8 +653,8 @@ private fun LibraryList(
                     EmptyNote(
                         "No playlists yet",
                         library.errorMessage
-                            ?: "Connect YouTube Music, SoundCloud, Spotify or VK, or give your Bandcamp name, " +
-                                "under Settings to see yours here.",
+                            ?: "Connect YouTube Music, SoundCloud, Spotify, VK, Apple Music or Tidal, or give your " +
+                                "Bandcamp name or Deezer profile, under Settings to see yours here.",
                     )
                 }
                 else -> {
@@ -658,12 +674,12 @@ private fun LibraryList(
                     items(library.playlists, key = { it.playlistKey }) { playlist ->
                         PlaylistRow(
                             title = playlist.title,
-                            detail = listOfNotNull(
-                                playlist.provider.displayName,
+                            // An album or an artist saved on Deezer, Tidal or Apple Music says so, among the playlists.
+                            detail = playlistLine(
+                                playlist,
                                 playlist.shownVisibility?.takeIf { it != PlaylistVisibility.PUBLIC }?.displayName,
                                 playlist.trackCount?.let(::pluralTracks),
-                                ownerWorthNaming(playlist),
-                            ).joinToString(" · "),
+                            ),
                             artworkUrl = playlist.artworkUrl,
                         ) { state.openPlaylist(playlist) }
                     }
@@ -712,7 +728,7 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
     val downloads by state.downloadState.collectAsState()
 
     ScreenScaffold {
-        val subtitle = listOfNotNull(playlist.provider.displayName, ownerWorthNaming(playlist)).joinToString(" · ")
+        val subtitle = playlistLine(playlist)
         val actions: @Composable () -> Unit = {
             if (playlist.tracks.isNotEmpty()) {
                 // The whole playlist kept in one tap, and greyed out once there is nothing left to keep. Not

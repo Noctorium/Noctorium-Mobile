@@ -1,5 +1,6 @@
 package app.noctorium.android.ui
 
+import androidx.compose.ui.graphics.Color
 import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.bandcamp.BandcampSource
 import app.noctorium.core.SearchMode
@@ -9,8 +10,11 @@ import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
 import app.noctorium.domain.findMusicLink
 import app.noctorium.domain.pageUrl
+import app.noctorium.settings.AppleMusicConnectionState
 import app.noctorium.settings.BandcampConnectionState
 import app.noctorium.settings.DEFAULT_HYBRID_SEARCH
+import app.noctorium.settings.DeezerConnectionState
+import app.noctorium.settings.HYBRID_SEARCH_SERVICES
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.NoctoriumPreferences
 import app.noctorium.settings.PhonePreferences
@@ -18,7 +22,10 @@ import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.ScrobbleServiceState
 import app.noctorium.settings.ScrobbleState
 import app.noctorium.settings.SpotifyConnectionState
+import app.noctorium.settings.ThemePreset
+import app.noctorium.settings.TidalConnectionState
 import app.noctorium.settings.VkConnectionState
+import app.noctorium.settings.themeColours
 import app.noctorium.spotify.SpotifyDevice
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -58,12 +65,15 @@ class PhoneServiceRulesTest {
     // --- Signing in ---
 
     @Test
-    fun `YouTube, SoundCloud and VK sign in on a page of their own, and nothing else does`() {
+    fun `YouTube, SoundCloud, VK and Apple Music sign in on a page of their own, and nothing else does`() {
         assertTrue(hasSignInPage(ProviderType.YOUTUBE_MUSIC))
         assertTrue(hasSignInPage(ProviderType.YOUTUBE_VIDEO))
         assertTrue(hasSignInPage(ProviderType.SOUNDCLOUD))
         assertTrue(hasSignInPage(ProviderType.VK))
+        assertTrue(hasSignInPage(ProviderType.APPLE_MUSIC))
         assertFalse(hasSignInPage(ProviderType.BANDCAMP), "Bandcamp would be signed in to Google as YouTube")
+        assertFalse(hasSignInPage(ProviderType.DEEZER), "Deezer is a profile, not a sign-in")
+        assertFalse(hasSignInPage(ProviderType.TIDAL), "Tidal signs in in the browser")
         assertFalse(hasSignInPage(ProviderType.SPOTIFY))
         assertFalse(hasSignInPage(ProviderType.LOCAL))
     }
@@ -79,6 +89,9 @@ class PhoneServiceRulesTest {
         assertNull(playlistAccountFor(vkSong))
         assertNull(playlistAccountFor(track(ProviderType.SPOTIFY, "sp")))
         assertNull(playlistAccountFor(track(ProviderType.LOCAL, "f")))
+        listOf(ProviderType.APPLE_MUSIC, ProviderType.DEEZER, ProviderType.TIDAL).forEach {
+            assertNull(playlistAccountFor(track(it, "later")), "$it playlists are read, not written to")
+        }
     }
 
     @Test
@@ -117,10 +130,14 @@ class PhoneServiceRulesTest {
             vkSong,
             track(ProviderType.SPOTIFY, "sp"),
             track(ProviderType.LOCAL, "f"),
+            track(ProviderType.APPLE_MUSIC, "am"),
+            track(ProviderType.DEEZER, "dz"),
+            track(ProviderType.TIDAL, "td"),
         )
         assertEquals(listOf("y", "v"), tracksPlaylistCanHold(ProviderType.YOUTUBE_MUSIC, mixed).map { it.id })
         assertEquals(listOf("s"), tracksPlaylistCanHold(ProviderType.SOUNDCLOUD, mixed).map { it.id })
         assertEquals(emptyList(), tracksPlaylistCanHold(ProviderType.BANDCAMP, mixed))
+        assertEquals(emptyList(), tracksPlaylistCanHold(ProviderType.DEEZER, mixed))
     }
 
     // --- Keeping music on the phone ---
@@ -160,6 +177,8 @@ class PhoneServiceRulesTest {
         assertTrue(vk!!.contains("VK"))
         listOf(ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO, ProviderType.SOUNDCLOUD, ProviderType.SPOTIFY)
             .forEach { assertNull(keepRefusal(it), "$it can be kept") }
+        // What is kept of theirs is the recording each song was matched to, as a Spotify song's is.
+        listOf(ProviderType.APPLE_MUSIC, ProviderType.DEEZER, ProviderType.TIDAL).forEach { assertNull(keepRefusal(it), "$it can be kept") }
     }
 
     // --- The pages songs open on ---
@@ -213,12 +232,33 @@ class PhoneServiceRulesTest {
     // --- Albums and artists in search ---
 
     @Test
-    fun `Bandcamp's and Spotify's artists are told from their albums`() {
+    fun `Bandcamp's, Spotify's, Apple Music's, Deezer's and Tidal's artists are told from their albums`() {
         assertTrue(isArtistPlaylist(playlist(ProviderType.BANDCAMP, "band:801")))
         assertTrue(isArtistPlaylist(playlist(ProviderType.SPOTIFY, "artist:made-up-id")))
         assertFalse(isArtistPlaylist(playlist(ProviderType.SPOTIFY, "album:made-up-id")))
         assertFalse(isArtistPlaylist(playlist(ProviderType.BANDCAMP, "album:801:9001")))
         assertFalse(isArtistPlaylist(playlist(ProviderType.YOUTUBE_MUSIC, "artist:not-this-one")))
+        listOf(ProviderType.APPLE_MUSIC, ProviderType.DEEZER, ProviderType.TIDAL).forEach {
+            assertTrue(isArtistPlaylist(playlist(it, "artist:2001")), "$it")
+            assertFalse(isArtistPlaylist(playlist(it, "album:2002")), "$it")
+        }
+        assertFalse(isArtistPlaylist(playlist(ProviderType.VK, "artist:not-this-one")))
+    }
+
+    @Test
+    fun `an album or an artist among the library's playlists says which it is, and once`() {
+        assertEquals("Album", playlistKind(playlist(ProviderType.DEEZER, "album:2002")))
+        assertEquals("Artist", playlistKind(playlist(ProviderType.TIDAL, "artist:2001")))
+        assertEquals("Album", playlistKind(playlist(ProviderType.APPLE_MUSIC, "album:1440")))
+        assertNull(playlistKind(playlist(ProviderType.DEEZER, "908622995")))
+        assertNull(playlistKind(playlist(ProviderType.YOUTUBE_MUSIC, "album:not-this-one")))
+        assertEquals(
+            "Deezer · Album · 12 songs · Harbour Lights Ensemble",
+            playlistLine(playlist(ProviderType.DEEZER, "album:2002", owner = "Harbour Lights Ensemble"), "12 songs"),
+        )
+        assertEquals("Spotify · Artist", playlistLine(playlist(ProviderType.SPOTIFY, "artist:made-up-id", owner = "Artist")), "not Artist twice")
+        assertEquals("VK Music", playlistLine(playlist(ProviderType.VK, "my-music", owner = "VK")))
+        assertEquals("Tidal · Odile Brandt", playlistLine(playlist(ProviderType.TIDAL, "0b5e7f4e-1d2c-4a3b-9c8d-7e6f5a4b3c2d", owner = "Odile Brandt"), null))
     }
 
     @Test
@@ -260,6 +300,14 @@ class PhoneServiceRulesTest {
         assertNull(searchSignInHint(SearchMode.BANDCAMP, spotifyConnected = false, vkConnected = false))
     }
 
+    @Test
+    fun `Tidal says it has to be set up, and Apple Music and Deezer answer anybody`() {
+        assertNotNull(searchSignInHint(SearchMode.TIDAL, spotifyConnected = true, vkConnected = true, tidalReadsCatalogue = false))
+        assertNull(searchSignInHint(SearchMode.TIDAL, spotifyConnected = false, vkConnected = false, tidalReadsCatalogue = true))
+        assertNull(searchSignInHint(SearchMode.DEEZER, spotifyConnected = false, vkConnected = false, tidalReadsCatalogue = false))
+        assertNull(searchSignInHint(SearchMode.APPLE_MUSIC, spotifyConnected = false, vkConnected = false, tidalReadsCatalogue = false))
+    }
+
     // --- Hybrid search ---
 
     @Test
@@ -276,6 +324,17 @@ class PhoneServiceRulesTest {
     fun `the Search tile names who Hybrid asks, in the chips' order`() {
         assertEquals("Hybrid asks SoundCloud and Bandcamp", hybridSummary(setOf(ProviderType.BANDCAMP, ProviderType.SOUNDCLOUD)))
         assertTrue(hybridSummary(DEFAULT_HYBRID_SEARCH).startsWith("Hybrid asks YouTube Music, YouTube, SoundCloud"))
+        // The three that are left out to begin with are named once chosen, after the rest, as their chips are.
+        assertEquals(
+            "Hybrid asks YouTube Music, Apple Music, Deezer and Tidal",
+            hybridSummary(setOf(ProviderType.TIDAL, ProviderType.DEEZER, ProviderType.YOUTUBE_MUSIC, ProviderType.APPLE_MUSIC)),
+        )
+    }
+
+    @Test
+    fun `every service Hybrid can ask has a chip, the three later ones included`() {
+        assertTrue(HYBRID_SEARCH_SERVICES.containsAll(DEFAULT_HYBRID_SEARCH))
+        assertTrue(HYBRID_SEARCH_SERVICES.containsAll(listOf(ProviderType.APPLE_MUSIC, ProviderType.DEEZER, ProviderType.TIDAL)))
     }
 
     // --- Playback ---
@@ -375,6 +434,74 @@ class PhoneServiceRulesTest {
         assertEquals("Signed in", vkSummary(VkConnectionState(connected = true)))
     }
 
+    // --- Apple Music, Deezer and Tidal ---
+
+    private val night = Color(NoctoriumPreferences().themeColours().background)
+    private val day = Color(NoctoriumPreferences(theme = ThemePreset.NOCTORIUM_DAY).themeColours().background)
+
+    @Test
+    fun `Tidal's black chip is lined on a dark theme, and every other badge stands out by itself`() {
+        assertNotNull(badgeOutline(ProviderType.TIDAL.badgeColour(), night))
+        assertNull(badgeOutline(ProviderType.TIDAL.badgeColour(), day))
+        ProviderType.entries.filter { it != ProviderType.TIDAL }.forEach { provider ->
+            assertNull(badgeOutline(provider.badgeColour(), night), "$provider on night")
+            assertNull(badgeOutline(provider.badgeColour(), day), "$provider on day")
+        }
+    }
+
+    @Test
+    fun `a service's colour on the page is its own, but Tidal's black on a dark theme, which is the text's`() {
+        val text = Color.White
+        assertEquals(text, readableOn(ProviderType.TIDAL.badgeColour(), night, text))
+        assertEquals(ProviderType.TIDAL.badgeColour(), readableOn(ProviderType.TIDAL.badgeColour(), day, text))
+        assertEquals(ProviderType.DEEZER.badgeColour(), readableOn(ProviderType.DEEZER.badgeColour(), night, text))
+        assertEquals(ProviderType.APPLE_MUSIC.badgeColour(), readableOn(ProviderType.APPLE_MUSIC.badgeColour(), night, text))
+        assertEquals(1f, contrast(night, night))
+        assertTrue(contrast(Color.Black, Color.White) > 20f)
+    }
+
+    @Test
+    fun `the Apple Music tile says whether anybody is signed in, and in which storefront`() {
+        assertEquals("Checking with Apple…", appleMusicSummary(AppleMusicConnectionState(checking = true)))
+        assertTrue(appleMusicSummary(AppleMusicConnectionState(storefront = "us")).contains("sign in"))
+        assertEquals("Signed in · the GB storefront", appleMusicSummary(AppleMusicConnectionState(connected = true, storefront = "gb")))
+        assertEquals("Signed in", appleMusicSummary(AppleMusicConnectionState(connected = true)))
+    }
+
+    @Test
+    fun `the Deezer tile and page say whose profile is showing, by name once Deezer has said it`() {
+        assertTrue(deezerSummary(DeezerConnectionState()).contains("profile"))
+        assertEquals("Odile's playlists, loved tracks and albums", deezerSummary(DeezerConnectionState(profileId = "1234567", found = true, name = "Odile")))
+        assertEquals("Profile 1234567", deezerSummary(DeezerConnectionState(profileId = "1234567")))
+        assertEquals("Asking Deezer about the profile…", deezerSummary(DeezerConnectionState(checking = true)))
+        assertNull(deezerStatus(DeezerConnectionState(message = "Deezer profile removed.")))
+        assertEquals("Showing Odile, profile 1234567.", deezerStatus(DeezerConnectionState(profileId = "1234567", found = true, name = "Odile")))
+        assertEquals("Showing profile 1234567.", deezerStatus(DeezerConnectionState(profileId = "1234567")))
+    }
+
+    @Test
+    fun `a Deezer profile's number is read from its link as readily as on its own`() {
+        assertEquals("1234567", deezerProfileNumber("1234567"))
+        assertEquals("1234567", deezerProfileNumber("  https://www.deezer.com/en/profile/1234567  "))
+        assertEquals("1234567", deezerProfileNumber("deezer.com/fr/profile/1234567/playlists"))
+        assertEquals("1234567", deezerProfileNumber("https://www.deezer.com/pt-br/profile/1234567"))
+        // A share link says nothing until Deezer is asked, so Save is left to core.
+        assertNull(deezerProfileNumber("https://link.deezer.com/s/30Abc9xYz"))
+        assertNull(deezerProfileNumber("https://www.deezer.com/en/album/2002"))
+        assertNull(deezerProfileNumber("0"))
+        assertNull(deezerProfileNumber(""))
+    }
+
+    @Test
+    fun `the Tidal tile says first that there is no Tidal app, then who is signed in`() {
+        assertEquals("Needs a Tidal app of your own", tidalSummary(TidalConnectionState()))
+        assertEquals("Waiting for Tidal…", tidalSummary(TidalConnectionState(configured = true, connecting = true)))
+        assertEquals("Signed in as Odile", tidalSummary(TidalConnectionState(configured = true, connected = true, accountName = "Odile")))
+        assertEquals("Signed in", tidalSummary(TidalConnectionState(configured = true, connected = true)))
+        assertEquals("Search works; connect for your collection", tidalSummary(TidalConnectionState(configured = true, readsCatalogue = true)))
+        assertTrue(tidalSummary(TidalConnectionState(configured = true, ownApp = true)).contains("connect"))
+    }
+
     // --- Scrobbling ---
 
     private fun connected(name: String?) = ScrobbleServiceState(ScrobbleConnectionStatus.CONNECTED, username = name)
@@ -413,7 +540,9 @@ class PhoneServiceRulesTest {
         val hidden = setOf(HomePart.YOUTUBE_MUSIC, HomePart.SOUNDCLOUD, HomePart.PINNED, HomePart.RECENT)
         assertFalse(serviceRowsAllHidden(hidden))
         assertFalse(serviceRowsAllHidden(hidden + HomePart.BANDCAMP), "Spotify's and VK's rows are still there")
-        assertTrue(serviceRowsAllHidden(hidden + HomePart.BANDCAMP + HomePart.SPOTIFY + HomePart.VK))
+        val older = hidden + HomePart.BANDCAMP + HomePart.SPOTIFY + HomePart.VK
+        assertFalse(serviceRowsAllHidden(older), "Apple Music's, Deezer's and Tidal's rows can still be there")
+        assertTrue(serviceRowsAllHidden(older + HomePart.APPLE_MUSIC + HomePart.DEEZER + HomePart.TIDAL))
     }
 
     @Test

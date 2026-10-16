@@ -60,7 +60,7 @@ import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.domain.ProviderType
-import app.noctorium.settings.DEFAULT_HYBRID_SEARCH
+import app.noctorium.settings.HYBRID_SEARCH_SERVICES
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.ThemePreset
 import app.noctorium.settings.ThemeSkin
@@ -317,6 +317,33 @@ private fun SettingsHome(
             ) { open(SettingsPage.VK, null) }
         }
         item {
+            SettingsTile(
+                SettingsPage.APPLE_MUSIC.glyph.image,
+                "Apple Music",
+                appleMusicSummary(settings.appleMusic),
+                tint = ProviderType.APPLE_MUSIC.tint(),
+                active = settings.appleMusic.connected,
+            ) { open(SettingsPage.APPLE_MUSIC, null) }
+        }
+        item {
+            SettingsTile(
+                SettingsPage.DEEZER.glyph.image,
+                "Deezer",
+                deezerSummary(settings.deezer),
+                tint = ProviderType.DEEZER.tint(),
+                active = settings.deezer.profileId.isNotBlank(),
+            ) { open(SettingsPage.DEEZER, null) }
+        }
+        item {
+            SettingsTile(
+                SettingsPage.TIDAL.glyph.image,
+                "Tidal",
+                tidalSummary(settings.tidal),
+                tint = ProviderType.TIDAL.tint(),
+                active = settings.tidal.connected,
+            ) { open(SettingsPage.TIDAL, null) }
+        }
+        item {
             SettingsTile(SettingsPage.SEARCH.glyph.image, "Search", hybridSummary(preferences.hybridSearch)) {
                 open(SettingsPage.SEARCH, null)
             }
@@ -498,6 +525,15 @@ private fun pageCards(
         "bandcamp-genres" to { BandcampGenresCard(settings, state) },
     )
     SettingsPage.VK -> listOf("vk" to { VkCard(settings, state, signIn) })
+    SettingsPage.APPLE_MUSIC -> listOf(
+        "apple-music" to { AppleMusicCard(settings, state, signIn) },
+        "apple-music-token" to { AppleMusicTokenCard(settings, state) },
+    )
+    SettingsPage.DEEZER -> listOf("deezer" to { DeezerCard(settings, state) })
+    SettingsPage.TIDAL -> listOf(
+        "tidal" to { TidalCard(settings, state) },
+        "tidal-app" to { TidalAppCard(settings, state) },
+    )
     SettingsPage.SEARCH -> listOf("hybrid" to { HybridSearchCard(settings, state) })
     SettingsPage.PHONE -> listOf(
         "keep-playing" to { KeepPlayingCard() },
@@ -1154,13 +1190,14 @@ internal fun HybridSearchCard(settings: app.noctorium.settings.SettingsState, st
         CardHeading(Glyph.SEARCH.image, "Hybrid search")
         Text(
             "The services the Hybrid chip on Search asks at once. Spotify answers only while its songs play on " +
-                "Spotify, and VK only while you are signed in to it.",
+                "Spotify, VK only while you are signed in to it, and Tidal once it is set up. Apple Music, Deezer " +
+                "and Tidal are left out to begin with: their songs play matched on YouTube Music, which already answers.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            DEFAULT_HYBRID_SEARCH.forEach { provider ->
+            HYBRID_SEARCH_SERVICES.forEach { provider ->
                 SkinnedFilterChip(
                     selected = provider in included,
                     enabled = canSwitchHybrid(provider, included),

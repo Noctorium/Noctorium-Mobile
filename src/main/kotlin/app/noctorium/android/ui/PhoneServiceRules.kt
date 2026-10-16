@@ -1,20 +1,24 @@
 package app.noctorium.android.ui
 
 import app.noctorium.bandcamp.BandcampGenre
-import app.noctorium.bandcamp.BandcampMusicProvider
 import app.noctorium.core.SearchMode
 import app.noctorium.domain.MusicLink
 import app.noctorium.domain.Playlist
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
+import app.noctorium.domain.isAlbumPage
+import app.noctorium.domain.isArtistPage
+import app.noctorium.settings.AppleMusicConnectionState
 import app.noctorium.settings.BandcampConnectionState
-import app.noctorium.settings.DEFAULT_HYBRID_SEARCH
+import app.noctorium.settings.DeezerConnectionState
+import app.noctorium.settings.HYBRID_SEARCH_SERVICES
 import app.noctorium.settings.HomePart
 import app.noctorium.settings.NoctoriumPreferences
 import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.ScrobbleServiceState
 import app.noctorium.settings.ScrobbleState
 import app.noctorium.settings.SpotifyConnectionState
+import app.noctorium.settings.TidalConnectionState
 import app.noctorium.settings.VkConnectionState
 import app.noctorium.spotify.SpotifyDevice
 import java.util.Locale
@@ -43,28 +47,29 @@ internal val YOUTUBE_SYSTEM_PLAYLISTS = setOf("LM", "SE", "HL", "WL", "LL")
 
 /**
  * Whether [provider] signs in on a page of its own inside Noctorium: YouTube's, which plain YouTube shares,
- * SoundCloud's and VK's.
+ * SoundCloud's, VK's and Apple Music's.
  *
- * The sign-in screen knows those three by name. One it does not know would fall through to Google's page
- * and be saved as YouTube's session, so nothing else is let in: Bandcamp needs a name rather than a
- * sign-in, and Spotify signs in through the browser.
+ * The sign-in screen knows those four by name. One it does not know would fall through to Google's page
+ * and be saved as YouTube's session, so nothing else is let in: Bandcamp needs a name and Deezer a profile rather
+ * than a sign-in, and Spotify and Tidal sign in through the browser.
  */
 internal fun hasSignInPage(provider: ProviderType): Boolean = when (provider) {
-    ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO, ProviderType.SOUNDCLOUD, ProviderType.VK -> true
-    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.LOCAL -> false
+    ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO, ProviderType.SOUNDCLOUD, ProviderType.VK, ProviderType.APPLE_MUSIC -> true
+    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.DEEZER, ProviderType.TIDAL, ProviderType.LOCAL -> false
 }
 
 /**
  * The account a playlist holding [track] would live on, or null where no account here can take it.
  *
- * A YouTube video goes into a YouTube Music playlist, which is the one YouTube account there is. Spotify
- * and VK playlists are read here and not written to, a file belongs to no account, and Bandcamp's lists are
- * a fan's collection and wishlist, which are bought into rather than added to.
+ * A YouTube video goes into a YouTube Music playlist, which is the one YouTube account there is. Spotify,
+ * VK, Apple Music, Deezer and Tidal playlists are read here and not written to, a file belongs to no account,
+ * and Bandcamp's lists are a fan's collection and wishlist, which are bought into rather than added to.
  */
 internal fun playlistAccountFor(track: Track): ProviderType? = when (track.provider) {
     ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO -> ProviderType.YOUTUBE_MUSIC
     ProviderType.SOUNDCLOUD -> ProviderType.SOUNDCLOUD
-    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.LOCAL -> null
+    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.APPLE_MUSIC, ProviderType.DEEZER,
+    ProviderType.TIDAL, ProviderType.LOCAL -> null
 }
 
 /**
@@ -93,7 +98,8 @@ internal fun playlistsToAddTo(track: Track, playlists: List<Playlist>): List<Pla
 internal fun tracksPlaylistCanHold(service: ProviderType, tracks: List<Track>): List<Track> = when (service) {
     ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO -> tracks.filter { it.provider in YOUTUBE_PROVIDERS }
     ProviderType.SOUNDCLOUD -> tracks.filter { it.provider == ProviderType.SOUNDCLOUD }
-    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.LOCAL -> emptyList()
+    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.APPLE_MUSIC, ProviderType.DEEZER,
+    ProviderType.TIDAL, ProviderType.LOCAL -> emptyList()
 }
 
 /**
@@ -165,16 +171,11 @@ internal fun openOnLabel(provider: ProviderType): String = when (provider) {
 /**
  * Whether a playlist is a whole artist rather than one record or list.
  *
- * Bandcamp's and Spotify's searches answer with both, and an artist is drawn round so it is not taken for an
- * album of theirs. Spotify's mark is its own `artist:` prefix, which core keeps to itself.
+ * Bandcamp's, Spotify's, Apple Music's, Deezer's and Tidal's searches answer with both, and an artist is drawn
+ * round so it is not taken for an album of theirs. Core tells the two apart, the same way for every service and
+ * on every player.
  */
-internal fun isArtistPlaylist(playlist: Playlist): Boolean = when (playlist.provider) {
-    ProviderType.BANDCAMP -> BandcampMusicProvider.isArtist(playlist)
-    ProviderType.SPOTIFY -> playlist.id.startsWith(SPOTIFY_ARTIST)
-    else -> false
-}
-
-private const val SPOTIFY_ARTIST = "artist:"
+internal fun isArtistPlaylist(playlist: Playlist): Boolean = playlist.isArtistPage()
 
 /**
  * The line under a playlist card's title: who it is by, or, for an artist, that it is one -- with where
@@ -187,14 +188,41 @@ internal fun cardCaption(playlist: Playlist): String {
 }
 
 /**
+ * What a "playlist" from a service really is, where it is not a playlist: "Album" or "Artist", for the line under
+ * its name in the library and on its page, among playlists that look just like it. Null for a playlist.
+ */
+internal fun playlistKind(playlist: Playlist): String? = when {
+    playlist.isArtistPage() -> "Artist"
+    playlist.isAlbumPage() -> "Album"
+    else -> null
+}
+
+/**
+ * The line under a service's playlist in the library and on its page: the service, what it is when it is an album
+ * or an artist, and who it is by when that says something -- once, so a Spotify artist, whose owner is "Artist",
+ * does not say it twice.
+ */
+internal fun playlistLine(playlist: Playlist, vararg between: String?): String {
+    val kind = playlistKind(playlist)
+    val owner = ownerWorthNaming(playlist)?.takeUnless { it.equals(kind, ignoreCase = true) }
+    return (listOf(playlist.provider.displayName, kind) + between + owner).filterNotNull().joinToString(" · ")
+}
+
+/**
  * What Search says when its chosen service cannot answer until somebody signs in, or null when it can.
  *
- * Spotify and VK search only for an account; the rest answer anybody. Hybrid leaves out whichever cannot
- * answer, so it is never the one waiting.
+ * Spotify and VK search only for an account, and Tidal only through a Tidal app; the rest answer anybody, Apple
+ * Music and Deezer included. Hybrid leaves out whichever cannot answer, so it is never the one waiting.
  */
-internal fun searchSignInHint(mode: SearchMode, spotifyConnected: Boolean, vkConnected: Boolean): String? = when {
+internal fun searchSignInHint(
+    mode: SearchMode,
+    spotifyConnected: Boolean,
+    vkConnected: Boolean,
+    tidalReadsCatalogue: Boolean = true,
+): String? = when {
     mode == SearchMode.SPOTIFY && !spotifyConnected -> "Spotify answers once it is connected, under Settings."
     mode == SearchMode.VK && !vkConnected -> "VK answers once you are signed in to it, under Settings."
+    mode == SearchMode.TIDAL && !tidalReadsCatalogue -> "Tidal answers once it is set up, under Settings."
     else -> null
 }
 
@@ -227,7 +255,7 @@ internal fun canSwitchHybrid(provider: ProviderType, included: Set<ProviderType>
 
 /** What the Search tile says: who Hybrid asks, in the order the chips are in. */
 internal fun hybridSummary(included: Set<ProviderType>): String =
-    "Hybrid asks " + servicesNamed(DEFAULT_HYBRID_SEARCH.filter { it in included })
+    "Hybrid asks " + servicesNamed(HYBRID_SEARCH_SERVICES.filter { it in included })
 
 /** The speeds offered in a menu, where a slider would be too fine for a thumb; Settings has the slider. */
 internal val SPEED_STEPS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
@@ -300,6 +328,62 @@ internal fun vkSummary(vk: VkConnectionState): String = when {
     vk.connected -> "Signed in"
     else -> "Not signed in"
 }
+
+/** Where the Apple Music sign-in stands, in the few words a Settings tile has room for. */
+internal fun appleMusicSummary(apple: AppleMusicConnectionState): String = when {
+    apple.checking -> "Checking with Apple…"
+    apple.connected && apple.storefront.isNotBlank() -> "Signed in · the ${apple.storefront.uppercase()} storefront"
+    apple.connected -> "Signed in"
+    else -> "Search and links; sign in for your library"
+}
+
+/** Where the Deezer profile stands, in the few words a Settings tile has room for. */
+internal fun deezerSummary(deezer: DeezerConnectionState): String = when {
+    deezer.checking -> "Asking Deezer about the profile…"
+    deezer.profileId.isBlank() -> "Search and links; give a profile for your library"
+    deezer.name.isNotBlank() -> "${deezer.name}'s playlists, loved tracks and albums"
+    else -> "Profile ${deezer.profileId}"
+}
+
+/**
+ * Where Tidal stands, in the few words a Settings tile has room for: first whether there is a Tidal app to go
+ * through at all, since nothing works without one.
+ */
+internal fun tidalSummary(tidal: TidalConnectionState): String = when {
+    tidal.connecting -> "Waiting for Tidal…"
+    !tidal.configured -> "Needs a Tidal app of your own"
+    tidal.connected && tidal.accountName.isNotBlank() -> "Signed in as ${tidal.accountName}"
+    tidal.connected -> "Signed in"
+    tidal.readsCatalogue -> "Search works; connect for your collection"
+    else -> "Your Tidal app is set; connect to sign in"
+}
+
+/**
+ * The line under the field on Deezer's page in Settings, or null while there is no profile to speak of: whose it
+ * is, with its number, since the number is all Settings is given back after a restart until Deezer has said more.
+ */
+internal fun deezerStatus(deezer: DeezerConnectionState): String? = when {
+    deezer.checking -> "Asking Deezer about the profile…"
+    deezer.profileId.isBlank() -> null
+    deezer.name.isNotBlank() -> "Showing ${deezer.name}, profile ${deezer.profileId}."
+    else -> "Showing profile ${deezer.profileId}."
+}
+
+/**
+ * The number of the Deezer profile in what was typed: the number itself, or the one in a `deezer.com/profile/<number>`
+ * address, with or without the language Deezer puts in front. Null for anything else, a share link included, which
+ * only Deezer can say the number of.
+ *
+ * Read the way core reads it, so Save is offered only for a profile that is not already the one kept. Core still
+ * decides, and follows a share link to see where it leads.
+ */
+internal fun deezerProfileNumber(input: String): String? {
+    val trimmed = input.trim()
+    if (trimmed.isNotEmpty() && trimmed.all(Char::isDigit)) return trimmed.trimStart('0').takeIf(String::isNotEmpty)
+    return DEEZER_PROFILE.find(trimmed)?.groupValues?.get(1)?.trimStart('0')?.takeIf(String::isNotEmpty)
+}
+
+private val DEEZER_PROFILE = Regex("""deezer\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?profile/(\d+)""", RegexOption.IGNORE_CASE)
 
 /** The scrobblers by name, in the order the Scrobbling page has them. */
 private fun scrobblers(scrobbling: ScrobbleState): List<Pair<String, ScrobbleServiceState>> =
