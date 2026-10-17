@@ -730,6 +730,7 @@ internal val NOT_PHONE_SETTINGS: Map<String, String> = mapOf(
     "discord" to "Discord's presence needs its desktop app.",
     "discordPresenceEnabled" to "Discord's presence needs its desktop app.",
     "searchMode" to "The Search page's chip, remembered as it was left.",
+    "streamWidgets" to "Stream widgets are served by the desktop, for OBS on the same computer.",
 )
 
 /** Settings matching [query], best first. */
