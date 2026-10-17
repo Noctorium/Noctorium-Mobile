@@ -318,6 +318,9 @@ internal fun LyricLine(text: String, active: Boolean, synced: Boolean, look: Lyr
             active && !dim -> MaterialTheme.colorScheme.primary
             active -> MaterialTheme.colorScheme.onSurface
             synced && dim -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .55f)
+            // On a white accent the line being sung is already the writing's colour, so with nothing dimmed the
+            // others take the quieter writing instead: still whole, still at full strength, and the place not lost.
+            synced && accentIsWriting() -> MaterialTheme.colorScheme.onSurfaceVariant
             else -> MaterialTheme.colorScheme.onSurface
         },
         motionSpec(MotionTiming.STANDARD),

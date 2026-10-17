@@ -42,6 +42,10 @@ import app.noctorium.android.ui.TabsCard
 import app.noctorium.android.ui.TextAndLayoutCard
 import app.noctorium.android.ui.TrackRow
 import app.noctorium.android.ui.VkCard
+import app.noctorium.android.ui.playerPlayback
+import app.noctorium.android.ui.shownPlayback
+import app.noctorium.android.artworkColour
+import kotlinx.coroutines.runBlocking
 import app.noctorium.bandcamp.BandcampGenre
 import app.noctorium.core.AppState
 import app.noctorium.core.SearchMode
@@ -731,13 +735,19 @@ internal fun ComposeContentTestRule.shootPhone(
         // What the player shows is worked out from the queue a moment after it changes, on the state's own threads,
         // which the picture's clock does not wait for: a queue lined up just now would otherwise be drawn as it was.
         state.waitUntil { shownQueue.value == queue.state.value && shownPlayback.value == playback.value }
+        // The playing cover's colour, for Afterglow and "Match the artwork", worked out before the picture as it would
+        // have been long before anybody looked: on the screen's own clock it arrives off the main thread, at no
+        // moment the picture could wait for.
+        shownPlayback(state.shownPlayback.value, state.shownQueue.value).track?.artworkUrl?.let { cover ->
+            runBlocking { artworkColour(ApplicationProvider.getApplicationContext(), cover) }
+        }
         // Time moves only when told to. The full-screen seek bar's wave runs for as long as it is on
         // screen, so a screen that waited to be still before its picture was taken would wait forever;
         // two seconds in is long enough for everything that eases into place to have arrived.
         mainClock.autoAdvance = false
         setContent {
             val settings by state.settings.collectAsState()
-            NoctoriumTheme(settings.preferences, equalizerAvailable) {
+            NoctoriumTheme(settings.preferences, equalizerAvailable, artworkUrl = state.playerPlayback().track?.artworkUrl) {
                 Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
                     content(settings, state)
                 }

@@ -330,7 +330,7 @@ private fun HeroShell(artworkUrl: String?, content: @Composable ColumnScope.() -
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .5f)),
+            .background(cardColour(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .5f))),
     ) {
         CoverWash(artworkUrl)
         Column(Modifier.padding(16.dp), content = content)

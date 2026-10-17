@@ -223,7 +223,11 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
     PhoneSetting(
         SettingIds.THEME, "Theme", SettingsPage.THEME, "theme",
         "The colours of the whole app, shared with the desktop.",
-        listOf("dark mode", "light mode", "night mode", "day mode", "colours", "colors", "appearance", "palette", "windows 98", "windows xp", "skin"),
+        listOf(
+            "dark mode", "light mode", "night mode", "day mode", "colours", "colors", "appearance", "palette", "windows 98", "windows xp", "skin",
+            // The Glow themes, by their names and by what they look like.
+            "glow", "afterglow", "cinder", "velvet", "smoke", "black",
+        ),
         stores = listOf("theme", "customTheme"),
     ),
     PhoneSetting(

@@ -277,12 +277,17 @@ private fun DrawScope.drawGlassFace(radius: Float, tint: Color) {
  * Not glass itself, and not trying to be. It is what the page is made of, so that what scrolls beneath
  * the panes -- and the gaps between covers -- carry the colour of the record rather than flat black.
  * With nothing playing there is no cover and no wash, only the theme's page, which is the honest answer.
+ *
+ * A Glow theme's page has a light of its own, which is that theme's answer to the same wish -- Afterglow's is the
+ * cover's colour already -- and the glass bends it instead: the page and its glow, and no cover over them, as on Now
+ * playing.
  */
 @Composable
 fun GlassWash(artworkUrl: String?, modifier: Modifier = Modifier) {
     val background = MaterialTheme.colorScheme.background
-    Box(modifier.fillMaxSize().background(background)) {
-        if (artworkUrl == null) return@Box
+    val glow = LocalPageGlow.current != null
+    Box(modifier.fillMaxSize().background(background).pageGlow()) {
+        if (artworkUrl == null || glow) return@Box
         AsyncImage(
             model = artworkUrl,
             contentDescription = null,

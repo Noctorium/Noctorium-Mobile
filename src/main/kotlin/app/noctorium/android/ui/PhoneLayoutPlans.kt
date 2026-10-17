@@ -38,9 +38,9 @@ internal fun PlayerBarPicker(selected: PhonePlayerBarStyle, choose: (PhonePlayer
     }
 }
 
-/** The theme's colours as the plans use them: the page, a panel on it, writing, faint writing, and the accent. */
+/** The theme's colours as the plans use them: the page, a panel on it, writing, faint writing, the accent, and writing on it. */
 @Immutable
-private class PlanColours(val page: Color, val panel: Color, val ink: Color, val faint: Color, val accent: Color) {
+private class PlanColours(val page: Color, val panel: Color, val ink: Color, val faint: Color, val accent: Color, val onAccent: Color) {
     /** A cover: the accent, darkening across it, so it reads as artwork rather than as a button. */
     fun cover(topLeft: Offset, size: Size): Brush = Brush.linearGradient(
         listOf(lerp(accent, Color.White, .18f), lerp(accent, Color.Black, .5f)),
@@ -58,6 +58,7 @@ private fun planColours(): PlanColours {
         ink = scheme.onSurface.copy(alpha = .78f),
         faint = scheme.onSurface.copy(alpha = .28f),
         accent = scheme.primary,
+        onAccent = scheme.onPrimary,
     )
 }
 
@@ -158,8 +159,8 @@ private fun DrawScope.drawPlayerBarPlan(layout: PhonePlayerBarStyle, c: PlanColo
             drawRect(c.ink.copy(alpha = .16f), Offset(0f, top), Size(size.width, .6f * u))
             // The start button, the song as a button held down, and the tray with its clock.
             drawRoundRect(c.accent, Offset(1.5f * u, top + 2 * u), Size(17 * u, 9 * u), CornerRadius(4.5f * u, 4.5f * u))
-            drawNoctoriumMark(Offset(5 * u, top + 3.8f * u), 5.4f * u, Color.White)
-            drawRoundRect(Color.White.copy(alpha = .85f), Offset(11.5f * u, top + 5.6f * u), Size(5 * u, 1.8f * u), CornerRadius(u, u))
+            drawNoctoriumMark(Offset(5 * u, top + 3.8f * u), 5.4f * u, c.onAccent)
+            drawRoundRect(c.onAccent.copy(alpha = .85f), Offset(11.5f * u, top + 5.6f * u), Size(5 * u, 1.8f * u), CornerRadius(u, u))
             drawRoundRect(c.ink.copy(alpha = .16f), Offset(21 * u, top + 2 * u), Size(52 * u, 9 * u), CornerRadius(1.5f * u, 1.5f * u))
             drawRoundRect(c.ink.copy(alpha = .3f), Offset(21 * u, top + 2 * u), Size(52 * u, 9 * u), CornerRadius(1.5f * u, 1.5f * u), style = Stroke(.5f * u))
             planCover(c, 23 * u, top + 3.5f * u, 6 * u)

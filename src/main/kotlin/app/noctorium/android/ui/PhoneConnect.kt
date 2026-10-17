@@ -310,7 +310,7 @@ internal fun DevicesButton(state: AppState, haptics: Haptics, openConnect: () ->
     if (!connect.available && connect.devices.isEmpty() && connect.target == null) return
 
     Box {
-        IconButton({ haptics.tick(); open = true }) {
+        IconButton({ haptics.tick(); open = true }, Modifier.litWash(connect.target != null)) {
             Icon(
                 Glyph.DEVICES.image,
                 connectStrip(connect) ?: "Devices",

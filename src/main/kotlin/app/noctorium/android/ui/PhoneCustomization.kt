@@ -1,7 +1,9 @@
 package app.noctorium.android.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
@@ -44,11 +46,13 @@ import app.noctorium.settings.LyricsAlignment
 import app.noctorium.settings.LyricsSize
 import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.ThemeColours
+import app.noctorium.settings.ThemeGlow
 import app.noctorium.settings.ThemePreset
 import app.noctorium.settings.ThemeSkin
 import app.noctorium.settings.contrastRatio
 import app.noctorium.settings.parseHexColour
 import app.noctorium.settings.themeColours
+import app.noctorium.settings.themeGlow
 import app.noctorium.settings.toHexColour
 import app.noctorium.settings.BadgePolicy
 import app.noctorium.settings.CardSize
@@ -178,7 +182,7 @@ internal fun ThemeCard(settings: SettingsState, state: AppState) {
         )
         SettingAnchor(SettingIds.THEME) {
             // The themes, by family: "Mocha" on its own means nothing and "Catppuccin Mocha" does. Each chip
-            // carries the theme's page with its accent on it, so the choice can be made by eye.
+            // carries the theme's page with its accent on it, and a Glow theme's light, so the choice can be made by eye.
             ThemePreset.entries.groupBy { it.family }.forEach { (family, presets) ->
                 ChoiceRow("Theme · $family") {
                     presets.forEach { preset ->
@@ -194,6 +198,7 @@ internal fun ThemeCard(settings: SettingsState, state: AppState) {
                                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                     modifier = Modifier.size(16.dp),
                                 ) {
+                                    preset.glow?.let { SwatchGlow(it) }
                                     androidx.compose.foundation.layout.Box(
                                         Modifier.padding(4.dp).size(8.dp),
                                     ) {
@@ -212,6 +217,21 @@ internal fun ThemeCard(settings: SettingsState, state: AppState) {
         }
     }
 }
+
+/**
+ * A Glow theme's light across its chip's little page: drawn as the page's is, in the colour it has with nothing
+ * playing, but [SWATCH_GLOW] times as strong, since at sixteen points the light as faint as it is on a whole screen
+ * would be a page of black, and the chip is there to say red, plum or grey.
+ */
+@Composable
+private fun SwatchGlow(glow: ThemeGlow) {
+    val swatch = glow.copy(strength = (glow.strength * SWATCH_GLOW).coerceAtMost(.85f))
+    Canvas(Modifier.fillMaxSize()) {
+        swatch.placement.shapes.forEach { drawRect(glowBrush(swatch, it, Color(swatch.colour), size)) }
+    }
+}
+
+private const val SWATCH_GLOW = 2.5f
 
 @Composable
 internal fun ColourCard(settings: SettingsState, state: AppState) {
@@ -502,7 +522,13 @@ internal fun NowPlayingLookCard(settings: SettingsState, state: AppState) {
         SettingAnchor(SettingIds.AMBIENT_BACKDROP) {
             Toggle(
                 "Ambient backdrop",
-                "Tints the now playing screen with the artwork behind it.",
+                // A Glow theme's light is its backdrop, so there the switch counts only where the desktop asked for the cover.
+                if (preferences.themeGlow == null) {
+                    "Tints the now playing screen with the artwork behind it."
+                } else {
+                    "On a Glow theme its own light is the backdrop, and the artwork is behind it only when the " +
+                        "desktop's backdrop is the blurred cover."
+                },
                 preferences.ambientBackdrop,
                 onChange = state::setAmbientBackdrop,
             )

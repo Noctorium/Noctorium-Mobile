@@ -92,6 +92,20 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingsPage.PROFILE, first("history").page)
     }
 
+    /** The Glow themes by their names, by the family's, and by the black their pages are: all on the theme. */
+    @Test
+    fun `the Glow themes are found by their names and by what they look like`() {
+        for (words in listOf("glow", "afterglow", "cinder", "velvet", "smoke")) {
+            assertEquals(SettingIds.THEME, first(words).id, words)
+            assertEquals(SettingsPage.THEME, first(words).page, words)
+        }
+        // "black" is one letter from the "back" Ambient backdrop's name begins with, and a name, typo and all, comes
+        // before every other word for a setting; so the theme is found by it second, straight after.
+        assertEquals(listOf(SettingIds.AMBIENT_BACKDROP, SettingIds.THEME), searchPhoneSettings("black").take(2).map { it.first.id })
+        // The ambient backdrop is a glow of a kind too, and is still found by it, after the themes.
+        assertTrue(searchPhoneSettings("glow").any { it.first.id == SettingIds.AMBIENT_BACKDROP })
+    }
+
     @Test
     fun `the badges' marks are found by what people call them, beside the icon set`() {
         assertEquals(SettingIds.SERVICE_BADGE_STYLE, first("service icons").id)

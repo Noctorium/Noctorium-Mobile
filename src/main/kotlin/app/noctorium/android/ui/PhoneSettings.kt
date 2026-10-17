@@ -602,7 +602,7 @@ private fun SettingsTile(
     }
     Surface(
         onClick = open,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f),
+        color = cardColour(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f)),
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp),
     ) {
@@ -689,7 +689,7 @@ internal fun SettingsCardShell(
         return
     }
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f),
+        color = cardColour(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .4f)),
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
     ) {

@@ -19,6 +19,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import app.noctorium.android.ui.NoctoriumPhone
 import app.noctorium.android.ui.NoctoriumTheme
+import app.noctorium.android.ui.playerPlayback
 import app.noctorium.android.ui.systemBarIcons
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
@@ -118,7 +119,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
             val equalizerAvailable by (application as NoctoriumApplication).player.equalizerAvailable.collectAsState()
-            NoctoriumTheme(settings.preferences, equalizerAvailable) { NoctoriumPhone(state) }
+            // The cover the player shows -- another device's, while this phone is its remote -- for the colour taken
+            // from it by "Match the artwork" and by Afterglow.
+            NoctoriumTheme(settings.preferences, equalizerAvailable, artworkUrl = state.playerPlayback().track?.artworkUrl) {
+                NoctoriumPhone(state)
+            }
         }
     }
 

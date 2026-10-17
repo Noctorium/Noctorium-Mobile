@@ -68,6 +68,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import app.noctorium.settings.ThemeColours
 import app.noctorium.settings.ThemePreset
 import app.noctorium.settings.ThemeSkin
@@ -125,9 +126,10 @@ private fun Color.mix(other: Color, ratio: Float): Color = Color(
  * desktop does, so a theme picked on either reads the same on both.
  *
  * The theme says where the page, a panel and a card sit and what writing looks like on them; the accent
- * is whatever the listener chose. "Match the artwork" has no palette of its own on the phone yet, so it
- * falls back to the theme's accent. A light theme comes out as light rather than as a dark theme with a
- * white page.
+ * is whatever the listener chose, "Match the artwork" being the playing cover's colour (see NoctoriumTheme).
+ * Writing on the accent is core's [onAccent], the same on every player: near-black on a white accent, such
+ * as three of the Glow themes have, and white on a deep one. A light theme comes out as light rather than as
+ * a dark theme with a white page.
  */
 fun noctoriumColors(theme: ThemeColours, accent: Color): ColorScheme {
     val background = Color(theme.background)
@@ -135,7 +137,7 @@ fun noctoriumColors(theme: ThemeColours, accent: Color): ColorScheme {
     val card = Color(theme.card)
     val text = Color(theme.text)
     val subtext = Color(theme.subtext)
-    val onAccent = if (accent.luminance() > .35f) accent.mix(Color.Black, .84f) else Color.White
+    val onAccent = Color(app.noctorium.settings.onAccent(accent.toArgb().toLong() and 0xFFFFFFFFL))
     val base = if (theme.light) lightColorScheme() else darkColorScheme()
     return base.copy(
         primary = accent,
@@ -268,7 +270,8 @@ fun NoctoriumPhone(state: AppState) {
     val tabSetting = remember { TabSettingRequest() }
     CompositionLocalProvider(LocalTabSetting provides tabSetting) {
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize()) {
+            // The page's light, on a Glow theme, under the screens and the bars alike: see PageGlow.
+            Box(Modifier.fillMaxSize().pageGlow()) {
                 /*
                  * The player bar at the head of the screen, for anyone who asked for it there.
                  *
@@ -539,6 +542,8 @@ private fun crowded(tabs: List<Destination>): Boolean = tabs.size > 5
 @Composable
 private fun GlassNavigation(current: Destination, labels: Boolean, tabs: List<Destination>, go: (Destination) -> Unit) {
     val crowded = crowded(tabs)
+    // On a white accent the chosen tab's colour is every tab's, so the others step back to the quieter writing.
+    val quiet = if (accentIsWriting()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Row(
         Modifier.fillMaxWidth().height(if (labels && !crowded) 60.dp else 52.dp).padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -549,7 +554,7 @@ private fun GlassNavigation(current: Destination, labels: Boolean, tabs: List<De
             // Now playing is a sheet, so Home stays lit underneath it rather than nothing being lit.
             val selected = current == destination ||
                 (destination == Destination.HOME && current == Destination.NOW_PLAYING)
-            val colour = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+            val colour = if (selected) MaterialTheme.colorScheme.primary else quiet
             // Seven tabs leave fifty-odd points each, and "Downloads" and "Settings" were cut to "Downlo"
             // and "Setting". So with labels on, the chosen tab widens into a pill with its name beside the
             // icon, and the others give up theirs: every name that shows is whole.
@@ -585,6 +590,13 @@ private fun GlassNavigation(current: Destination, labels: Boolean, tabs: List<De
 @Composable
 private fun PhoneNavigation(current: Destination, labels: Boolean, tabs: List<Destination>, go: (Destination) -> Unit) {
     val crowded = crowded(tabs)
+    // The lozenge under the chosen tab is the card colour, which says little beside an icon lit in the accent; on a
+    // white accent the icon is lit in what every tab's writing already nearly is, so the lozenge has to say it.
+    val lozenge = if (accentIsWriting()) {
+        MaterialTheme.colorScheme.primary.copy(alpha = LIT_WASH_ALPHA)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         tabs.forEach { destination ->
             val icon = destination.tabIcon().image
@@ -607,7 +619,7 @@ private fun PhoneNavigation(current: Destination, labels: Boolean, tabs: List<De
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.surfaceVariant,
+                    indicatorColor = lozenge,
                 ),
             )
         }
@@ -822,7 +834,7 @@ private fun SlimControls(playback: PlaybackState, state: AppState) {
     val quiet = MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (showsPlayerButton(hidden, PlayerButton.SHUFFLE)) {
-            IconButton({ haptics.tick(); state.toggleShuffle() }, Modifier.size(SLIM_BUTTON)) {
+            IconButton({ haptics.tick(); state.toggleShuffle() }, Modifier.size(SLIM_BUTTON).litWash(queue.shuffleEnabled)) {
                 Icon(Glyph.SHUFFLE.image, "Shuffle", Modifier.size(19.dp), tint = if (queue.shuffleEnabled) lit else quiet)
             }
         }
@@ -834,7 +846,7 @@ private fun SlimControls(playback: PlaybackState, state: AppState) {
             Icon(Glyph.SKIP_NEXT.image, "Next track", Modifier.size(22.dp))
         }
         if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
-            IconButton({ haptics.tick(); state.cycleRepeat() }, Modifier.size(SLIM_BUTTON)) {
+            IconButton({ haptics.tick(); state.cycleRepeat() }, Modifier.size(SLIM_BUTTON).litWash(queue.repeatMode != RepeatMode.OFF)) {
                 Icon(
                     if (queue.repeatMode == RepeatMode.ONE) Glyph.REPEAT_ONE.image else Glyph.REPEAT.image,
                     when (queue.repeatMode) {
@@ -1183,14 +1195,26 @@ private fun TrackRowLine(
         Artwork(track.artworkUrl, 52.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                track.title,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            )
+            val title: @Composable () -> Unit = {
+                Text(
+                    track.title,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            // On a white accent the title playing is the colour of every other title, so it is marked as playing too.
+            if (isCurrent && accentIsWriting()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Glyph.GRAPHIC_EQ.image, "Playing", Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(5.dp))
+                    title()
+                }
+            } else {
+                title()
+            }
             Text(
                 // An empty artist line means the service did not say. Shown as such rather than filled in
                 // with the provider's name, which is how a track once came to be credited to "YouTube Music".

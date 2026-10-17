@@ -40,10 +40,22 @@ internal object Covers {
         Triple(0xFF6B2737, 0xFFE9B44C, 0xFFFFF3E2),
     )
 
+    /**
+     * Sleeves of one colour above all, for the pictures that are about a cover's colour -- Afterglow's light, which
+     * takes it -- rather than left to whichever sleeve a song's name happens to pick.
+     */
+    enum class Sleeve(val deep: Long, val warm: Long, val pale: Long) {
+        RED(0xFF3A0705, 0xFFC8231A, 0xFFFFB3A1),
+        BLUE(0xFF061A44, 0xFF2A64D8, 0xFFB9D3FF),
+    }
+
     /** [track], with a sleeve of its own. */
     fun on(track: Track): Track = track.copy(artworkUrl = "$SCHEME://${track.id}")
 
     fun on(tracks: List<Track>): List<Track> = tracks.map(::on)
+
+    /** [track], with a sleeve painted in [sleeve]'s colours. */
+    fun on(track: Track, sleeve: Sleeve): Track = track.copy(artworkUrl = "$SCHEME://${sleeve.name.lowercase()}-${track.id}")
 
     /** Makes the painted sleeves what every image in the application loads, for this run. */
     fun install(context: Context) {
@@ -69,7 +81,8 @@ internal object Covers {
 
     /** A sky of two colours, a sun low in it, and two hills across the foot. */
     private fun paint(id: String): Bitmap {
-        val (deep, warm, pale) = palettes[Math.floorMod(id.hashCode(), palettes.size)].let {
+        val sleeve = Sleeve.entries.firstOrNull { id.startsWith(it.name.lowercase() + "-") }
+        val (deep, warm, pale) = (sleeve?.let { Triple(it.deep, it.warm, it.pale) } ?: palettes[Math.floorMod(id.hashCode(), palettes.size)]).let {
             Triple(it.first.toInt(), it.second.toInt(), it.third.toInt())
         }
         val size = 480f

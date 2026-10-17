@@ -408,7 +408,10 @@ internal fun FlatButton(
                 lit -> MaterialTheme.colorScheme.primary
                 else -> MaterialTheme.colorScheme.onSurface
             }
-            Box(Modifier.size(TOOLBAR_TOUCH).clip(CircleShape).then(click).then(semantics), contentAlignment = Alignment.Center) { content(ink) }
+            Box(
+                Modifier.size(TOOLBAR_TOUCH).clip(CircleShape).litWash(lit && enabled).then(click).then(semantics),
+                contentAlignment = Alignment.Center,
+            ) { content(ink) }
         }
         ThemeSkin.WINDOWS_98 -> {
             val down = held || lit
@@ -479,6 +482,7 @@ internal fun StopButton(state: AppState, size: Dp = 24.dp, flat: Boolean = false
         Modifier
             .size(48.dp)
             .clip(CircleShape)
+            .litWash(stopAfter)
             .combinedClickable(
                 indication = if (skin == ThemeSkin.STANDARD) ripple(bounded = false, radius = 24.dp) else null,
                 interactionSource = remember { MutableInteractionSource() },

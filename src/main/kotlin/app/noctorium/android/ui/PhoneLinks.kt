@@ -210,7 +210,7 @@ private fun LazyListScope.phoneLinkOutcome(link: LinkState, playback: PlaybackSt
 @Composable
 private fun PhoneLinkTrackCard(track: Track, playing: Boolean, state: AppState) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f),
+        color = cardColour(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)),
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
     ) {

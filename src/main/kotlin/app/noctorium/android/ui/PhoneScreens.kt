@@ -840,7 +840,7 @@ private fun PlaylistScreen(playlist: Playlist, loading: Boolean, error: String?,
 @Composable
 private fun DownloadsCard(downloads: app.noctorium.downloads.DownloadsState, state: AppState) {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f),
+        color = cardColour(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .45f)),
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
     ) {

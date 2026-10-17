@@ -77,8 +77,11 @@ import app.noctorium.lyrics.LyricsUiState
 import app.noctorium.playback.PlaybackState
 import app.noctorium.playback.QueueState
 import app.noctorium.playback.RepeatMode
+import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.NowPlayingBackdrop
 import app.noctorium.settings.PhoneNowPlayingLayout
 import app.noctorium.settings.PlayerButton
+import app.noctorium.settings.nowPlayingBackdrop
 import app.noctorium.settings.ProgressBarStyle
 import app.noctorium.settings.SeekBar
 import app.noctorium.settings.SettingsState
@@ -164,8 +167,8 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
     Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
       Box(Modifier.fillMaxSize()) {
         if (LocalSkin.current == ThemeSkin.STANDARD) {
-            // The full cover is its own backdrop, and the wash behind it would only be painted over.
-            if (settings.preferences.ambientBackdrop && layout != PhoneNowPlayingLayout.FULL_COVER) AmbientBackdrop(track.artworkUrl)
+            // The cover blurred behind it all, or the page as it is -- with its light, on a Glow theme.
+            if (drawsBlurredCover(settings.preferences, layout, track.artworkUrl != null)) AmbientBackdrop(track.artworkUrl) else PageGlowLayer()
             laidOut()
         } else {
             /*
@@ -175,7 +178,7 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
              * to the bar, which is where a minimised window went, and so does its button on the taskbar; the
              * start button goes Home. The buttons the bar along the top had are on the window's toolbar.
              */
-            if (settings.preferences.ambientBackdrop) AmbientBackdrop(track.artworkUrl) else SkinDesktop()
+            if (settings.preferences.nowPlayingBackdrop != NowPlayingBackdrop.PLAIN) AmbientBackdrop(track.artworkUrl) else SkinDesktop()
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.navigationBars))) {
                 SkinWindow(
                     title = "Now Playing",
@@ -215,6 +218,15 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
 }
 
 /**
+ * Whether the now playing screen draws the cover, blurred, behind [layout]: as core's [nowPlayingBackdrop] has it,
+ * which is never with the ambient backdrop switched off, and on a Glow theme only when the blurred cover was asked
+ * for on the desktop -- that theme's own light is its backdrop otherwise -- and never behind the full cover, which is
+ * its own backdrop, nor with no cover to blur. Where it does not, the page shows, glow and all.
+ */
+internal fun drawsBlurredCover(preferences: NoctoriumPreferences, layout: PhoneNowPlayingLayout, hasCover: Boolean): Boolean =
+    hasCover && layout != PhoneNowPlayingLayout.FULL_COVER && preferences.nowPlayingBackdrop != NowPlayingBackdrop.PLAIN
+
+/**
  * Whether [layout] shows the lyrics, [asked] being whether they have been asked for -- by the lyrics button, or the
  * Playlist layout's tab -- and [button] whether the lyrics button is on the screen at all.
  *
@@ -245,7 +257,7 @@ private fun QueueOverNowPlaying(open: Boolean, state: AppState, close: () -> Uni
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             // Nothing floats over it here -- no player bar, no tabs -- so the list needs no room kept for them.
             CompositionLocalProvider(LocalChromeInsets provides ChromeInsets()) {
-                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
+                Box(Modifier.fillMaxSize().pageGlow().windowInsetsPadding(WindowInsets.navigationBars)) {
                     QueueScreen(state, overNowPlaying = true, close = close)
                 }
             }
@@ -504,7 +516,7 @@ internal fun TransportRow(screen: NowPlaying) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showsPlayerButton(hidden, PlayerButton.SHUFFLE)) {
-            IconButton(state::toggleShuffle) {
+            IconButton(state::toggleShuffle, Modifier.litWash(queue.shuffleEnabled)) {
                 Icon(
                     Glyph.SHUFFLE.image,
                     "Shuffle",
@@ -524,7 +536,7 @@ internal fun TransportRow(screen: NowPlaying) {
         if (showsPlayerButton(hidden, PlayerButton.STOP, shown = screen.shown)) StopButton(state, size = 30.dp)
         IconButton(state::next, enabled = queue.hasNext) { Icon(Glyph.SKIP_NEXT.image, "Next", Modifier.size(34.dp)) }
         if (showsPlayerButton(hidden, PlayerButton.REPEAT)) {
-            IconButton(state::cycleRepeat) {
+            IconButton(state::cycleRepeat, Modifier.litWash(queue.repeatMode != RepeatMode.OFF)) {
                 Icon(
                     if (queue.repeatMode == RepeatMode.ONE) Glyph.REPEAT_ONE.image else Glyph.REPEAT.image,
                     "Repeat",
