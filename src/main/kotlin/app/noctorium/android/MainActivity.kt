@@ -127,6 +127,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Keep-alive, every time Noctorium comes to the front, when it is on: on the screen is when Android always lets an
+     * app into the foreground, and opening Noctorium is the one way back after a force stop, which nothing else can
+     * get round. Already running, this changes nothing.
+     */
+    override fun onStart() {
+        super.onStart()
+        KeepAlive.start(applicationContext, KeepAliveStart.APP)
+    }
+
     /** A link shared while Noctorium was already open: singleTask brings this one forward rather than a new one. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)

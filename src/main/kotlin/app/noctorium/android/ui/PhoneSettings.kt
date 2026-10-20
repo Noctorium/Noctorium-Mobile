@@ -353,13 +353,19 @@ private fun SettingsHome(
         }
 
         item { SectionLabel(SettingsSection.PHONE.title) }
+        // Once, on a phone that has been stopping Noctorium in the background or whose maker is known to.
+        item(key = "keep-alive-hint") { KeepAliveHint(settings, state) { open(SettingsPage.PHONE, SettingIds.KEEP_ALIVE) } }
         item {
             // The one thing here that can stop the music, so it is said on the tile when it is not settled.
             val unrestricted = rememberBackgroundUnrestricted()
             SettingsTile(
                 if (unrestricted) Glyph.PHONE_ANDROID.image else Glyph.BATTERY_ALERT.image,
                 "On this phone",
-                if (unrestricted) "Screen, downloads, data and haptics" else "The music may stop when the phone locks. Tap to fix it.",
+                when {
+                    !unrestricted -> "The music may stop when the phone locks. Tap to fix it."
+                    preferences.phone.keepAlive -> "Kept alive · screen, downloads, data and haptics"
+                    else -> "Screen, downloads, data and haptics"
+                },
                 tint = if (unrestricted) null else MaterialTheme.colorScheme.error,
             ) {
                 open(SettingsPage.PHONE, null)
@@ -550,6 +556,7 @@ private fun pageCards(
     SettingsPage.SEARCH -> listOf("hybrid" to { HybridSearchCard(settings, state) })
     SettingsPage.PHONE -> listOf(
         "keep-playing" to { KeepPlayingCard() },
+        "keep-alive" to { KeepAliveCard(settings, state) },
         "phone" to { PhoneOptionsCard(settings, state) },
     )
     SettingsPage.CONNECT -> listOf("connect" to { ConnectCard(settings, state) })

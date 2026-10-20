@@ -92,6 +92,24 @@ class PhoneSettingsIndexTest {
         assertEquals(SettingsPage.PROFILE, first("history").page)
     }
 
+    /**
+     * Keep-alive by its name and by what somebody whose phone keeps closing Noctorium types, on the phone's page, at
+     * its own card -- and the battery's own card still first for the battery, as it was before.
+     */
+    @Test
+    fun `keep-alive is found by its name and by what a phone that closes Noctorium makes people type`() {
+        for (words in listOf("keep alive", "keep noctorium alive", "killed", "autostart", "stops playing", "music stops", "dontkillmyapp", "power manager")) {
+            assertEquals(SettingIds.KEEP_ALIVE, first(words).id, words)
+            assertEquals(SettingsPage.PHONE, first(words).page, words)
+            assertEquals("keep-alive", first(words).card, words)
+        }
+        for (words in listOf("background", "battery", "notification")) {
+            assertTrue(searchPhoneSettings(words).any { it.first.id == SettingIds.KEEP_ALIVE }, "\"$words\" finds keep-alive")
+        }
+        assertEquals(SettingIds.KEEP_PLAYING, first("battery").id)
+        assertEquals(listOf("phone.keepAlive"), PHONE_SETTINGS.first { it.id == SettingIds.KEEP_ALIVE }.stores)
+    }
+
     /** The Glow themes by their names, by the family's, and by the black their pages are: all on the theme. */
     @Test
     fun `the Glow themes are found by their names and by what they look like`() {

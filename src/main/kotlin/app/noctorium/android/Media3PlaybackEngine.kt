@@ -591,6 +591,23 @@ class Media3PlaybackEngine(
         )
         .build()
 
+    /**
+     * Says [track] is held at [positionMs], not playing, with nothing loaded -- the way a song that failed part-way is
+     * held -- so the next press of play starts it there rather than where the kept queue last wrote it down.
+     *
+     * Keep-alive's, bringing Noctorium back mid-song after the phone stopped it: the queue is written down once a
+     * minute while a song plays, and keep-alive notes the place every few seconds, so it knows the place better.
+     */
+    fun holdPlace(track: Track, positionMs: Long) {
+        mutableState.update { it.copy(
+            status = PlaybackStatus.IDLE,
+            track = track,
+            positionMs = positionMs.coerceAtLeast(0),
+            durationMs = track.durationMs ?: 0,
+            errorMessage = null,
+        ) }
+    }
+
     override suspend fun pause() = withContext(Dispatchers.Main) { player.pause() }
 
     override suspend fun resume() = withContext(Dispatchers.Main) {

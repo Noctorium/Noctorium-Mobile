@@ -5,16 +5,20 @@
 
   The history of what was played on this phone stays on this phone (see PlayHistory in Base), so it goes in
   neither. Nothing is named to be included, so everything else goes exactly as it did before there were rules.
+
+  Nor do keep-alive's notes, which are about this phone at this moment; see backup_rules.xml.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="noctorium/play-history.json" />
         <exclude domain="file" path="noctorium/play-history.json.tmp" />
         <exclude domain="file" path="noctorium/play-history.json.unreadable" />
+        <exclude domain="sharedpref" path="keep-alive.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="noctorium/play-history.json" />
         <exclude domain="file" path="noctorium/play-history.json.tmp" />
         <exclude domain="file" path="noctorium/play-history.json.unreadable" />
+        <exclude domain="sharedpref" path="keep-alive.xml" />
     </device-transfer>
 </data-extraction-rules>

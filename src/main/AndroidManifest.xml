@@ -39,6 +39,17 @@
       managers stop background apps when the screen locks regardless, music included.
     -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!--
+      For "Keep Noctorium alive", which is off unless the listener turns it on. Kept alive with nothing to play,
+      Noctorium shows a quiet notification from a foreground service of its own, and SPECIAL_USE is the type for
+      that: the reason, said under the services below, is not one any of Android's other types names.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!--
+      Also for keep-alive: lets Noctorium start again once the phone has started up, so a restart does not end it.
+      With keep-alive off, the receiver it wakes does nothing at all.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!--
       The backup rules leave the history of what was played out of Android's backups, to Google Drive and to a new
@@ -95,15 +106,49 @@
         <!--
           Media3's session service, which is what makes the lock screen controls, the notification and the
           Bluetooth buttons work. Without it the player stops the moment the activity goes away.
+
+          mediaPlayback while a song is loaded. specialUse as well, for keep-alive only: when the song goes with
+          keep-alive on, this shows keep-alive's quiet notification in its place rather than leave the foreground,
+          since coming back into it from the background is what Android does not always allow.
         -->
         <service
             android:name=".PlaybackService"
             android:exported="true"
-            android:foregroundServiceType="mediaPlayback">
+            android:foregroundServiceType="mediaPlayback|specialUse">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keep alive, chosen by the listener: keeps the music player running and reachable by their other devices over the local network between songs, on phones whose power managers close background apps." />
         </service>
+
+        <!--
+          Keep-alive's own foreground service, for while nothing is loaded to play: it does nothing but hold
+          Noctorium up, with its quiet notification. Not exported; only Noctorium starts it.
+        -->
+        <service
+            android:name=".KeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keep alive, chosen by the listener: keeps the music player running and reachable by their other devices over the local network between songs, on phones whose power managers close background apps." />
+        </service>
+
+        <!--
+          Brings keep-alive back after the phone starts up, after Noctorium is updated, and when its watchdog alarm
+          finds it gone; and the quiet notification's Turn off. Not exported: the first two come from Android itself,
+          the others from Noctorium.
+        -->
+        <receiver
+            android:name=".KeepAliveReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- The code scanner, turned the way the phone is held rather than locked sideways. -->
         <activity

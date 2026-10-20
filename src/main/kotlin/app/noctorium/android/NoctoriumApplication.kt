@@ -11,12 +11,23 @@ import app.noctorium.discord.NoPresenceReporter
 import app.noctorium.downloads.DownloadManager
 import app.noctorium.net.Http
 import app.noctorium.playback.MusicBackend
+import app.noctorium.playback.PlaybackStatus
 import app.noctorium.playback.UncheckedSession
 import app.noctorium.settings.AppDirectories
 import app.noctorium.settings.SecretStore
 import app.noctorium.settings.SettingsRepository
 import app.noctorium.social.SoundCloudLikeClient
 import app.noctorium.social.SoundCloudPlaylistClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import org.schabi.newpipe.extractor.NewPipe
 
 /**
@@ -28,7 +39,7 @@ import org.schabi.newpipe.extractor.NewPipe
  * framework because there is nothing here one would help with: a handful of objects, in a fixed order,
  * none of them optional.
  */
-class NoctoriumApplication : Application(), ImageLoaderFactory {
+class NoctoriumApplication : Application(), ImageLoaderFactory, KeepAliveHost {
 
     /** Every cover in the application comes through here: see [artworkImageLoader]. */
     override fun newImageLoader(): ImageLoader = artworkImageLoader(this)
@@ -44,6 +55,9 @@ class NoctoriumApplication : Application(), ImageLoaderFactory {
 
     /** One browser for every SoundCloud write, shared so there is one page rather than one each. */
     private lateinit var soundCloudBrowser: WebViewRequester
+
+    /** The application's own work over time: keep-alive following its setting, Connect, and what plays. */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate() {
         super.onCreate()
@@ -136,11 +150,70 @@ class NoctoriumApplication : Application(), ImageLoaderFactory {
             state.setPlaybackSpeed(speed)
             state.updatePhone { copy(playbackSpeed = 1f) }
         }
+        keepAlive()
+    }
+
+    /**
+     * "Keep Noctorium alive", wired to the state: the heartbeat left by the process before this one read before
+     * anything can clear it, the heartbeat kept from here on, and the setting and Connect followed as they change.
+     *
+     * Starting it is not done here. This runs for every start of the process -- the phone starting up, the watchdog,
+     * Android restarting a service -- and whichever of those it was starts keep-alive itself, saying so; opening
+     * Noctorium is one of them (see MainActivity).
+     */
+    private fun keepAlive() {
+        val on = state.settings.map { it.preferences.phone.keepAlive }.distinctUntilChanged()
+        KeepAlive.processStarted(this, keepAliveOn)
+        KeepAlive.follow(this, state.playback, on, scope)
+        scope.launch { on.drop(1).collect { KeepAlive.switched(this@NoctoriumApplication, it) } }
+        // The quiet notification says whether the listener's other devices can reach this phone; said again when that changes.
+        scope.launch {
+            state.connect.map { it.available }.distinctUntilChanged().drop(1).collect { KeepAliveNotification.refresh(this@NoctoriumApplication) }
+        }
+    }
+
+    override val keepAliveOn: Boolean
+        get() = ::state.isInitialized && state.settings.value.preferences.phone.keepAlive
+
+    override fun turnOffKeepAlive() {
+        if (::state.isInitialized) state.updatePhone { copy(keepAlive = false) }
+    }
+
+    override val reachableOverConnect: Boolean
+        get() = ::state.isInitialized && state.connect.value.available
+
+    /**
+     * The kept queue's song, played from [positionMs] -- what keep-alive does when it brings Noctorium back mid-song.
+     *
+     * Only if it is the song keep-alive noted, and nothing has played here since this process started, nor has another
+     * device been taken over: whatever the listener did since is what stands. The place goes to the player before play
+     * is pressed, which is where play picks a song up from (see [Media3PlaybackEngine.holdPlace]) -- once the state
+     * has seen it there, since the state follows the player a moment behind and decides play from what it has seen.
+     */
+    override fun pickUp(queueKey: String, positionMs: Long): Boolean {
+        if (!::state.isInitialized) return false
+        val song = state.queue.state.value.current?.takeIf { it.queueKey == queueKey } ?: return false
+        if (state.playback.value.track != null || state.playback.value.status != PlaybackStatus.IDLE) return false
+        if (state.connect.value.target != null) return false
+        player.holdPlace(song, positionMs)
+        scope.launch {
+            val held = withTimeoutOrNull(PICK_UP_WAIT_MS) {
+                state.playback.first { it.track?.queueKey == queueKey && it.positionMs == positionMs }
+            }
+            // Played anyway if the state never caught up: from where the queue was last written down, then.
+            if (held == null) android.util.Log.w("NoctoriumKeepAlive", "The place was not seen in time; playing from the queue's")
+            state.togglePlayback()
+        }
+        return true
     }
 
     override fun onTerminate() {
+        scope.cancel()
         soundCloudBrowser.close()
         state.close()
         super.onTerminate()
     }
 }
+
+/** How long a song keep-alive picks up waits for the state to see its place before it plays anyway. */
+private const val PICK_UP_WAIT_MS = 2_000L

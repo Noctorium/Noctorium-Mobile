@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Noctorium's N for the status bar: the launcher's letter mark (ic_launcher_mono), cropped to the letter itself, since
+  a status bar icon is drawn edge to edge and the launcher's safe zone would leave it a speck. Android paints it in one
+  colour, so only its shape matters.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="50"
+    android:viewportHeight="50">
+    <group
+        android:translateX="-29"
+        android:translateY="-29">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M35,31 H44.5 V77 H35 Z M63.5,31 H73 V77 H63.5 Z M35,31 H45.5 L73,67.5 V77 H62.5 L35,40.5 Z" />
+    </group>
+</vector>

@@ -6,9 +6,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 
 /**
  * Whether the phone lets Noctorium go on playing once the screen is locked, and the way to let it.
@@ -29,7 +29,7 @@ object BackgroundPlayback {
 
     /** Phones whose own power manager is known to stop music at the lock screen without this. */
     val strictManufacturer: Boolean
-        get() = Build.MANUFACTURER.orEmpty().lowercase() in setOf("xiaomi", "redmi", "poco")
+        get() = PhoneMaker.thisPhone == PhoneMaker.XIAOMI
 
     /**
      * Android's own "let this app always run in the background?" dialog, for Noctorium.
@@ -49,16 +49,41 @@ object BackgroundPlayback {
      * both may need saying yes to. Where it cannot be opened, Noctorium's app info page is, which is where
      * the same choice sits one tap further in.
      */
-    fun openBatteryPage(context: Context): Boolean {
-        if (strictManufacturer) {
-            val xiaomi = Intent().apply {
-                component = ComponentName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
-                putExtra("package_name", context.packageName)
-                putExtra("package_label", context.applicationInfo.loadLabel(context.packageManager).toString())
-            }
-            if (open(context, xiaomi)) return true
-        }
-        return open(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
+    fun openBatteryPage(context: Context): Boolean = openMakerPage(context, PhoneMaker.thisPhone?.page(MakerPageKind.BATTERY))
+
+    /**
+     * One of the phone maker's pages for Noctorium -- its autostart, its battery saver -- at the first of the places
+     * it has been that this phone opens; Noctorium's app info page where none does, or where there is no such page.
+     *
+     * Tried by opening rather than looked up first. Android 11 and later hide other apps' activities from a lookup
+     * unless each is named in the manifest, so a lookup would miss pages that are there; opening one that is not
+     * there, or not open to other apps, is an exception, and the next place is tried.
+     */
+    internal fun openMakerPage(context: Context, page: MakerPage?): Boolean =
+        openFirst(page?.targets.orEmpty(), { open(context, intentFor(context, it)) }) { openAppInfo(context) }
+
+    /** Noctorium's app info page in Android's settings. */
+    fun openAppInfo(context: Context): Boolean =
+        open(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
+
+    /** Whether Noctorium may show notifications at all: the keep-alive's, and the music's. */
+    fun notificationsAllowed(context: Context): Boolean = NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+    /** Noctorium's notification settings, where they are allowed, and where the keep-alive's own can be hidden. */
+    fun openNotificationSettings(context: Context): Boolean =
+        open(context, Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) ||
+            openAppInfo(context)
+
+    /** A page in the browser: dontkillmyapp.com's how-to for this phone. */
+    fun openWebPage(context: Context, address: String): Boolean = open(context, Intent(Intent.ACTION_VIEW, Uri.parse(address)))
+
+    /** The intent that opens [target], told it is Noctorium's page that is wanted where the page takes that. */
+    internal fun intentFor(context: Context, target: MakerTarget): Intent = Intent().apply {
+        target.action?.let(::setAction)
+        if (target.className != null) component = ComponentName(target.packageName, target.className) else setPackage(target.packageName)
+        target.data?.let { data = Uri.parse(it) }
+        target.packageExtras.forEach { putExtra(it, context.packageName) }
+        target.labelExtra?.let { putExtra(it, context.applicationInfo.loadLabel(context.packageManager).toString()) }
     }
 
     private fun open(context: Context, intent: Intent): Boolean = try {
@@ -70,4 +95,10 @@ object BackgroundPlayback {
     } catch (_: SecurityException) {
         false
     }
+}
+
+/** The first of [places] that [open] opens, or [otherwise] where none does. */
+internal fun <T> openFirst(places: List<T>, open: (T) -> Boolean, otherwise: () -> Boolean): Boolean {
+    for (place in places) if (open(place)) return true
+    return otherwise()
 }

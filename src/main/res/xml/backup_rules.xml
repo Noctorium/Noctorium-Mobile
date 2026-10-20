@@ -6,9 +6,14 @@
   The history of what was played on this phone stays on this phone (see PlayHistory in Base), so its file, with the
   file it is written through and one set aside as unreadable, goes in no backup. Nothing is named to be included,
   so everything else is backed up exactly as it was before there were rules.
+
+  Keep-alive's notes, the song playing a moment ago and the times this phone refused to start it, are about this
+  phone at this moment, and would be wrong on any other, so they stay too. Whether keep-alive is on is a setting, and
+  goes with the others.
 -->
 <full-backup-content>
     <exclude domain="file" path="noctorium/play-history.json" />
     <exclude domain="file" path="noctorium/play-history.json.tmp" />
     <exclude domain="file" path="noctorium/play-history.json.unreadable" />
+    <exclude domain="sharedpref" path="keep-alive.xml" />
 </full-backup-content>

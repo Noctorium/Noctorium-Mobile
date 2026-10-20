@@ -169,6 +169,7 @@ internal object SettingIds {
     const val TIDAL_APP = "tidal-app"
     const val HYBRID_SEARCH = "hybrid-search"
     const val KEEP_PLAYING = "keep-playing"
+    const val KEEP_ALIVE = "keep-alive"
     const val KEEP_SCREEN_ON = "keep-screen-on"
     const val WIFI_ONLY = "wifi-only"
     const val DATA_SAVER = "data-saver"
@@ -638,6 +639,19 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "Letting Noctorium run in the background, so the music carries on with the screen off.",
         listOf("background", "battery", "battery optimisation", "battery optimization", "stops when locked", "doze"),
         stores = listOf("phone.askedAboutBackground"),
+    ),
+    // What somebody types whose phone keeps closing Noctorium: that it gets killed, that it stops playing, what their
+    // phone's own settings call the switch it needs, and the site everybody is sent to about it.
+    PhoneSetting(
+        SettingIds.KEEP_ALIVE, "Keep Noctorium alive", SettingsPage.PHONE, "keep-alive",
+        "Keeps it running in the background with a quiet notification, and brings it back when the phone stops it.",
+        listOf(
+            "keep alive", "keepalive", "stay alive", "background", "running in the background", "killed", "gets killed",
+            "closes by itself", "app closes", "stops playing", "music stops", "keeps stopping", "battery", "battery saver",
+            "autostart", "auto start", "auto-launch", "app launch", "never sleeping", "dontkillmyapp", "power manager",
+            "after restart", "after reboot", "start on boot", "notification",
+        ),
+        stores = listOf("phone.keepAlive"),
     ),
     PhoneSetting(
         SettingIds.KEEP_SCREEN_ON, "Keep the screen on", SettingsPage.PHONE, "phone",
