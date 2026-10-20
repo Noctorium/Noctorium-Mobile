@@ -25,6 +25,9 @@ import java.lang.ref.WeakReference
  */
 interface PlaybackHost {
     fun sessionPlayer(): Player
+
+    /** Whether this phone is playing, or about to, by the player itself: what the music needs the foreground for. */
+    fun playingHere(): Boolean = false
 }
 
 /**
@@ -68,9 +71,17 @@ class PlaybackService : MediaSessionService() {
         setListener(object : Listener {
             override fun onForegroundServiceStartNotAllowedException() {
                 KeepAlive.refused(this@PlaybackService, KeepAliveStart.MUSIC)
+                // Refused while music plays here: the music is out of the foreground, where Android may freeze it.
+                if (session?.player?.let(::runsInForegroundByItself) == true) {
+                    BackgroundPlay.interrupted(
+                        this@PlaybackService,
+                        interruptionFor(BackgroundPlayback.restrictedInBackground(this@PlaybackService), refused = true, regained = false),
+                    )
+                }
             }
         })
         val player = (application as PlaybackHost).sessionPlayer()
+        player.addListener(watch)
         // A notification of Media3's left over with nothing loaded is from before: a process Android killed, whose
         // session is gone, so the controls on it answer nothing. The one wanted is posted afresh below.
         if (!showsSong(player)) NotificationManagerCompat.from(this).cancel(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID)
@@ -132,21 +143,22 @@ class PlaybackService : MediaSessionService() {
      * song is loaded, and keep-alive's quiet one when none is.
      */
     override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        resync()
         when (foregroundPlan(KeepAlive.on(this), showsSong(session.player), holding)) {
             ForegroundPlan.AS_MEDIA3 -> {
                 super.onUpdateNotification(session, startInForegroundRequired)
-                holding = if (isPlaybackOngoing) Holding.SONG else Holding.NOTHING
+                holding = if (heldByMedia3()) Holding.SONG else Holding.NOTHING
             }
             ForegroundPlan.LET_GO_OF_READY -> {
                 ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
                 holding = Holding.NOTHING
                 super.onUpdateNotification(session, startInForegroundRequired)
-                holding = if (isPlaybackOngoing) Holding.SONG else Holding.NOTHING
+                holding = if (heldByMedia3()) Holding.SONG else Holding.NOTHING
             }
             ForegroundPlan.SONG_KEPT -> {
                 // Throws when Android refuses the foreground, which Media3 catches and tells the listener set above.
                 super.onUpdateNotification(session, true)
-                if (isPlaybackOngoing) {
+                if (heldByMedia3()) {
                     holding = Holding.SONG
                     // The music's notification holds the foreground now; the quiet one is not wanted beside it.
                     KeepAliveService.standDown(this)
@@ -177,6 +189,97 @@ class PlaybackService : MediaSessionService() {
             KeepAlive.refused(this, KeepAliveStart.MUSIC, refusal)
             holding = Holding.NOTHING
         }
+    }
+
+    /**
+     * Whether Android has this service in the foreground now. From Android 10, Android itself is asked: it takes a
+     * service out of the foreground without a word to it -- a phone restricting Noctorium in the background does it
+     * the moment Noctorium is left -- and nothing here would otherwise know. Before 10, what this did last is all
+     * there is to go on.
+     */
+    private fun inForeground(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) foregroundServiceType != ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE else holding != Holding.NOTHING
+
+    /** Whether Media3 put the music's notification in the foreground just now: by Android's word, where it can be had. */
+    private fun heldByMedia3(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) inForeground() else isPlaybackOngoing
+
+    /**
+     * [holding] put right where Android took the foreground away. Left as it was, it went on saying the music held the
+     * foreground after Android had taken it -- so keep-alive did not start its own service, believing the music held
+     * it, and nothing here thought anything was wrong.
+     */
+    private fun resync() {
+        if (holding != Holding.NOTHING && !inForeground()) holding = Holding.NOTHING
+    }
+
+    /** Whether this held the foreground at some point while the music has been playing: a loss of it is Android's doing. */
+    private var heldWhilePlaying = false
+
+    /** Whether the loss going on now has been noted, so that a long one is noted once rather than every ten seconds. */
+    private var lossNoted = false
+
+    /** A moment after the player changes, once Media3 has had its own go at the notification: see [winForegroundBack]. */
+    private val afterChange = Runnable { winForegroundBack(ForegroundCheck.EVENT) }
+
+    /** What the player does, watched for [winForegroundBack]. */
+    private val watch = object : Player.Listener {
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAny(
+                    Player.EVENT_PLAYBACK_STATE_CHANGED,
+                    Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                    Player.EVENT_IS_PLAYING_CHANGED,
+                    Player.EVENT_MEDIA_ITEM_TRANSITION,
+                )
+            ) {
+                main.removeCallbacks(afterChange)
+                main.postDelayed(afterChange, AFTER_CHANGE_MS)
+            }
+        }
+    }
+
+    /**
+     * While the music plays here, makes sure it has the foreground, and takes it back if Android has taken it.
+     *
+     * Media3 goes into the foreground when its notification changes, and never asks whether it is still there; so once
+     * Android had taken the foreground away, the music went on without it, song after song, as a plain background
+     * process -- which a phone that freezes cached apps freezes. This asks Android, after each change of what the
+     * player does, every ten seconds while it plays, and whenever Noctorium comes to the front (see BackgroundPlay),
+     * and puts the music's notification back in the foreground where it has gone, as Media3 would for a song starting.
+     * Android may refuse that from the background; the refusal, or the restriction behind it, is noted for the listener.
+     */
+    internal fun winForegroundBack(check: ForegroundCheck) {
+        val current = session ?: return
+        resync()
+        if (!runsInForegroundByItself(current.player)) {
+            heldWhilePlaying = false
+            lossNoted = false
+            return
+        }
+        if (inForeground()) {
+            heldWhilePlaying = true
+            lossNoted = false
+            return
+        }
+        val wasHeld = heldWhilePlaying
+        // Media3 lets go of a session whose controller went away, and would then show nothing for it.
+        addSession(current)
+        var refused = false
+        try {
+            onUpdateNotification(current, true)
+        } catch (refusal: IllegalStateException) {
+            refused = true
+            KeepAlive.refused(this, KeepAliveStart.MUSIC, refusal)
+        } catch (refusal: SecurityException) {
+            refused = true
+        }
+        val regained = inForeground()
+        if (regained) heldWhilePlaying = true
+        android.util.Log.i(LOG_TAG, "Playing out of the foreground ($check); ${if (regained) "taken back" else "not taken back"}")
+        // Noted when Android took it, or when it could not be had at all; not for the moment before Media3 has it.
+        if ((wasHeld || !regained) && !lossNoted) {
+            BackgroundPlay.interrupted(this, interruptionFor(BackgroundPlayback.restrictedInBackground(this), refused, regained))
+        }
+        lossNoted = !regained
     }
 
     /** The same as Media3's own changes, for one that is not: keep-alive switched, or a cover that arrived late. */
@@ -210,6 +313,14 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         running = null
+        main.removeCallbacks(afterChange)
+        // Stopped by Android while the music plays on: noted, and the application brings a service up again for it.
+        session?.player?.let { player ->
+            player.removeListener(watch)
+            if (runsInForegroundByItself(player)) {
+                BackgroundPlay.interrupted(this, interruptionFor(BackgroundPlayback.restrictedInBackground(this), refused = false, regained = false, stopped = true))
+            }
+        }
         val held = holding != Holding.NOTHING
         holding = Holding.NOTHING
         // The session is released; the player is not. It belongs to the application, which may still be
@@ -245,7 +356,20 @@ class PlaybackService : MediaSessionService() {
     }
 
     companion object {
+        private const val LOG_TAG = "NoctoriumPlayback"
+
+        /** How long after the player changes the foreground is checked on: Media3 sees the change a moment later. */
+        private const val AFTER_CHANGE_MS = 1_500L
+
         private var running: WeakReference<PlaybackService>? = null
+
+        /** The service, if it is running in this process. */
+        internal fun current(): PlaybackService? = running?.get()
+
+        /** What the service holds, put right where Android has taken the foreground away: see [resync]. */
+        internal fun resyncHeld() {
+            current()?.resync()
+        }
 
         /** Whether keep-alive's quiet notification is showing from here. */
         @Volatile

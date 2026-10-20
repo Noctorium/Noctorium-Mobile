@@ -83,6 +83,24 @@ internal class KeepAliveStore(context: Context) {
         get() = notes.getBoolean(HINT_DISMISSED, false)
         set(value) = notes.edit().putBoolean(HINT_DISMISSED, value).apply()
 
+    /** The times the music lost the foreground in the background, newest last; only the last few are kept. */
+    val interruptions: List<Interrupted>
+        get() = notes.getString(INTERRUPTIONS, null).orEmpty().split(',').mapNotNull { entry ->
+            val (why, at) = entry.split('@').takeIf { it.size == 2 } ?: return@mapNotNull null
+            val kind = runCatching { Interruption.valueOf(why) }.getOrNull() ?: return@mapNotNull null
+            at.toLongOrNull()?.let { Interrupted(kind, it) }
+        }
+
+    fun interrupted(interruption: Interrupted) {
+        val kept = (interruptions + interruption).takeLast(KEPT_REFUSALS)
+        notes.edit().putString(INTERRUPTIONS, kept.joinToString(",") { "${it.why.name}@${it.atMs}" }).apply()
+    }
+
+    /** Up to when the listener has been told about [interruptions]. */
+    var interruptionsSeenAt: Long
+        get() = notes.getLong(INTERRUPTIONS_SEEN, 0)
+        set(value) = notes.edit().putLong(INTERRUPTIONS_SEEN, value).apply()
+
     private companion object {
         const val FILE = "keep-alive"
         const val SONG = "heartbeat.song"
@@ -92,6 +110,8 @@ internal class KeepAliveStore(context: Context) {
         const val BOOTED_AT = "heartbeat.bootedAt"
         const val REFUSALS = "refusals"
         const val HINT_DISMISSED = "hintDismissed"
+        const val INTERRUPTIONS = "interruptions"
+        const val INTERRUPTIONS_SEEN = "interruptionsSeenAt"
         const val KEPT_REFUSALS = 20
     }
 }

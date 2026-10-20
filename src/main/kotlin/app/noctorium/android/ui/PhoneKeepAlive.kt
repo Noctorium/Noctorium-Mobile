@@ -64,6 +64,12 @@ internal data class KeepAliveFacts(
     /** What the phone says it is by, for dontkillmyapp.com's page about a maker that has no entry here. */
     val manufacturer: String = "",
     val hintDismissed: Boolean = false,
+    /** Whether the phone restricts Noctorium in the background: see BackgroundPlayback.restrictedInBackground. */
+    val restricted: Boolean = false,
+    /** Android 9 and later, which can restrict an app in the background, and say so. */
+    val asksAboutRestriction: Boolean = true,
+    /** The times in the last week Android stopped the music in the background, or took it out of the foreground for good. */
+    val musicStopped: Int = 0,
     /** The moment these were read, which "today at 14:02" is said from. */
     val nowMs: Long = 0,
 ) {
@@ -80,6 +86,9 @@ internal data class KeepAliveFacts(
                 maker = PhoneMaker.thisPhone,
                 manufacturer = Build.MANUFACTURER.orEmpty(),
                 hintDismissed = store.hintDismissed,
+                restricted = BackgroundPlayback.restrictedInBackground(context),
+                asksAboutRestriction = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P,
+                musicStopped = worthSaying(store.interruptions).count { it.atMs in (now - LATELY_MS)..now },
                 nowMs = now,
             )
         }
@@ -129,6 +138,11 @@ internal fun KeepAliveCard(settings: SettingsState, state: AppState) {
             }
             crashesInWords(exits)?.let { Line(Glyph.ERROR_OUTLINE, it) }
         }
+        // Whatever keep-alive is set to: these stop the music itself.
+        if (facts.restricted) Line(Glyph.WARNING, RESTRICTED_WORDS, warning = true)
+        if (facts.musicStopped > 0) {
+            Line(Glyph.BATTERY_ALERT, "Android stopped the music in the background ${timesInWords(facts.musicStopped)} in the last week.", warning = true)
+        }
         if (on && facts.refusals > 0) {
             Line(
                 Glyph.WARNING,
@@ -142,6 +156,16 @@ internal fun KeepAliveCard(settings: SettingsState, state: AppState) {
             Spacer(Modifier.height(10.dp))
             Text("What this phone needs", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(2.dp))
+            if (facts.asksAboutRestriction) {
+                Step(
+                    done = !facts.restricted,
+                    glyph = Glyph.BATTERY_FULL,
+                    title = if (facts.restricted) "Restricted in the background" else "Not restricted in the background",
+                    detail = "Restricted, the music stops when you switch apps, whatever else is allowed. Lifted in " +
+                        "Noctorium's battery usage: Unrestricted, or Allow background activity.",
+                    button = "Allow".takeIf { facts.restricted },
+                ) { BackgroundPlayback.openBackgroundActivity(context) }
+            }
             Step(
                 done = facts.unrestricted,
                 glyph = Glyph.BATTERY_FULL,

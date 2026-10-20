@@ -131,10 +131,21 @@ class MainActivity : ComponentActivity() {
      * Keep-alive, every time Noctorium comes to the front, when it is on: on the screen is when Android always lets an
      * app into the foreground, and opening Noctorium is the one way back after a force stop, which nothing else can
      * get round. Already running, this changes nothing.
+     *
+     * And the music's foreground, keep-alive or not: if Android took it away while Noctorium was in the background, on
+     * the screen is where it is surely had back (see BackgroundPlay).
      */
     override fun onStart() {
         super.onStart()
+        BackgroundPlay.visible = true
         KeepAlive.start(applicationContext, KeepAliveStart.APP)
+        BackgroundPlay.ensure(applicationContext, ForegroundCheck.APP)
+    }
+
+    /** Off the screen: from here, a loss of the music's foreground is noted, to be explained when Noctorium is back. */
+    override fun onStop() {
+        BackgroundPlay.visible = false
+        super.onStop()
     }
 
     /** A link shared while Noctorium was already open: singleTask brings this one forward rather than a new one. */

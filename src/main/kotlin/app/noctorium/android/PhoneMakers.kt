@@ -12,7 +12,8 @@ package app.noctorium.android
 
 /** One way into a maker's settings page: an activity by name, or an action, with what it is told about Noctorium. */
 internal data class MakerTarget(
-    val packageName: String,
+    /** The settings app it is in; null for an action any settings app may answer. */
+    val packageName: String?,
     val className: String? = null,
     val action: String? = null,
     /** An address to open, for the pages that are reached by one. */
@@ -21,6 +22,8 @@ internal data class MakerTarget(
     val packageExtras: List<String> = emptyList(),
     /** An extra that is Noctorium's name, for the page that shows it at the top. */
     val labelExtra: String? = null,
+    /** Whether the page is opened on Noctorium's address, `package:` and its name, as Android's own pages are. */
+    val packageData: Boolean = false,
 )
 
 /** What one of a maker's pages is for. */
@@ -53,6 +56,18 @@ private val COLOR_OS_STARTUP = listOf(
     MakerTarget("com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity"),
     MakerTarget("com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity"),
     MakerTarget("com.coloros.safecenter", "com.coloros.privacypermissionsentry.PermissionTopActivity"),
+)
+
+
+/**
+ * ColorOS's "Allow background activity", in Noctorium's battery usage, which Oppo, realme and OnePlus phones share:
+ * off, it is Android's background restriction, and the music stops the moment Noctorium is left.
+ */
+private val COLOR_OS_BACKGROUND_ACTIVITY = MakerPage(
+    MakerPageKind.BATTERY,
+    "Allow background activity (App info › Battery usage)",
+    "Off, the phone takes the music out of the foreground when you switch apps, and stops it.",
+    listOf(MakerTarget(null, action = ACTION_POWER_USAGE_DETAIL, packageData = true)),
 )
 
 /** Huawei's start-up manager, which the Honor phones from before Honor was its own company also have. */
@@ -180,10 +195,11 @@ internal enum class PhoneMaker(
                     MakerTarget("com.oneplus.security", "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity"),
                 ) + COLOR_OS_STARTUP,
             ),
+            COLOR_OS_BACKGROUND_ACTIVITY,
         ),
     ),
-    OPPO("Oppo", setOf("oppo"), "oppo", listOf(autostart("Auto-launch, in Oppo's settings", COLOR_OS_STARTUP))),
-    REALME("realme", setOf("realme"), "realme", listOf(autostart("Auto-launch, in realme's settings", COLOR_OS_STARTUP))),
+    OPPO("Oppo", setOf("oppo"), "oppo", listOf(autostart("Auto-launch, in Oppo's settings", COLOR_OS_STARTUP), COLOR_OS_BACKGROUND_ACTIVITY)),
+    REALME("realme", setOf("realme"), "realme", listOf(autostart("Auto-launch, in realme's settings", COLOR_OS_STARTUP), COLOR_OS_BACKGROUND_ACTIVITY)),
     VIVO(
         "Vivo",
         setOf("vivo", "iqoo"),

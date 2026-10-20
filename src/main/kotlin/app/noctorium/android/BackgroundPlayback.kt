@@ -1,11 +1,13 @@
 package app.noctorium.android
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.app.NotificationManagerCompat
@@ -30,6 +32,25 @@ object BackgroundPlayback {
     /** Phones whose own power manager is known to stop music at the lock screen without this. */
     val strictManufacturer: Boolean
         get() = PhoneMaker.thisPhone == PhoneMaker.XIAOMI
+
+    /**
+     * Whether the phone restricts Noctorium in the background: Android's "Restricted" battery choice for it, which
+     * OnePlus calls "Allow background activity" switched off. Restricted, Android takes the music out of the foreground
+     * the moment Noctorium is left and stops it soon after; nothing Noctorium does gets round that, only the switch.
+     * Android 9 and later; nothing before.
+     */
+    fun restrictedInBackground(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        val activities = context.getSystemService(ActivityManager::class.java) ?: return false
+        return runCatching { activities.isBackgroundRestricted }.getOrDefault(false)
+    }
+
+    /**
+     * Noctorium's battery usage page, where the restriction is lifted: "Unrestricted" on Android's own, "Allow background
+     * activity" on OnePlus's. Its app info page where the phone has no such page to open straight onto.
+     */
+    fun openBackgroundActivity(context: Context): Boolean =
+        open(context, Intent(ACTION_POWER_USAGE_DETAIL, Uri.parse("package:${context.packageName}"))) || openAppInfo(context)
 
     /**
      * Android's own "let this app always run in the background?" dialog, for Noctorium.
@@ -80,8 +101,12 @@ object BackgroundPlayback {
     /** The intent that opens [target], told it is Noctorium's page that is wanted where the page takes that. */
     internal fun intentFor(context: Context, target: MakerTarget): Intent = Intent().apply {
         target.action?.let(::setAction)
-        if (target.className != null) component = ComponentName(target.packageName, target.className) else setPackage(target.packageName)
+        when {
+            target.packageName != null && target.className != null -> component = ComponentName(target.packageName, target.className)
+            target.packageName != null -> setPackage(target.packageName)
+        }
         target.data?.let { data = Uri.parse(it) }
+        if (target.packageData) data = Uri.parse("package:${context.packageName}")
         target.packageExtras.forEach { putExtra(it, context.packageName) }
         target.labelExtra?.let { putExtra(it, context.applicationInfo.loadLabel(context.packageManager).toString()) }
     }
@@ -96,6 +121,12 @@ object BackgroundPlayback {
         false
     }
 }
+
+/**
+ * Android's page for one app's battery usage, by the action its settings answer to; not in the SDK's constants, though every
+ * phone checked has it, and nothing breaks where one does not: the app info page is opened instead.
+ */
+internal const val ACTION_POWER_USAGE_DETAIL = "android.settings.VIEW_ADVANCED_POWER_USAGE_DETAIL"
 
 /** The first of [places] that [open] opens, or [otherwise] where none does. */
 internal fun <T> openFirst(places: List<T>, open: (T) -> Boolean, otherwise: () -> Boolean): Boolean {

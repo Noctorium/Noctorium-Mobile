@@ -199,6 +199,9 @@ fun NoctoriumPhone(state: AppState) {
     // Asked once, the first time something plays on a phone that could stop it when the screen locks: playing
     // here, which music on another device is not.
     KeepPlayingPrompt(state, playing = reported.isPlaying)
+    // The music stopped in the background while the listener was away, or about to be, on a phone that restricts
+    // Noctorium there: said once each, with the way to stop it.
+    BackgroundPlayNotices(playing = reported.isPlaying)
     /*
      * Start page, including the one the phone was quietly dropping.
      *
@@ -317,6 +320,8 @@ fun NoctoriumPhone(state: AppState) {
                     ) { screens() }
 
                     Column(Modifier.windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))) {
+                        // Above the player bar while the phone restricts Noctorium in the background: see BackgroundPlay.
+                        BackgroundRestrictedBanner()
                         if (playback.track != null && !barAtTop) {
                             PlayerBar(
                                 playback,
@@ -473,6 +478,7 @@ private fun BoxScope.GlassChrome(
             .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
             .padding(start = inset, end = inset, bottom = inset / 2),
     ) {
+        BackgroundRestrictedBanner(Modifier.padding(bottom = 6.dp))
         if (playback.track != null && !barAtTop) {
             GlassPane(backdrop, cornerRadius = barPaneCorner(settings.preferences.phone.playerBarStyle)) {
                 PlayerBar(

@@ -170,6 +170,13 @@ class NoctoriumApplication : Application(), ImageLoaderFactory, KeepAliveHost, P
         scope.launch {
             state.connect.map { it.available }.distinctUntilChanged().drop(1).collect { KeepAliveNotification.refresh(this@NoctoriumApplication) }
         }
+        // And, keep-alive or not, the music kept in the foreground while it plays here: see BackgroundPlay.
+        BackgroundPlay.follow(this, state.playback, scope)
+    }
+
+    /** Whether the player is playing, or loading to play: what the music needs the foreground for. */
+    override fun playingHere(): Boolean = player.mediaPlayer.let {
+        it.playWhenReady && (it.playbackState == androidx.media3.common.Player.STATE_READY || it.playbackState == androidx.media3.common.Player.STATE_BUFFERING)
     }
 
     /**

@@ -121,6 +121,8 @@ class StickyRestartApplication : Application(), KeepAliveHost, PlaybackHost {
 
     override fun sessionPlayer(): Player = player
 
+    override fun playingHere(): Boolean = PlaybackService.runsInForegroundByItself(player)
+
     override fun pickUp(queueKey: String, positionMs: Long): Boolean {
         pickedUp += queueKey to positionMs
         player.start(listOf("Willow Creek Morning", "Moon"), positionMs)

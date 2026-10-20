@@ -190,6 +190,8 @@ internal object KeepAlive {
      */
     fun start(context: Context, start: KeepAliveStart): Boolean {
         if (!on(context)) return false
+        // As Android has it, not as it was last heard: Android takes the music out of the foreground without a word.
+        PlaybackService.resyncHeld()
         if (heldByPlayback || KeepAliveService.running) return true
         return try {
             ContextCompat.startForegroundService(context, KeepAliveService.intent(context, start))

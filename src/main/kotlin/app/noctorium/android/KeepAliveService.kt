@@ -47,6 +47,7 @@ class KeepAliveService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        PlaybackService.resyncHeld()
         if (!KeepAlive.on(this) || KeepAlive.heldByPlayback) {
             stopEverything()
             return START_NOT_STICKY
