@@ -1,6 +1,7 @@
 package app.noctorium.android
 
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -85,15 +86,43 @@ class PlaybackService : MediaSessionService() {
              */
             addSession(built)
         }
+        settleCarriedOver(player)
+    }
+
+    /**
+     * The foreground the process before this one left behind, when Android starts the service again by itself.
+     *
+     * Android keeps a foreground service that it means to restart in the foreground, and puts the old process's
+     * notification back up as it restarts it: the music's, for the song that was loaded then, with that process's dead
+     * session on it, so it shows a song this process has not loaded and its buttons answer nothing. Media3 only takes
+     * a service out of the foreground when something changes, and with nothing loaded here nothing does -- so it stayed,
+     * beside the quiet notification, for as long as nothing played.
+     *
+     * Nothing loaded is the only way a service starts: a song loaded already belongs to this process, and Media3 has
+     * it. With keep-alive on, the quiet notification takes the old one's place here without leaving the foreground,
+     * which spares asking Android to let Noctorium into it again from the background; with it off, the old one goes.
+     * Before Android 10 there is no asking whether a service is in the foreground, so it is let go of as if it were.
+     */
+    private fun settleCarriedOver(player: Player) {
+        if (showsSong(player)) return
+        val carried = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || foregroundServiceType != ServiceInfo.FOREGROUND_SERVICE_TYPE_NONE
+        if (!carried) return
+        if (KeepAlive.on(this) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) showReady()
+        // Off, before Android 10, or refused the quiet notification in its place: the old one goes all the same, and the
+        // quiet notification's own service is started for it below.
+        if (holding == Holding.NOTHING) ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val asked = super.onStartCommand(intent, flags, startId)
-        // No intent is Android starting this again by itself after the process was killed, Media3's being sticky. The
-        // quiet notification's service takes it from there, and picks up the song if one was playing a moment ago.
-        if (intent == null && holding == Holding.NOTHING) KeepAlive.start(this, KeepAliveStart.STICKY)
+        // No intent is Android starting this again by itself after the process was killed, Media3's being sticky.
+        // Already holding the foreground -- the old one, settled above -- this picks up a song that was playing a
+        // moment ago itself; otherwise the quiet notification's service takes it from there, and picks it up.
+        if (intent == null) {
+            if (holding != Holding.NOTHING) KeepAlive.cameBack(this, KeepAliveStart.STICKY) else KeepAlive.start(this, KeepAliveStart.STICKY)
+        }
         return asked
     }
 
@@ -131,11 +160,16 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    /** Keep-alive's quiet notification in place of the music's, without leaving the foreground. */
+    /**
+     * Keep-alive's quiet notification in place of the music's, without leaving the foreground. Held here, it is not
+     * wanted from the quiet notification's own service as well: the two share its id, so it showed once, but the
+     * other service has nothing left to do.
+     */
     private fun showReady() {
         try {
             ServiceCompat.startForeground(this, KeepAliveNotification.ID, KeepAliveNotification.build(this), readyForegroundType(Build.VERSION.SDK_INT))
             holding = Holding.READY
+            KeepAliveService.standDown(this)
         } catch (refusal: IllegalStateException) {
             KeepAlive.refused(this, KeepAliveStart.MUSIC, refusal)
             holding = Holding.NOTHING
