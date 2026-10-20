@@ -38,6 +38,11 @@ internal data class MakerPage(
     val title: String,
     val detail: String,
     val targets: List<MakerTarget>,
+    /**
+     * Whether keep-alive cannot work on this maker's phones without it -- found so, not guessed -- which the checklist
+     * says in so many words, since none of these pages can be read back to tick.
+     */
+    val needed: Boolean = false,
 )
 
 private const val AUTOSTART_DETAIL = "Lets Noctorium start by itself after the phone restarts, and again when it is stopped."
@@ -79,15 +84,26 @@ internal enum class PhoneMaker(
     val guide: String,
     val pages: List<MakerPage> = emptyList(),
     val tip: String? = null,
+    /**
+     * Whether Android's own battery optimisation exemption is needed on its phones too, rather than only helping: on
+     * these, without it, Android refuses keep-alive's foreground every time the watchdog or a restart brings it back.
+     */
+    val needsBackgroundExemption: Boolean = false,
 ) {
     XIAOMI(
         "Xiaomi",
         setOf("xiaomi", "redmi", "poco"),
         "xiaomi",
         listOf(
-            autostart(
+            // Seen on a Redmi Note 12 Pro with Android 14: without Autostart, Xiaomi's system will not start Noctorium
+            // again for anything -- no restart by Android, no alarm, no broadcast -- so nothing brings it back.
+            MakerPage(
+                MakerPageKind.AUTOSTART,
                 "Autostart, in Xiaomi's settings",
-                listOf(
+                "Without it nothing brings Noctorium back once it is closed, nor after a restart. Noctorium cannot " +
+                    "see this switch, so it is never ticked here: check it is on.",
+                needed = true,
+                targets = listOf(
                     MakerTarget("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"),
                     // Noctorium's own page of Xiaomi's permissions, where Autostart is one of the switches.
                     MakerTarget(
@@ -114,6 +130,8 @@ internal enum class PhoneMaker(
             ),
         ),
         tip = "In the recent apps, hold Noctorium's card and lock it, so clearing them leaves it running.",
+        // Seen on the same phone: with Autostart but without it, Android 14 refused the watchdog's every start.
+        needsBackgroundExemption = true,
     ),
     HUAWEI(
         "Huawei",

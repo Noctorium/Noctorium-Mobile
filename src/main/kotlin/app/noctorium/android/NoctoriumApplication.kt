@@ -39,7 +39,7 @@ import org.schabi.newpipe.extractor.NewPipe
  * framework because there is nothing here one would help with: a handful of objects, in a fixed order,
  * none of them optional.
  */
-class NoctoriumApplication : Application(), ImageLoaderFactory, KeepAliveHost {
+class NoctoriumApplication : Application(), ImageLoaderFactory, KeepAliveHost, PlaybackHost {
 
     /** Every cover in the application comes through here: see [artworkImageLoader]. */
     override fun newImageLoader(): ImageLoader = artworkImageLoader(this)
@@ -171,6 +171,33 @@ class NoctoriumApplication : Application(), ImageLoaderFactory, KeepAliveHost {
             state.connect.map { it.available }.distinctUntilChanged().drop(1).collect { KeepAliveNotification.refresh(this@NoctoriumApplication) }
         }
     }
+
+    /**
+     * The player the media session is built around, for the media session service.
+     *
+     * Wrapped, so that skipping from the lock screen reaches the queue that actually holds the tracks. See
+     * QueueAwarePlayer: the bare ExoPlayer only ever has one item and reports, correctly and uselessly, that there is
+     * nothing to skip to.
+     */
+    override fun sessionPlayer(): androidx.media3.common.Player = QueueAwarePlayer(
+        player = player.mediaPlayer,
+        goNext = state::next,
+        goPrevious = state::previous,
+        // The queue the player shows: this phone's, or the one on the device it is the remote control of.
+        canGoNext = { state.shownQueue.value.hasNext },
+        // A song playing can always go back to its start, so the first in the queue keeps the button too.
+        canGoPrevious = { state.canGoPrevious || state.connect.value.target != null },
+        repeatMode = { state.shownQueue.value.repeatMode },
+        setRepeat = state.queue::setRepeat,
+        remote = {
+            when {
+                state.connect.value.target == null -> null
+                state.shownPlayback.value.isPlaying -> QueueAwarePlayer.RemotePlaying.PLAYING
+                else -> QueueAwarePlayer.RemotePlaying.PAUSED
+            }
+        },
+        togglePlayback = state::togglePlayback,
+    )
 
     override val keepAliveOn: Boolean
         get() = ::state.isInitialized && state.settings.value.preferences.phone.keepAlive

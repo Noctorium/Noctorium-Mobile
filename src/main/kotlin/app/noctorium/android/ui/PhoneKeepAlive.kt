@@ -146,8 +146,13 @@ internal fun KeepAliveCard(settings: SettingsState, state: AppState) {
                 done = facts.unrestricted,
                 glyph = Glyph.BATTERY_FULL,
                 title = if (facts.unrestricted) "Allowed to run in the background" else "Not yet allowed to run in the background",
-                detail = "Android's battery optimisation. Allowed, Noctorium may also start itself again after being stopped.",
+                detail = if (facts.maker?.needsBackgroundExemption == true) {
+                    "Android's battery optimisation. Without it, Android will not let Noctorium start itself again once it is stopped."
+                } else {
+                    "Android's battery optimisation. Allowed, Noctorium may also start itself again after being stopped."
+                },
                 button = "Allow".takeUnless { facts.unrestricted },
+                needed = facts.maker?.needsBackgroundExemption == true,
             ) { BackgroundPlayback.ask(context) }
             if (facts.asksForNotifications) {
                 Step(
@@ -166,6 +171,7 @@ internal fun KeepAliveCard(settings: SettingsState, state: AppState) {
                     title = page.title,
                     detail = page.detail,
                     button = "Open",
+                    needed = page.needed,
                 ) { BackgroundPlayback.openMakerPage(context, page) }
             }
             if (pages.isEmpty()) {
@@ -213,9 +219,19 @@ private fun Line(glyph: Glyph, text: String, warning: Boolean = false) {
 /**
  * One thing the phone has to be told, with the way to tell it. [done] is ticked when Noctorium can tell it has been,
  * marked when it can tell it has not, and null -- the line's own icon -- where the phone gives no way of knowing.
+ * [needed] says, above the rest, that keep-alive does not work on this phone without it: for a page that cannot be
+ * read back, so that a line with no tick is not taken for one that does not matter.
  */
 @Composable
-private fun Step(done: Boolean?, glyph: Glyph, title: String, detail: String?, button: String?, onClick: () -> Unit) {
+private fun Step(
+    done: Boolean?,
+    glyph: Glyph,
+    title: String,
+    detail: String?,
+    button: String?,
+    needed: Boolean = false,
+    onClick: () -> Unit,
+) {
     val (icon, tint) = when (done) {
         true -> Glyph.CHECK_CIRCLE to MaterialTheme.colorScheme.primary
         false -> Glyph.ERROR_OUTLINE to MaterialTheme.colorScheme.error
@@ -225,6 +241,15 @@ private fun Step(done: Boolean?, glyph: Glyph, title: String, detail: String?, b
         Icon(icon.image, if (done == true) "Done" else null, Modifier.size(18.dp), tint = tint)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
+            if (needed) {
+                Text(
+                    "Needed on this phone",
+                    fontSize = 10.sp,
+                    lineHeight = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (done == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                )
+            }
             Text(title, fontSize = 12.sp, lineHeight = 16.sp, color = if (done == false) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
             detail?.let { Text(it, fontSize = 11.sp, lineHeight = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }

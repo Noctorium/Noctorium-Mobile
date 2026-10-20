@@ -64,6 +64,24 @@ class PhoneMakersTest {
         assertNotNull(PhoneMaker.XIAOMI.tip)
     }
 
+    /**
+     * Found on a Redmi with Android 14: without Autostart nothing brought Noctorium back, and with it but without
+     * Android's exemption every start from the background was refused. So both are needed there, and said to be;
+     * Autostart cannot be read back, so it says so too rather than sitting unticked like something optional.
+     */
+    @Test
+    fun `on Xiaomi's phones both Autostart and Android's exemption are needed, and only there are they said to be`() {
+        val autostart = PhoneMaker.XIAOMI.page(MakerPageKind.AUTOSTART)!!
+        assertTrue(autostart.needed)
+        assertTrue("never ticked" in autostart.detail)
+        assertTrue(PhoneMaker.XIAOMI.needsBackgroundExemption)
+        assertFalse(PhoneMaker.XIAOMI.page(MakerPageKind.BATTERY)!!.needed)
+        for (maker in PhoneMaker.entries - PhoneMaker.XIAOMI) {
+            assertFalse(maker.needsBackgroundExemption, maker.displayName)
+            assertTrue(maker.pages.none { it.needed }, maker.displayName)
+        }
+    }
+
     @Test
     fun `every maker the user's list names has a page to try, or is known to need only Android's own settings`() {
         val withPages = listOf(

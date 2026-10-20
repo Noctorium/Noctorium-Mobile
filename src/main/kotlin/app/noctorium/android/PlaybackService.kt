@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.OptIn
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -16,6 +17,14 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.collect.ImmutableList
 import java.lang.ref.WeakReference
+
+/**
+ * What the media session service plays: the application's one player, as the session is to see it. The application
+ * is it (see NoctoriumApplication.sessionPlayer); a test hands the service a player of its own.
+ */
+interface PlaybackHost {
+    fun sessionPlayer(): Player
+}
 
 /**
  * What keeps the music going when Noctorium is not on screen.
@@ -60,31 +69,22 @@ class PlaybackService : MediaSessionService() {
                 KeepAlive.refused(this@PlaybackService, KeepAliveStart.MUSIC)
             }
         })
-        val application = application as NoctoriumApplication
-        val state = application.state
-        // Wrapped, so that skipping from the lock screen reaches the queue that actually holds the tracks.
-        // See QueueAwarePlayer: the bare ExoPlayer only ever has one item and reports, correctly and
-        // uselessly, that there is nothing to skip to.
-        val player = QueueAwarePlayer(
-            player = application.player.mediaPlayer,
-            goNext = state::next,
-            goPrevious = state::previous,
-            // The queue the player shows: this phone's, or the one on the device it is the remote control of.
-            canGoNext = { state.shownQueue.value.hasNext },
-            // A song playing can always go back to its start, so the first in the queue keeps the button too.
-            canGoPrevious = { state.canGoPrevious || state.connect.value.target != null },
-            repeatMode = { state.shownQueue.value.repeatMode },
-            setRepeat = state.queue::setRepeat,
-            remote = {
-                when {
-                    state.connect.value.target == null -> null
-                    state.shownPlayback.value.isPlaying -> QueueAwarePlayer.RemotePlaying.PLAYING
-                    else -> QueueAwarePlayer.RemotePlaying.PAUSED
-                }
-            },
-            togglePlayback = state::togglePlayback,
-        )
-        session = MediaSession.Builder(this, player).build()
+        val player = (application as PlaybackHost).sessionPlayer()
+        // A notification of Media3's left over with nothing loaded is from before: a process Android killed, whose
+        // session is gone, so the controls on it answer nothing. The one wanted is posted afresh below.
+        if (!showsSong(player)) NotificationManagerCompat.from(this).cancel(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID)
+        session = MediaSession.Builder(this, player).build().also { built ->
+            /*
+             * Watched from the moment it exists, not from when something first binds to the service.
+             *
+             * Media3 builds the notification from a session it has been handed, and it is handed one when a controller
+             * connects -- the app's own screen, as a rule. Started by Android itself after the process was killed,
+             * nothing connects: keep-alive brought the song back and it played with no notification of its own, the
+             * dead process's left showing the song it died on, frozen, and the quiet notification never stood down,
+             * since nothing ever said a song was loaded.
+             */
+            addSession(built)
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
