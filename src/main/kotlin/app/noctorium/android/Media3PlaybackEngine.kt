@@ -575,6 +575,11 @@ class Media3PlaybackEngine(
      * metadata on the item — not from anything the app draws. Without this it had the address and nothing
      * else, so the notification read "Noctorium is running" while a named song with cover art was playing
      * three centimetres above it.
+     *
+     * The length is the catalogue's, there from the moment the song is loaded. ExoPlayer only knows one once the
+     * stream has started arriving, and a OnePlus's Live Alerts bubble showed --:-- and an empty bar while a song played
+     * -- read, it seems, at that first moment and not again. Once ExoPlayer knows the real length, Media3 shows that
+     * one instead.
      */
     private fun mediaItemFor(track: Track, source: String): MediaItem = MediaItem.Builder()
         .setUri(source)
@@ -584,6 +589,7 @@ class Media3PlaybackEngine(
                 .setTitle(track.title)
                 .setArtist(track.artistLine.takeIf(String::isNotBlank) ?: track.provider.displayName)
                 .setAlbumTitle(track.album?.title)
+                .setDurationMs(track.durationMs?.takeIf { it > 0 })
                 .setArtworkUri(track.artworkUrl?.let(android.net.Uri::parse))
                 .setIsBrowsable(false)
                 .setIsPlayable(true)
