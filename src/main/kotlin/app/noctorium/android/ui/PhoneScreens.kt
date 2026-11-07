@@ -311,14 +311,18 @@ private fun ShelfHeading(title: String, subtitle: String?) {
  * With no account to offer, nothing is made. This used to fall back to YouTube Music, which made a SoundCloud
  * song's playlist on YouTube, empty, and would have handed YouTube anything else that had no account here.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun NewPlaylistDialog(
     services: List<ProviderType>,
     dismiss: () -> Unit,
-    create: (String, ProviderType) -> Unit,
+    /** What a Noctorium playlist would be: where it is kept, or that somewhere has yet to be chosen. */
+    noctoriumNote: String,
+    create: (String, PlaylistChoice) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
-    var service by remember { mutableStateOf(services.firstOrNull()) }
+    val choices = listOf(PlaylistChoice.Noctorium, PlaylistChoice.Local) + services.map(PlaylistChoice::OnService)
+    var choice by remember { mutableStateOf<PlaylistChoice>(PlaylistChoice.Noctorium) }
     SkinnedAlertDialog(
         onDismissRequest = dismiss,
         title = "New playlist",
@@ -330,22 +334,26 @@ private fun NewPlaylistDialog(
                     singleLine = true,
                     label = { Text("Name") },
                 )
-                if (services.size > 1) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        services.forEach { option ->
-                            SkinnedFilterChip(
-                                selected = option == service,
-                                onClick = { service = option },
-                                label = { Text(option.displayName) },
-                            )
-                        }
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    choices.forEach { option ->
+                        SkinnedFilterChip(
+                            selected = option == choice,
+                            onClick = { choice = option },
+                            label = { Text(option.label) },
+                        )
                     }
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    service?.let { "Made on ${it.displayName}, and private until you say otherwise." }
-                        ?: "Sign in under Settings to the service this track is on, and it can be made there.",
+                    when (val chosen = choice) {
+                        PlaylistChoice.Noctorium -> noctoriumNote
+                        PlaylistChoice.Local -> "Stays on this phone only, any service."
+                        is PlaylistChoice.OnService -> "Made on ${chosen.service.displayName}, and private until you say otherwise."
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 11.sp,
                 )
@@ -353,12 +361,21 @@ private fun NewPlaylistDialog(
         },
         confirmButton = {
             SkinnedTextButton(
-                enabled = name.isNotBlank() && service != null,
-                onClick = { service?.let { create(name.trim(), it) } },
+                enabled = name.isNotBlank(),
+                onClick = { create(name.trim(), choice) },
             ) { Text("Create") }
         },
         dismissButton = { SkinnedTextButton(dismiss) { Text("Cancel") } },
     )
+}
+
+/** Where a new playlist is made: everywhere Noctorium is, on this phone only, or on a service's account. */
+internal sealed interface PlaylistChoice {
+    val label: String
+
+    data object Noctorium : PlaylistChoice { override val label = "Noctorium playlist" }
+    data object Local : PlaylistChoice { override val label = "Local playlist" }
+    data class OnService(val service: ProviderType) : PlaylistChoice { override val label = "On ${service.displayName}" }
 }
 
 /** The accounts a playlist can actually be made on, in the order the rest of the application names them. */
@@ -596,11 +613,17 @@ private fun LibraryList(
 ) {
     var naming by remember { mutableStateOf(false) }
     if (naming) {
+        val sync by state.playlistSyncState.collectAsState()
         NewPlaylistDialog(
             services = services,
             dismiss = { naming = false },
-            create = { name, service ->
-                state.createPlaylist(name, service)
+            noctoriumNote = noctoriumPlaylistNote(sync),
+            create = { name, choice ->
+                when (choice) {
+                    PlaylistChoice.Noctorium -> state.createPlaylist(name, noctorium = true)
+                    PlaylistChoice.Local -> state.createPlaylist(name)
+                    is PlaylistChoice.OnService -> state.createPlaylist(name, choice.service)
+                }
                 naming = false
             },
         )
@@ -610,7 +633,8 @@ private fun LibraryList(
         ScreenTitle("Library", "Your playlists, and what is kept on this phone", close = { state.navigate(Destination.HOME) }) {
             // Only where there is an account to make one on. A button that can only explain why it does
             // not work is worse than no button.
-            if (services.isNotEmpty()) {
+            // Always: a Noctorium or local playlist needs no account, as only a service's playlist once did.
+            run {
                 IconButton({ naming = true }) { Icon(Glyph.ADD.image, "New playlist") }
             }
             IconButton({ state.refreshLibrary(force = true) }) { Icon(Glyph.REFRESH.image, "Reload") }
@@ -637,7 +661,10 @@ private fun LibraryList(
                 items(library.localPlaylists, key = { it.id }) { playlist ->
                     PlaylistRow(
                         title = playlist.title,
-                        detail = pluralTracks(playlist.trackCount) + " · " + localPlaylistOrigin(playlist),
+                        // A Noctorium playlist may have been made on another device, so "made here" is not said of one.
+                        detail = pluralTracks(playlist.trackCount) + " · " +
+                            if (playlist.synced && playlist.importedFrom == null) "Noctorium playlist"
+                            else (if (playlist.synced) "Noctorium playlist · " else "") + localPlaylistOrigin(playlist),
                         artworkUrl = null,
                     ) { state.openLocalPlaylist(playlist) }
                 }
@@ -649,14 +676,16 @@ private fun LibraryList(
                         CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
                     }
                 }
-                library.playlists.isEmpty() -> item {
+                library.playlists.isEmpty() && library.localPlaylists.isEmpty() -> item {
                     EmptyNote(
                         "No playlists yet",
                         library.errorMessage
-                            ?: "Connect YouTube Music, SoundCloud, Spotify, VK, Apple Music or Tidal, or give your " +
-                                "Bandcamp name or Deezer profile, under Settings to see yours here.",
+                            ?: "Make one with + above -- a Noctorium playlist is on every device you use Noctorium on. Or connect " +
+                                "YouTube Music, SoundCloud, Spotify, VK, Apple Music or Tidal under Settings to see yours from there.",
                     )
                 }
+                // Only playlists of this phone's own: nothing from an account to list under them.
+                library.playlists.isEmpty() -> {}
                 else -> {
                     // A service that could not be read, above the ones that could: otherwise a Spotify that
                     // refused sits silently behind a list of SoundCloud playlists, as though it had none.
@@ -1029,13 +1058,19 @@ internal fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> U
     androidx.compose.runtime.LaunchedEffect(Unit) { state.refreshLibrary() }
 
     if (naming) {
+        val sync by state.playlistSyncState.collectAsState()
         NewPlaylistDialog(
             // A playlist made to hold this track is made where the track can go into it: SoundCloud's
             // playlists take SoundCloud tracks and nothing else, and the same is true of YouTube Music's.
             services = playlistServices(state).filter { it == playlistAccountFor(track) },
             dismiss = { naming = false },
-            create = { name, service ->
-                state.createPlaylist(name, service, listOf(track))
+            noctoriumNote = noctoriumPlaylistNote(sync),
+            create = { name, choice ->
+                when (choice) {
+                    PlaylistChoice.Noctorium -> state.createPlaylist(name, firstTrack = track, noctorium = true)
+                    PlaylistChoice.Local -> state.createPlaylist(name, firstTrack = track)
+                    is PlaylistChoice.OnService -> state.createPlaylist(name, choice.service, listOf(track))
+                }
                 naming = false
                 dismiss()
             },
@@ -1046,12 +1081,14 @@ internal fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> U
     // Only the ones this track can actually join. A SoundCloud track in a YouTube Music playlist is not
     // something either service will accept, so offering it would only produce a failure at the end.
     val writable = playlistsToAddTo(track, library.playlists)
+    // The playlists made in Noctorium take any song from any service, so they are always offered, first.
+    val own = library.localPlaylists
 
     SkinnedAlertDialog(
         onDismissRequest = dismiss,
         title = "Add to playlist",
         text = {
-            if (writable.isEmpty()) {
+            if (writable.isEmpty() && own.isEmpty()) {
                 Text(
                     "No playlists of your own yet. Make one and this track goes into it.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1060,6 +1097,21 @@ internal fun AddToPlaylistDialog(track: Track, state: AppState, dismiss: () -> U
             } else {
                 // Bounded, because an account can have a great many and a dialog cannot grow forever.
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
+                    own.forEach { playlist ->
+                        Text(
+                            playlist.title + if (playlist.synced) "  ☁" else "",
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    state.addTrackToPlaylist(playlist.id, track)
+                                    dismiss()
+                                }
+                                .padding(vertical = 13.dp),
+                        )
+                    }
                     writable.forEach { playlist ->
                         Text(
                             playlist.title,

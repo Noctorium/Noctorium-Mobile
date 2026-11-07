@@ -184,6 +184,12 @@ private fun SettingsHome(
                 open(SettingsPage.PROFILE, null)
             }
         }
+        item {
+            val sync by state.playlistSyncState.collectAsState()
+            SettingsTile(SettingsPage.NOCTORIUM_PLAYLISTS.glyph.image, "Noctorium playlists", noctoriumPlaylistsSubtitle(sync)) {
+                open(SettingsPage.NOCTORIUM_PLAYLISTS, null)
+            }
+        }
 
         item { SectionLabel(SettingsSection.LOOK.title) }
         item {
@@ -495,6 +501,7 @@ private fun pageCards(
 ): List<Pair<String, @Composable () -> Unit>> = when (page) {
     SettingsPage.ACCOUNT -> listOf("account" to { NoctoriumAccountCard(state) })
     // The history's songs follow these cards, a line each: see historyLines.
+    SettingsPage.NOCTORIUM_PLAYLISTS -> listOf("noctorium-playlists" to { NoctoriumPlaylistsCard(settings, state) })
     SettingsPage.PROFILE -> listOf(
         "name" to { ProfileNameCard(settings, state) },
         "history" to { HistoryCard(settings, state) },
@@ -523,6 +530,7 @@ private fun pageCards(
     )
     SettingsPage.LYRICS -> listOf(
         "lyrics-source" to { LyricsCard(settings, state) },
+        "lyrics-close-match" to { CloseMatchCard(settings, state) },
         "lyrics-look" to { LyricsLookCard(settings, state) },
     )
     SettingsPage.SCROBBLING -> listOf(

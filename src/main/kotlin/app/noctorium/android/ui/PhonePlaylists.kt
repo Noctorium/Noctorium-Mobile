@@ -418,6 +418,12 @@ internal fun LocalPlaylistScreen(playlist: LocalPlaylist, notice: String?, servi
                             },
                         )
                     }
+                    // Which kind it is, and the way to make it the other.
+                    DropdownMenuItem(
+                        text = { Text(if (playlist.synced) "Keep on this phone only" else "Make it a Noctorium playlist") },
+                        leadingIcon = { Icon((if (playlist.synced) Glyph.PHONE_ANDROID else Glyph.CLOUD).image, null) },
+                        onClick = { menu = false; state.setPlaylistNoctorium(playlist.id, !playlist.synced) },
+                    )
                     DropdownMenuItem(
                         text = { Text("Delete") },
                         leadingIcon = { Icon(Glyph.DELETE.image, null) },

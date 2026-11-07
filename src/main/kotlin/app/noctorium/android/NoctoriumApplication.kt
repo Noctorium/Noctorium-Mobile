@@ -136,6 +136,8 @@ class NoctoriumApplication : Application(), ImageLoaderFactory, KeepAliveHost, P
             // The real service, except in a debug build pointed at one on the computer through adb; see DebugHooks.
             accountClient = DebugHooks.serviceUrl(this)?.let { NoctoriumAccountClient(baseUrl = it) } ?: NoctoriumAccountClient(),
             updateInstaller = AndroidUpdateInstaller(this),
+            // Noctorium playlists in a folder the phone's own file picker chose. See SafPlaylistCloud.
+            phonePlaylistFolder = { folder -> SafPlaylistCloud(this, android.net.Uri.parse(folder)) },
         )
         (backend as? NewPipeBackend)?.let { pipe ->
             // Private SoundCloud tracks are found through the state's SoundCloud session, which exists only now.

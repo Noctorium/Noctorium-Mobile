@@ -198,6 +198,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.3")
     // FileProvider, for handing a saved track to the share sheet without exposing the folder it sits in.
     implementation("androidx.core:core-ktx:1.15.0")
+    // Noctorium playlists in a folder the system's file picker chose: SafPlaylistCloud.
+    implementation("androidx.documentfile:documentfile:1.0.1")
     // The splash screen, stated rather than hoped for. Android 12 draws one from the launcher icon by
     // itself in theory; this phone's launcher sometimes did and sometimes did not. Naming it makes it
     // the same on every launch, and on every version back to 5.0.

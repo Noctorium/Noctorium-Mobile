@@ -80,6 +80,7 @@ internal fun LyricsPane(lyrics: LyricsUiState, positionMs: Long, track: Track, s
 
     Column(Modifier.fillMaxSize()) {
         LyricsSources(lyrics, refresh = { state.loadLyrics(track, forceRefresh = true) }, choose = state::selectLyricsProvider)
+        PhoneCloseMatchNote(result, track.queueKey, state)
         // The gap underneath keeps the last line in view clear of the song's title, which sits right below.
         Box(Modifier.weight(1f).fillMaxWidth().padding(bottom = 14.dp), contentAlignment = Alignment.Center) {
             when {

@@ -41,6 +41,8 @@ internal enum class SettingsPage(
     ACCOUNT("Noctorium account", SettingsSection.YOU, Glyph.INSIGHTS),
     /** The name Noctorium calls the listener by, and the history of what has been played on this phone. */
     PROFILE("Your profile", SettingsSection.YOU, Glyph.ACCOUNT_CIRCLE),
+    /** Where the playlists every Noctorium shares are kept. */
+    NOCTORIUM_PLAYLISTS("Noctorium playlists", SettingsSection.YOU, Glyph.CLOUD),
     THEME("Theme and colour", SettingsSection.LOOK, Glyph.PALETTE),
     TEXT_AND_LAYOUT("Text and layout", SettingsSection.LOOK, Glyph.TEXT_FIELDS),
     HOME_LOOK("Home", SettingsSection.LOOK, Glyph.HOME),
@@ -144,6 +146,7 @@ internal object SettingIds {
     const val VOLUME_BOOSTER = "volume-booster"
     const val EQUALISER = "equaliser"
     const val LYRICS_SOURCE = "lyrics-source"
+    const val LYRICS_CLOSE_MATCH = "lyrics-close-match"
     const val LYRICS_SIZE = "lyrics-size"
     const val LYRICS_ALIGNMENT = "lyrics-alignment"
     const val LYRICS_DIM = "lyrics-dim"
@@ -181,6 +184,7 @@ internal object SettingIds {
     const val EXPORT_FOLDER = "export-folder"
     const val CHECK_UPDATES = "check-updates"
     const val DIAGNOSTICS = "diagnostics"
+    const val NOCTORIUM_PLAYLISTS = "noctorium-playlists"
 }
 
 /**
@@ -474,6 +478,18 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "Which of the eight lyric sources is read first.",
         listOf("lyrics provider", "lrclib", "musixmatch", "genius", "words", "karaoke"),
         stores = listOf("lyricsProvider"),
+    ),
+    PhoneSetting(
+        SettingIds.NOCTORIUM_PLAYLISTS, "Noctorium playlists", SettingsPage.NOCTORIUM_PLAYLISTS, "noctorium-playlists",
+        "Playlists on every device you use Noctorium on, kept in your Google Drive or a folder.",
+        listOf("sync", "cloud", "google drive", "backup", "computer", "every device", "cross platform"),
+        stores = listOf("playlistCloud"),
+    ),
+    PhoneSetting(
+        SettingIds.LYRICS_CLOSE_MATCH, "Warn when lyrics are a close match", SettingsPage.LYRICS, "lyrics-close-match",
+        "The note above lyrics found for a song under another name, that they may not be its own.",
+        listOf("close match", "wrong lyrics", "lyrics warning", "approximate", "reupload", "uploaded"),
+        stores = listOf("lyricsCloseMatchWarning"),
     ),
     PhoneSetting(
         SettingIds.LYRICS_SIZE, "Lyrics size", SettingsPage.LYRICS, "lyrics-look",
