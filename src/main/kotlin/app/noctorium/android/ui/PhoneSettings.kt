@@ -414,6 +414,11 @@ private fun SettingsHome(
             ) { open(SettingsPage.UPDATES, null) }
         }
         item {
+            SettingsTile(SettingsPage.EXPERIMENTAL.glyph.image, "Experimental", "Codes, for things that are not settings yet") {
+                open(SettingsPage.EXPERIMENTAL, null)
+            }
+        }
+        item {
             SettingsTile(SettingsPage.DIAGNOSTICS.glyph.image, "Diagnostics", "Check what this phone can reach and play") {
                 open(SettingsPage.DIAGNOSTICS, null)
             }
@@ -570,6 +575,7 @@ private fun pageCards(
     SettingsPage.CONNECT -> listOf("connect" to { ConnectCard(settings, state) })
     SettingsPage.SAVING -> listOf("saving" to { SavingCard(settings, state) })
     SettingsPage.UPDATES -> listOf("updates" to { UpdateCard(settings, state) })
+    SettingsPage.EXPERIMENTAL -> listOf("experimental" to { ExperimentalCard() })
     SettingsPage.DIAGNOSTICS -> listOf("diagnostics" to { DiagnosticsCard(settings, state) })
 }
 

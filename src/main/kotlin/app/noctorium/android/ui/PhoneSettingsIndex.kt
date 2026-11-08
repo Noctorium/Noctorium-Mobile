@@ -68,6 +68,8 @@ internal enum class SettingsPage(
     CONNECT("Noctorium Connect", SettingsSection.PHONE, Glyph.DEVICES),
     SAVING("Saving music", SettingsSection.PHONE, Glyph.SAVE),
     UPDATES("Updates", SettingsSection.ABOUT, Glyph.SYSTEM_UPDATE_ALT),
+    /** Codes, for things that are not settings yet. */
+    EXPERIMENTAL("Experimental", SettingsSection.ABOUT, Glyph.TERMINAL),
     DIAGNOSTICS("Diagnostics", SettingsSection.ABOUT, Glyph.MONITOR_HEART),
     ;
 
@@ -185,6 +187,7 @@ internal object SettingIds {
     const val CHECK_UPDATES = "check-updates"
     const val DIAGNOSTICS = "diagnostics"
     const val NOCTORIUM_PLAYLISTS = "noctorium-playlists"
+    const val EXPERIMENTAL = "experimental-codes"
 }
 
 /**
@@ -740,6 +743,11 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "One request to GitHub; nothing downloads without asking.",
         listOf("update", "new version", "upgrade", "github", "release"),
         stores = listOf("updates.checkOnLaunch", "updates.dismissedVersion"),
+    ),
+    PhoneSetting(
+        SettingIds.EXPERIMENTAL, "Codes", SettingsPage.EXPERIMENTAL, "experimental",
+        "Things that are not settings yet: type a code and press Enter.",
+        listOf("experimental", "code", "codes", "easter egg", "secret", "cheat"),
     ),
     PhoneSetting(
         SettingIds.DIAGNOSTICS, "Diagnostics", SettingsPage.DIAGNOSTICS, "diagnostics",
