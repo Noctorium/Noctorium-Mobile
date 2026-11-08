@@ -31,7 +31,7 @@ import kotlin.math.roundToInt
 
 /** What the Shadow theme draws behind the pages: the listener's picture, or null for the streaks alone. */
 @Immutable
-internal data class ShadowBackdrop(val picture: ImageBitmap?)
+internal data class ShadowBackdrop(val picture: ImageBitmap?, val chaos: Boolean = false)
 
 /** The Shadow theme's backdrop while it is the theme, null on every other. */
 internal val LocalShadowBackdrop = compositionLocalOf<ShadowBackdrop?> { null }
@@ -50,6 +50,10 @@ internal fun rememberShadowPicture(path: String): ImageBitmap? {
 /** [backdrop] across a [window]-sized page, as much of it as falls here. */
 internal fun DrawScope.drawShadowBackdrop(backdrop: ShadowBackdrop, window: Size) {
     if (window.width <= 0f || window.height <= 0f) return
+    if (backdrop.chaos) {
+        drawChaosBackdrop(backdrop.picture, window)
+        return
+    }
     backdrop.picture?.let { picture ->
         // Filling the window, cropped rather than squashed, and dim enough that writing reads over it.
         val scale = max(window.width / picture.width, window.height / picture.height)

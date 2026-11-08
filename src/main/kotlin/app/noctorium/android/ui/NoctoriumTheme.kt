@@ -69,7 +69,13 @@ internal fun NoctoriumTheme(
     // The secret theme's picture and streaks, under the pages with its glow.
     val shadow = preferences.theme == ThemePreset.SHADOW
     val shadowPicture = rememberShadowPicture(if (shadow) preferences.shadowPicture else "")
-    val shadowBackdrop = if (shadow) ShadowBackdrop(shadowPicture) else null
+    val chaos = preferences.theme == ThemePreset.SHADOW_CHAOS
+    val chaosPicture = rememberChaosPicture(chaos)
+    val shadowBackdrop = when {
+        chaos -> ShadowBackdrop(chaosPicture, chaos = true)
+        shadow -> ShadowBackdrop(shadowPicture)
+        else -> null
+    }
     MaterialTheme(
         // A colour still being dragged on the accent picker comes first, so the whole interface recolours
         // under the finger before anything is saved; see AccentPreview.

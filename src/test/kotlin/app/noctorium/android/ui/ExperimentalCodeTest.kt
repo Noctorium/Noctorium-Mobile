@@ -9,6 +9,9 @@ class ExperimentalCodeTest {
     fun `a code is found however it is typed, and nothing else is one`() {
         assertEquals(ExperimentalCode.CRASH, ExperimentalCode.find(" Crash "))
         assertEquals(ExperimentalCode.SHADOW, ExperimentalCode.find("sh@d0w"))
+        assertEquals(ExperimentalCode.SHADOW_CHAOS, ExperimentalCode.find("sh@d0w2"))
+        assertEquals(ExperimentalCode.SHADOW_CHAOS, ExperimentalCode.find(" SH@D0W2 "))
+        assertNull(ExperimentalCode.find("sh@d0w22"))
         assertEquals(ExperimentalCode.SHADOW, ExperimentalCode.find("SH@D0W "))
         assertNull(ExperimentalCode.find("shadow"))
         assertNull(ExperimentalCode.find(""))

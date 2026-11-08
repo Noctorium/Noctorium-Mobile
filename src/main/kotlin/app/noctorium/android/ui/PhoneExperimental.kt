@@ -44,6 +44,7 @@ internal enum class ExperimentalCode(val code: String) {
 
     /** The secret theme, kept from then on like any, until another is chosen. */
     SHADOW("sh@d0w"),
+    SHADOW_CHAOS("sh@d0w2"),
     ;
 
     companion object {
@@ -67,6 +68,10 @@ internal fun ExperimentalCard(state: AppState) {
             // The theme is saved at once, under the takeover, and is there when Noctorium is opened again.
             ExperimentalCode.SHADOW -> {
                 state.unlockShadowTheme()
+                takeover = true
+            }
+            ExperimentalCode.SHADOW_CHAOS -> {
+                state.unlockShadowChaosTheme()
                 takeover = true
             }
             null -> answer = if (typed.isBlank()) null else "Nothing happens. Not yet, anyway."
