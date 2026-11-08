@@ -11,6 +11,7 @@ import app.noctorium.settings.NowPlayingBackdrop
 import app.noctorium.settings.NowPlayingPreferences
 import app.noctorium.settings.PhoneNowPlayingLayout
 import app.noctorium.settings.ThemePreset
+import app.noctorium.settings.offeredThemes
 import app.noctorium.settings.onAccent
 import app.noctorium.settings.themeColours
 import kotlin.test.Test
@@ -26,12 +27,12 @@ import kotlin.test.assertTrue
  */
 class GlowThemesTest {
 
-    private val glowThemes = ThemePreset.entries.filter { it.glow != null }
+    private val glowThemes = ThemePreset.entries.filter { it.glow != null && !it.hidden }
 
     @Test
     fun `the four Glow themes are the ones with a light, and the theme picker finds them as a family of their own`() {
         assertEquals(listOf(ThemePreset.AFTERGLOW, ThemePreset.CINDER, ThemePreset.VELVET, ThemePreset.SMOKE), glowThemes)
-        assertEquals(glowThemes, ThemePreset.entries.groupBy { it.family }.getValue("Glow"))
+        assertEquals(glowThemes, offeredThemes.groupBy { it.family }.getValue("Glow"))
     }
 
     /** One colour along each gradient, only its opacity falling away, through core's stops. */

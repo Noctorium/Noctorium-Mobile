@@ -575,7 +575,13 @@ private fun pageCards(
     SettingsPage.CONNECT -> listOf("connect" to { ConnectCard(settings, state) })
     SettingsPage.SAVING -> listOf("saving" to { SavingCard(settings, state) })
     SettingsPage.UPDATES -> listOf("updates" to { UpdateCard(settings, state) })
-    SettingsPage.EXPERIMENTAL -> listOf("experimental" to { ExperimentalCard() })
+    SettingsPage.EXPERIMENTAL -> buildList<Pair<String, @Composable () -> Unit>> {
+        add("experimental" to { ExperimentalCard(state) })
+        // Only for whoever has the secret theme on: their own picture behind it.
+        if (settings.preferences.theme == ThemePreset.SHADOW) {
+            add("shadow-picture" to { ShadowPictureCard(settings.preferences.shadowPicture, state) })
+        }
+    }
     SettingsPage.DIAGNOSTICS -> listOf("diagnostics" to { DiagnosticsCard(settings, state) })
 }
 

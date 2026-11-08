@@ -80,10 +80,14 @@ internal fun glowBrush(glow: ThemeGlow, shape: GlowShape, colour: Color, page: S
 @Composable
 internal fun Modifier.pageGlow(): Modifier {
     val glow = LocalPageGlow.current ?: return this
+    val shadow = LocalShadowBackdrop.current
     return drawWithCache {
         val colour = glow.colour
         val brushes = glow.glow.placement.shapes.map { glowBrush(glow.glow, it, colour, size) }
-        onDrawBehind { brushes.forEach { drawRect(it) } }
+        onDrawBehind {
+            brushes.forEach { drawRect(it) }
+            shadow?.let { drawShadowBackdrop(it, size) }
+        }
     }
 }
 

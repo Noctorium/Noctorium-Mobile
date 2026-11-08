@@ -25,6 +25,7 @@ import app.noctorium.android.ArtworkColours
 import app.noctorium.android.artworkColour
 import app.noctorium.settings.AccentPreset
 import app.noctorium.settings.NoctoriumPreferences
+import app.noctorium.settings.ThemePreset
 import app.noctorium.settings.ThemeSkin
 import app.noctorium.settings.contrastRatio
 import app.noctorium.settings.resolvedAccent
@@ -65,6 +66,10 @@ internal fun NoctoriumTheme(
     val accent by easedColour(preferences.resolvedAccent(artwork), preferences.accent == AccentPreset.ARTWORK && preferences.animations)
     val light = easedColour(glow?.resolvedColour(artwork) ?: 0L, glow?.followsArtwork == true && preferences.animations)
     val pageGlow = remember(glow, light) { glow?.let { PageGlow(it, light) } }
+    // The secret theme's picture and streaks, under the pages with its glow.
+    val shadow = preferences.theme == ThemePreset.SHADOW
+    val shadowPicture = rememberShadowPicture(if (shadow) preferences.shadowPicture else "")
+    val shadowBackdrop = if (shadow) ShadowBackdrop(shadowPicture) else null
     MaterialTheme(
         // A colour still being dragged on the accent picker comes first, so the whole interface recolours
         // under the finger before anything is saved; see AccentPreview.
@@ -91,6 +96,7 @@ internal fun NoctoriumTheme(
             LocalIconSet provides preferences.iconSet,
             LocalServiceBadgeStyle provides preferences.serviceBadgeStyle,
             LocalPageGlow provides pageGlow,
+            LocalShadowBackdrop provides shadowBackdrop,
             content = content,
         )
     }

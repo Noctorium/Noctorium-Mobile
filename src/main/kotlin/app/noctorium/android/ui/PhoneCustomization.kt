@@ -48,6 +48,7 @@ import app.noctorium.settings.PlayerButton
 import app.noctorium.settings.ThemeColours
 import app.noctorium.settings.ThemeGlow
 import app.noctorium.settings.ThemePreset
+import app.noctorium.settings.offeredThemes
 import app.noctorium.settings.ThemeSkin
 import app.noctorium.settings.contrastRatio
 import app.noctorium.settings.parseHexColour
@@ -183,7 +184,7 @@ internal fun ThemeCard(settings: SettingsState, state: AppState) {
         SettingAnchor(SettingIds.THEME) {
             // The themes, by family: "Mocha" on its own means nothing and "Catppuccin Mocha" does. Each chip
             // carries the theme's page with its accent on it, and a Glow theme's light, so the choice can be made by eye.
-            ThemePreset.entries.groupBy { it.family }.forEach { (family, presets) ->
+            offeredThemes.groupBy { it.family }.forEach { (family, presets) ->
                 ChoiceRow("Theme · $family") {
                     presets.forEach { preset ->
                         val colours = preset.colours ?: preferences.customTheme

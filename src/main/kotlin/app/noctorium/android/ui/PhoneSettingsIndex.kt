@@ -762,6 +762,7 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
  * holds to that, so a setting added to Base is not quietly left out of the phone's search.
  */
 internal val NOT_PHONE_SETTINGS: Map<String, String> = mapOf(
+    "shadowPicture" to "A secret, kept out of search: only the code in Experimental shows it.",
     "playerBarStyle" to "The desktop's player bar; the phone's is phone.playerBarStyle.",
     "hoverControls" to "Controls that appear under a pointer: a phone has no pointer.",
     "backgroundDepth" to "The desktop window's background.",
