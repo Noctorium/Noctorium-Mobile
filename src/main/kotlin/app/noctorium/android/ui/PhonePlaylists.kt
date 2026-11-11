@@ -70,7 +70,7 @@ internal fun ServicePlaylistControls(playlist: Playlist, notice: String?, state:
         ProviderType.SOUNDCLOUD -> SoundCloudPlaylistControls(playlist, notice, state)
         ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO -> YouTubePlaylistControls(playlist, notice, state)
         ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.APPLE_MUSIC, ProviderType.DEEZER,
-        ProviderType.TIDAL, ProviderType.LOCAL -> Unit
+        ProviderType.TIDAL, ProviderType.LOCAL, ProviderType.RADIO -> Unit
     }
 }
 

@@ -61,7 +61,7 @@ internal val YOUTUBE_SYSTEM_PLAYLISTS = setOf("LM", "SE", "HL", "WL", "LL")
  */
 internal fun hasSignInPage(provider: ProviderType): Boolean = when (provider) {
     ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO, ProviderType.SOUNDCLOUD, ProviderType.VK, ProviderType.APPLE_MUSIC -> true
-    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.DEEZER, ProviderType.TIDAL, ProviderType.LOCAL -> false
+    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.DEEZER, ProviderType.TIDAL, ProviderType.LOCAL, ProviderType.RADIO -> false
 }
 
 /**
@@ -75,7 +75,7 @@ internal fun playlistAccountFor(track: Track): ProviderType? = when (track.provi
     ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO -> ProviderType.YOUTUBE_MUSIC
     ProviderType.SOUNDCLOUD -> ProviderType.SOUNDCLOUD
     ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.APPLE_MUSIC, ProviderType.DEEZER,
-    ProviderType.TIDAL, ProviderType.LOCAL -> null
+    ProviderType.TIDAL, ProviderType.LOCAL, ProviderType.RADIO -> null
 }
 
 /**
@@ -105,7 +105,7 @@ internal fun tracksPlaylistCanHold(service: ProviderType, tracks: List<Track>): 
     ProviderType.YOUTUBE_MUSIC, ProviderType.YOUTUBE_VIDEO -> tracks.filter { it.provider in YOUTUBE_PROVIDERS }
     ProviderType.SOUNDCLOUD -> tracks.filter { it.provider == ProviderType.SOUNDCLOUD }
     ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.APPLE_MUSIC, ProviderType.DEEZER,
-    ProviderType.TIDAL, ProviderType.LOCAL -> emptyList()
+    ProviderType.TIDAL, ProviderType.LOCAL, ProviderType.RADIO -> emptyList()
 }
 
 /**

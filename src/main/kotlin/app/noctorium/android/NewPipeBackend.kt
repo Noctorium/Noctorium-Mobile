@@ -512,7 +512,7 @@ class NewPipeBackend(
         // Spotify, Apple Music, Deezer and Tidal hand out no audio, a local file needs no extractor, and Bandcamp
         // and VK are read by clients of their own in the shared core rather than by NewPipe.
         ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.APPLE_MUSIC, ProviderType.DEEZER,
-        ProviderType.TIDAL, ProviderType.LOCAL -> null
+        ProviderType.TIDAL, ProviderType.LOCAL, ProviderType.RADIO -> null
     }
 
     /** NewPipe's filter names, so an album or an artist is not returned where a song was asked for. */
@@ -521,7 +521,7 @@ class NewPipeBackend(
         ProviderType.YOUTUBE_VIDEO -> listOf("videos")
         ProviderType.SOUNDCLOUD -> listOf("tracks")
         ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.VK, ProviderType.APPLE_MUSIC, ProviderType.DEEZER,
-        ProviderType.TIDAL, ProviderType.LOCAL -> emptyList()
+        ProviderType.TIDAL, ProviderType.LOCAL, ProviderType.RADIO -> emptyList()
     }
 
     private fun trackOf(item: StreamInfoItem, provider: ProviderType): Track = Track(

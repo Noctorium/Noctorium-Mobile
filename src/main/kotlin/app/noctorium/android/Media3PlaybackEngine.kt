@@ -38,6 +38,7 @@ import app.noctorium.playback.MIN_SPEED
 import app.noctorium.playback.MusicBackend
 import app.noctorium.playback.PlaybackEngine
 import app.noctorium.playback.PlaybackState
+import app.noctorium.radio.isRadio
 import app.noctorium.playback.PlaybackStatus
 import app.noctorium.playback.Visualiser
 import app.noctorium.playback.VolumeBoost
@@ -149,8 +150,11 @@ private fun ensureAudioSession(player: ExoPlayer, context: Context) {
  * and every other service is left on the agent it already answers.
  */
 @OptIn(UnstableApi::class)
-private fun mediaRequests(context: Context, vkAgent: () -> String?, opened: TransferListener): DataSource.Factory =
-    ResolvingDataSource.Factory(DefaultDataSource.Factory(context).setTransferListener(opened)) { spec ->
+private fun mediaRequests(context: Context, vkAgent: () -> String?, opened: TransferListener, stations: RadioHosts): DataSource.Factory =
+    ResolvingDataSource.Factory(
+        // A radio station's plain-http stream goes out on a socket of its own; everything else as it always has.
+        StationRoutingDataSourceFactory(DefaultDataSource.Factory(context).setTransferListener(opened), stations, opened),
+    ) { spec ->
         val headers = mediaRequestHeaders(spec.uri.host, vkAgent())
         if (headers.isEmpty()) spec else spec.withAdditionalHeaders(headers)
     }
@@ -317,6 +321,9 @@ class Media3PlaybackEngine(
         override fun onTransferEnd(source: DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = Unit
     }
 
+    /** The stations tuned in to, whose http streams alone may be played over plain http; see RadioStreams.kt. */
+    private val stations = RadioHosts()
+
     @OptIn(UnstableApi::class)
     private val player: ExoPlayer = ExoPlayer.Builder(context, TeedRenderersFactory(context, boost, tee))
         .setAudioAttributes(
@@ -350,7 +357,7 @@ class Media3PlaybackEngine(
                 )
                 .build(),
         )
-        .setMediaSourceFactory(DefaultMediaSourceFactory(mediaRequests(context, vkAgent, opened)))
+        .setMediaSourceFactory(DefaultMediaSourceFactory(mediaRequests(context, vkAgent, opened, stations)))
         .build()
         .apply {
             // Start where the state says, not where ExoPlayer's own default is.
@@ -528,7 +535,11 @@ class Media3PlaybackEngine(
             format = null,
         ) }
 
-        val source = downloadedFile(track)?.toUri()?.toString()
+        // A station is its stream address, played as it is: there is nothing for NewPipe to look up, and nothing to
+        // start part-way into -- a live stream picks up wherever the station is now.
+        if (track.isRadio) stations.allow(track.sourceUrl)
+        val source = (if (track.isRadio) track.sourceUrl else null)
+            ?: downloadedFile(track)?.toUri()?.toString()
             ?: runCatching { backend.resolveAudio(track.sourceUrl) }.getOrElse { error ->
                 // Silence first. Without this the previous track keeps playing while the bar reports that
                 // a different one failed, which reads as the error being wrong rather than the track being
@@ -548,7 +559,7 @@ class Media3PlaybackEngine(
         // played has to be a message in the player bar, never an exit.
         val started = withContext(Dispatchers.Main) {
             runCatching {
-                player.setMediaItem(mediaItemFor(track, source), startAtMs.coerceAtLeast(0))
+                player.setMediaItem(mediaItemFor(track, source), if (track.isRadio) 0 else startAtMs.coerceAtLeast(0))
                 // The speed asked for, again for each track, as the equaliser is: ExoPlayer keeps it, and
                 // saying it again costs nothing and leaves nothing to chance.
                 player.playbackParameters = PlaybackParameters(speedWanted)
@@ -590,7 +601,9 @@ class Media3PlaybackEngine(
                 .setArtist(track.artistLine.takeIf(String::isNotBlank) ?: track.provider.displayName)
                 .setAlbumTitle(track.album?.title)
                 .setDurationMs(track.durationMs?.takeIf { it > 0 })
-                .setArtworkUri(track.artworkUrl?.let(android.net.Uri::parse))
+                // Not an http picture -- a radio station's logo often is -- which Android would refuse to fetch for the
+                // notification, again at every update; it shows the app's own picture instead.
+                .setArtworkUri(track.artworkUrl?.takeUnless { it.startsWith("http://", ignoreCase = true) }?.let(android.net.Uri::parse))
                 .setIsBrowsable(false)
                 .setIsPlayable(true)
                 .build(),

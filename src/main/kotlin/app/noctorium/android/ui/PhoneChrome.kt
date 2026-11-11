@@ -139,6 +139,7 @@ internal fun ProviderType.badgeColour(): Color = when (this) {
     ProviderType.DEEZER -> Color(0xFFA238FF)
     ProviderType.TIDAL -> Color(0xFF000000)
     ProviderType.LOCAL -> Color(0xFF5A5A6E)
+    ProviderType.RADIO -> Color(0xFF0F8A7E)
 }
 
 /**

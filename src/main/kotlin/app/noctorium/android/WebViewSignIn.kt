@@ -81,7 +81,7 @@ internal fun cookieHostsFor(provider: ProviderType): List<String> = when (provid
     ProviderType.VK -> VK_COOKIE_HOSTS
     // The web player, its sign-in window, and the Apple ID pages that window shows.
     ProviderType.APPLE_MUSIC -> hostsOf(APPLE_MUSIC_SESSION_URLS)
-    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.DEEZER, ProviderType.TIDAL, ProviderType.LOCAL -> emptyList()
+    ProviderType.SPOTIFY, ProviderType.BANDCAMP, ProviderType.DEEZER, ProviderType.TIDAL, ProviderType.LOCAL, ProviderType.RADIO -> emptyList()
 }
 
 /**

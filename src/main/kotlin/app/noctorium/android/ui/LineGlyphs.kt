@@ -134,6 +134,7 @@ private fun lineVector(glyph: Glyph): ImageVector = when (glyph) {
     Glyph.PUSH_PIN -> line("pin", filled = true)
     Glyph.PUSH_PIN_OUTLINE -> line("pin")
     Glyph.QUEUE_MUSIC -> line("list-music")
+    Glyph.RADIO -> line("radio")
     Glyph.REFRESH -> line("refresh-cw")
     Glyph.REMOVE_CIRCLE_OUTLINE -> line("circle-minus")
     Glyph.REPEAT -> line("repeat")
@@ -462,6 +463,13 @@ private val LUCIDE: Map<String, List<String>> = mapOf(
         "M10 12H3",
         "M10 19H3",
         "M15 12.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z",
+    ),
+    "radio" to listOf(
+        "M4.9 19.1C1 15.2 1 8.8 4.9 4.9",
+        "M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5",
+        "M10 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0z",
+        "M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5",
+        "M19.1 4.9C23 8.8 23 15.1 19.1 19",
     ),
     "globe" to listOf(
         "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0z",

@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
+import app.noctorium.radio.isRadio
 import app.noctorium.core.Destination
 import app.noctorium.settings.AccentPreset
 import app.noctorium.settings.BackgroundDepth
@@ -911,6 +912,7 @@ private fun ControlsBar(
                 playback.isPlaying,
                 state::seekTo,
                 seed = track.queueKey,
+                live = track.isRadio,
             )
         }
     }
@@ -1227,7 +1229,7 @@ private fun TrackRowLine(
                 listOfNotNull(
                     track.artistLine.ifBlank { "Unknown artist" },
                     track.provider.displayName,
-                    track.durationMs?.let(::formatDuration),
+                    if (track.isRadio) "LIVE" else track.durationMs?.let(::formatDuration),
                 ).joinToString(" · "),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,

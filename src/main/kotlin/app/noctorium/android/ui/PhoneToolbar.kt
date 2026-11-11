@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
+import app.noctorium.radio.isRadio
 import app.noctorium.core.Destination
 import app.noctorium.domain.Track
 import app.noctorium.playback.PlaybackState
@@ -95,7 +96,7 @@ internal fun ToolbarBar(
             TrackLines(track, playback, onSpotify, Modifier.weight(1f))
             Spacer(Modifier.width(8.dp))
             Text(
-                toolbarTime(playback.positionMs, playback.durationMs, settings.preferences.timeDisplay),
+                toolbarTime(playback.positionMs, playback.durationMs, settings.preferences.timeDisplay, live = playback.track?.isRadio == true),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -257,7 +258,7 @@ internal fun Toolbar2Bar(
             Box(Modifier.weight(1f)) { ToolbarSlider(playback, state) }
             Spacer(Modifier.width(8.dp))
             Text(
-                toolbarTime(playback.positionMs, playback.durationMs, settings.preferences.timeDisplay),
+                toolbarTime(playback.positionMs, playback.durationMs, settings.preferences.timeDisplay, live = playback.track?.isRadio == true),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 12.sp,
                 maxLines = 1,
@@ -310,9 +311,13 @@ private val TOOLBAR_2_GIVES_WAY = listOf(
     Toolbar2Button.LIKE,
 )
 
-/** "0:58 / 2:31": where the song is, and its length or what is left of it, as the time is set to show. */
-internal fun toolbarTime(positionMs: Long, durationMs: Long, display: app.noctorium.settings.TimeDisplay): String =
-    formatDuration(positionMs.coerceAtLeast(0)) + " / " + trailingTimeFor(positionMs, durationMs, display)
+/**
+ * "0:58 / 2:31": where the song is, and its length or what is left of it, as the time is set to show. A radio station
+ * has no length: "LIVE · 12:04", how long it has been listened to.
+ */
+internal fun toolbarTime(positionMs: Long, durationMs: Long, display: app.noctorium.settings.TimeDisplay, live: Boolean = false): String =
+    if (live) "LIVE · " + formatDuration(positionMs.coerceAtLeast(0))
+    else formatDuration(positionMs.coerceAtLeast(0)) + " / " + trailingTimeFor(positionMs, durationMs, display)
 
 /** The Slider, thin, across the bar: it seeks where it is tapped or dragged, and a drag on it never skips a song. */
 @Composable

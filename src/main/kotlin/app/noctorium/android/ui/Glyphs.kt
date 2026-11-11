@@ -112,6 +112,7 @@ internal enum class Glyph {
     PUSH_PIN,
     PUSH_PIN_OUTLINE,
     QUEUE_MUSIC,
+    RADIO,
     REFRESH,
     REMOVE_CIRCLE_OUTLINE,
     REPEAT,
@@ -229,6 +230,7 @@ internal enum class Glyph {
         PUSH_PIN -> Icons.Filled.PushPin
         PUSH_PIN_OUTLINE -> Icons.Outlined.PushPin
         QUEUE_MUSIC -> Icons.AutoMirrored.Filled.QueueMusic
+        RADIO -> Icons.Filled.Radio
         REFRESH -> Icons.Filled.Refresh
         REMOVE_CIRCLE_OUTLINE -> Icons.Filled.RemoveCircleOutline
         REPEAT -> Icons.Filled.Repeat
@@ -330,6 +332,7 @@ internal enum class Glyph {
         PUSH_PIN -> Icons.Rounded.PushPin
         PUSH_PIN_OUTLINE -> Icons.Outlined.PushPin
         QUEUE_MUSIC -> Icons.AutoMirrored.Rounded.QueueMusic
+        RADIO -> Icons.Rounded.Radio
         REFRESH -> Icons.Rounded.Refresh
         REMOVE_CIRCLE_OUTLINE -> Icons.Rounded.RemoveCircleOutline
         REPEAT -> Icons.Rounded.Repeat
@@ -431,6 +434,7 @@ internal enum class Glyph {
         PUSH_PIN -> Icons.Filled.PushPin
         PUSH_PIN_OUTLINE -> Icons.Outlined.PushPin
         QUEUE_MUSIC -> Icons.AutoMirrored.Outlined.QueueMusic
+        RADIO -> Icons.Outlined.Radio
         REFRESH -> Icons.Outlined.Refresh
         REMOVE_CIRCLE_OUTLINE -> Icons.Outlined.RemoveCircleOutline
         REPEAT -> Icons.Outlined.Repeat
@@ -532,6 +536,7 @@ internal enum class Glyph {
         PUSH_PIN -> Icons.Sharp.PushPin
         PUSH_PIN_OUTLINE -> Icons.Outlined.PushPin
         QUEUE_MUSIC -> Icons.AutoMirrored.Sharp.QueueMusic
+        RADIO -> Icons.Sharp.Radio
         REFRESH -> Icons.Sharp.Refresh
         REMOVE_CIRCLE_OUTLINE -> Icons.Sharp.RemoveCircleOutline
         REPEAT -> Icons.Sharp.Repeat
@@ -633,6 +638,7 @@ internal enum class Glyph {
         PUSH_PIN -> Icons.TwoTone.PushPin
         PUSH_PIN_OUTLINE -> Icons.Outlined.PushPin
         QUEUE_MUSIC -> Icons.AutoMirrored.TwoTone.QueueMusic
+        RADIO -> Icons.TwoTone.Radio
         REFRESH -> Icons.TwoTone.Refresh
         REMOVE_CIRCLE_OUTLINE -> Icons.TwoTone.RemoveCircleOutline
         REPEAT -> Icons.TwoTone.Repeat

@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.clickable
 import app.noctorium.connect.ConnectState
 import app.noctorium.core.AppState
+import app.noctorium.radio.isRadio
 import app.noctorium.core.Destination
 import app.noctorium.domain.Track
 import app.noctorium.lyrics.LyricsUiState
@@ -499,6 +500,7 @@ internal fun NowPlayingSeekbar(screen: NowPlaying) {
         screen.playback.isPlaying,
         screen.state::seekTo,
         seed = screen.track.queueKey,
+        live = screen.track.isRadio,
     )
 }
 
@@ -681,6 +683,8 @@ internal fun Seekbar(
     seekTo: (Long) -> Unit,
     /** The song's key, which its row of Bars is made from. Blank draws an even row. */
     seed: String = "",
+    /** A radio station: no length to show, so how long it has been listened to, and LIVE where the length would be. */
+    live: Boolean = false,
 ) {
     var dragging by remember { mutableStateOf<Float?>(null) }
     val fraction = dragging ?: playbackFraction(positionMs, durationMs)
@@ -713,14 +717,15 @@ internal fun Seekbar(
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                formatDuration((fraction * durationMs).toLong()),
+                formatDuration(if (live) positionMs.coerceAtLeast(0) else (fraction * durationMs).toLong()),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
             )
             Text(
-                trailingTimeFor((fraction * durationMs).toLong(), durationMs, display),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (live) "LIVE" else trailingTimeFor((fraction * durationMs).toLong(), durationMs, display),
+                color = if (live) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
+                fontWeight = if (live) FontWeight.Bold else null,
             )
         }
     }

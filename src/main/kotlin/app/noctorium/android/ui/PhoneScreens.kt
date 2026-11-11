@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import app.noctorium.library.TrackEdit
 import app.noctorium.core.ProviderFilter
 import app.noctorium.core.SearchMode
+import app.noctorium.core.SearchKind
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -89,9 +90,12 @@ internal fun ScreenTitle(
     subtitle: String? = null,
     close: (() -> Unit)? = null,
     action: @Composable (() -> Unit)? = null,
+    /** Something small beside the title itself, as the search's Music / Radio switch is. */
+    beside: @Composable (() -> Unit)? = null,
 ) {
     if (LocalSkin.current != ThemeSkin.STANDARD) {
         SkinScreenTitle(title, subtitle, close, action)
+        beside?.let { Box(Modifier.padding(start = 16.dp)) { it() } }
         return
     }
     Row(
@@ -99,7 +103,15 @@ internal fun ScreenTitle(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            if (beside == null) {
+                Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(10.dp))
+                    beside()
+                }
+            }
             subtitle?.let {
                 Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
@@ -489,14 +501,16 @@ internal fun SearchScreen(state: AppState) {
     val settings by state.settings.collectAsState()
 
     ScreenScaffold {
-        ScreenTitle("Search", close = { state.navigate(Destination.HOME) })
+        // Music or Radio, small, beside the heading and above the box: what the page searches, with the box
+        // left to be a box.
+        ScreenTitle("Search", close = { state.navigate(Destination.HOME) }, beside = { SearchKindPill(ui.searchKind, state::setSearchKind) })
         OutlinedTextField(
             ui.searchQuery,
             state::search,
             // What to type rather than where it goes: the chips below say where, and a list of services
             // here went out of date the moment a third arrived.
-            placeholder = { Text("Songs, albums and artists") },
-            leadingIcon = { Icon(Glyph.SEARCH.image, null) },
+            placeholder = { Text(ui.searchKind.placeholder(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(Glyph.SEARCH.image, null, Modifier.size(20.dp)) },
             trailingIcon = {
                 if (ui.searchLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             },
@@ -504,6 +518,14 @@ internal fun SearchScreen(state: AppState) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
         Spacer(Modifier.height(8.dp))
+
+        if (ui.searchKind == SearchKind.RADIO) {
+            // Where the stations are from, in place of the services: Radio Browser is the only one asked.
+            RadioCountryPicker(ui, state::setRadioCountry, Modifier.padding(horizontal = 16.dp))
+            Spacer(Modifier.height(8.dp))
+            RadioResults(ui, state, playback.track)
+            return@ScreenScaffold
+        }
 
         /*
          * Which services get asked, rather than which answers get kept.
