@@ -14,8 +14,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaNotification
+import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
+import app.noctorium.auto.CarLibraryCallback
+import app.noctorium.auto.CarMusic
 import com.google.common.collect.ImmutableList
 import java.lang.ref.WeakReference
 
@@ -28,6 +30,9 @@ interface PlaybackHost {
 
     /** Whether this phone is playing, or about to, by the player itself: what the music needs the foreground for. */
     fun playingHere(): Boolean = false
+
+    /** Noctorium as Android Auto's menu reads it; null for a session with no menu, as a test's is. */
+    fun carMusic(): CarMusic? = null
 }
 
 /**
@@ -48,9 +53,12 @@ interface PlaybackHost {
  * ever leaving the foreground, since coming back into it from the background is what Android does not always allow.
  */
 @OptIn(UnstableApi::class)
-class PlaybackService : MediaSessionService() {
+class PlaybackService : MediaLibraryService() {
 
-    private var session: MediaSession? = null
+    private var session: MediaLibrarySession? = null
+
+    /** Android Auto's menu, and what is picked there: see Noctorium-Android-Auto. */
+    private var car: CarLibraryCallback? = null
 
     /** What this is in the foreground for, if anything; see [foregroundPlan]. */
     private var holding = Holding.NOTHING
@@ -85,7 +93,12 @@ class PlaybackService : MediaSessionService() {
         // A notification of Media3's left over with nothing loaded is from before: a process Android killed, whose
         // session is gone, so the controls on it answer nothing. The one wanted is posted afresh below.
         if (!showsSong(player)) NotificationManagerCompat.from(this).cancel(DefaultMediaNotificationProvider.DEFAULT_NOTIFICATION_ID)
-        session = MediaSession.Builder(this, player).build().also { built ->
+        // A library session rather than a plain one: the same lock screen, notification and buttons, and besides them
+        // the menu Android Auto shows -- Home, the library, the queue, radio -- and its search and voice.
+        val host = application as PlaybackHost
+        val callback: MediaLibrarySession.Callback = host.carMusic()?.let { music -> CarLibraryCallback(this, music).also { car = it } }
+            ?: object : MediaLibrarySession.Callback {}
+        session = MediaLibrarySession.Builder(this, player, callback).build().also { built ->
             /*
              * Watched from the moment it exists, not from when something first binds to the service.
              *
@@ -124,7 +137,7 @@ class PlaybackService : MediaSessionService() {
         if (holding == Holding.NOTHING) ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val asked = super.onStartCommand(intent, flags, startId)
@@ -327,6 +340,8 @@ class PlaybackService : MediaSessionService() {
         // alive and may be asked to play again without this service ever being recreated.
         session?.release()
         session = null
+        car?.release()
+        car = null
         super.onDestroy()
         // Keep-alive was being held here: the quiet notification's service holds it from now on.
         if (held) KeepAlive.start(applicationContext, KeepAliveStart.MUSIC)

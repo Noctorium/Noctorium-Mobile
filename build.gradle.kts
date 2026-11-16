@@ -26,6 +26,9 @@
  */
 plugins {
     id("com.android.application") version "8.7.3"
+    // Noctorium-Android-Auto's and Noctorium-Android-TV's modules, included as :auto and :tv, are libraries; their
+    // version is stated here with the app's.
+    id("com.android.library") version "8.7.3" apply false
     kotlin("android") version "2.1.21"
     kotlin("plugin.serialization") version "2.1.21"
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
@@ -190,6 +193,10 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    // Android Auto: the menu the car shows, over this app's session. See Noctorium-Android-Auto.
+    implementation(project(":auto"))
+    // Android TV: the screens a television opens, over this app's state. See Noctorium-Android-TV.
+    implementation(project(":tv"))
 
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")

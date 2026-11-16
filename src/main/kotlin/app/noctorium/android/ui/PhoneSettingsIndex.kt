@@ -769,6 +769,7 @@ internal val NOT_PHONE_SETTINGS: Map<String, String> = mapOf(
     "desktop" to "The desktop's own settings.",
     "discord" to "Discord's presence needs its desktop app.",
     "discordPresenceEnabled" to "Discord's presence needs its desktop app.",
+    "remoteControl" to "The remote control at localhost:6932 is the desktop's: a phone serves no page for a browser to open.",
     "searchMode" to "The Search page's chip, remembered as it was left.",
     "streamWidgets" to "Stream widgets are served by the desktop, for OBS on the same computer.",
 )

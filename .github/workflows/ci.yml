@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      # Android Auto and Android TV come in the same way, as the auto/ and tv/ submodules.
       # The core comes in as the base/ submodule, at the commit this one pins, so CI builds what a
       # checkout of this commit builds. It needs no credential: the job's own token reads a public
       # repository, which Noctorium-Base now is.
@@ -37,8 +38,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       # The Android SDK is already on this runner and AGP finds it through ANDROID_HOME.
-      - name: Test the core and build the debug APK
-        run: ./gradlew :core:test assembleDebug --stacktrace
+      # The app's own tests, and Android Auto's and Android TV's (the auto/ and tv/ submodules), with the core's.
+      - name: Test the core, the app, the car and the TV, and build the debug APK
+        run: ./gradlew :core:test testDebugUnitTest assembleDebug --stacktrace
 
       - name: Keep the debug APK from this commit
         uses: actions/upload-artifact@v4

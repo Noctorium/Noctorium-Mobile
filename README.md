@@ -19,6 +19,20 @@ The `base/` submodule is Noctorium-Base. If you also have Noctorium-Base checked
 repository as `../Noctorium-Base`, that checkout is used instead and edits there are seen by the next
 build here — see `settings.gradle.kts` for the lookup order.
 
+`auto/` and `tv/` are [Noctorium-Android-Auto](https://github.com/Noctorium/Noctorium-Android-Auto) and
+[Noctorium-Android-TV](https://github.com/Noctorium/Noctorium-Android-TV), found the same way (`../Noctorium-Android-Auto`
+and `../Noctorium-Android-TV` win when they are there).
+
+## In the car and on a TV
+
+The one APK is Noctorium for the phone, for Android Auto and for Android TV:
+
+- **Android Auto** shows Noctorium's own menu — Home, Library, Queue, Radio, search and voice — from this app's media
+  session (`PlaybackService`, a `MediaLibraryService`). A copy not from Google Play shows in the car once *Unknown
+  sources* is on in Android Auto's developer settings.
+- **Android TV and Google TV** list Noctorium on their home screen, which opens `TvActivity`: pages made for the
+  remote, over the same state, sign-ins and player.
+
 ## Building
 
 JDK 21 and an Android SDK, named in `local.properties` (`sdk.dir=...`) or by `ANDROID_HOME`.

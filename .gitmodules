@@ -2,3 +2,9 @@
 	path = base
 	url = https://github.com/Noctorium/Noctorium-Base.git
 	branch = main
+[submodule "auto"]
+	path = auto
+	url = https://github.com/Noctorium/Noctorium-Android-Auto.git
+[submodule "tv"]
+	path = tv
+	url = https://github.com/Noctorium/Noctorium-Android-TV.git

@@ -48,3 +48,37 @@ val baseCheckout: File = listOfNotNull(
 
 include(":core")
 project(":core").projectDir = File(baseCheckout, "core")
+
+/**
+ * Noctorium in the car, from Noctorium-Android-Auto: the menu Android Auto shows, built on this app's session. Found
+ * as Noctorium-Base is: NOCTORIUM_AUTO, a checkout beside this one, or the auto/ submodule.
+ */
+val autoCheckout: File = listOfNotNull(
+    System.getenv("NOCTORIUM_AUTO")?.takeIf { it.isNotBlank() }?.let(::file),
+    file("../Noctorium-Android-Auto"),
+    file("auto"),
+).firstOrNull { File(it, "auto/build.gradle.kts").isFile }
+    ?: error(
+        "Noctorium-Android-Auto was not found. Either check it out beside this repository as ../Noctorium-Android-Auto, " +
+            "run `git submodule update --init` to fetch the auto/ submodule, or set NOCTORIUM_AUTO to a checkout.",
+    )
+
+include(":auto")
+project(":auto").projectDir = File(autoCheckout, "auto")
+
+/**
+ * Noctorium on a television, from Noctorium-Android-TV: the screens Android TV opens, over this app's state. Found as
+ * the others are: NOCTORIUM_TV, a checkout beside this one, or the tv/ submodule.
+ */
+val tvCheckout: File = listOfNotNull(
+    System.getenv("NOCTORIUM_TV")?.takeIf { it.isNotBlank() }?.let(::file),
+    file("../Noctorium-Android-TV"),
+    file("tv"),
+).firstOrNull { File(it, "tv/build.gradle.kts").isFile }
+    ?: error(
+        "Noctorium-Android-TV was not found. Either check it out beside this repository as ../Noctorium-Android-TV, " +
+            "run `git submodule update --init` to fetch the tv/ submodule, or set NOCTORIUM_TV to a checkout.",
+    )
+
+include(":tv")
+project(":tv").projectDir = File(tvCheckout, "tv")

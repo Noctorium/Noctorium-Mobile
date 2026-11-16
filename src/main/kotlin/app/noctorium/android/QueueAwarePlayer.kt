@@ -1,6 +1,7 @@
 package app.noctorium.android
 
 import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import app.noctorium.playback.RepeatMode
 
@@ -135,4 +136,30 @@ class QueueAwarePlayer(
     override fun seekToPrevious() = goPrevious()
 
     override fun seekToPreviousMediaItem() = goPrevious()
+
+    /*
+     * Songs handed to the session -- picked in Android Auto's menu, asked for by voice -- are played by the queue before
+     * Media3 hands them on to this player (see Noctorium-Android-Auto's CarLibraryCallback). Here they would replace the
+     * song the queue is starting with one that has no stream, so they go by. Nothing else sets items through the session:
+     * the application loads ExoPlayer itself.
+     */
+    override fun setMediaItems(mediaItems: MutableList<MediaItem>) = Unit
+
+    override fun setMediaItems(mediaItems: MutableList<MediaItem>, resetPosition: Boolean) = Unit
+
+    override fun setMediaItems(mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long) = Unit
+
+    override fun setMediaItem(mediaItem: MediaItem) = Unit
+
+    override fun setMediaItem(mediaItem: MediaItem, startPositionMs: Long) = Unit
+
+    override fun setMediaItem(mediaItem: MediaItem, resetPosition: Boolean) = Unit
+
+    override fun addMediaItem(mediaItem: MediaItem) = Unit
+
+    override fun addMediaItem(index: Int, mediaItem: MediaItem) = Unit
+
+    override fun addMediaItems(mediaItems: MutableList<MediaItem>) = Unit
+
+    override fun addMediaItems(index: Int, mediaItems: MutableList<MediaItem>) = Unit
 }
