@@ -618,7 +618,10 @@ internal fun LibraryScreen(state: AppState) {
         val local = rememberLast(library.openLocalPlaylist?.takeIf { "local:${it.id}" == shown })
         when {
             shown.startsWith("playlist:") -> service?.let {
-                PlaylistScreen(it, library.openPlaylistLoading, library.openPlaylistError, library.notice, library.noticeIsProblem, state)
+                // An artist has a page of their own, not a playlist's.
+                val artist = library.openArtist?.takeIf { _ -> library.openPlaylist?.playlistKey == it.playlistKey }
+                if (artist != null) ArtistScreen(it, artist, library.openPlaylistLoading, library.openPlaylistError, state)
+                else PlaylistScreen(it, library.openPlaylistLoading, library.openPlaylistError, library.notice, library.noticeIsProblem, state)
             }
             shown.startsWith("local:") -> local?.let { LocalPlaylistScreen(it, library.notice, services, state) }
             else -> LibraryList(library, downloads, services, state)
@@ -988,11 +991,23 @@ internal fun TrackMenuButton(
             )
             // The artist's page on the service the song came from: YouTube Music's artist, the SoundCloud profile.
             if (opensArtist(track)) {
-                DropdownMenuItem(
-                    text = { Text("Go to ${track.artists.firstOrNull()?.name ?: track.artistLine}", maxLines = 1) },
-                    leadingIcon = { Icon(Glyph.ACCOUNT_CIRCLE.image, null) },
-                    onClick = { state.openArtistOf(track); open = false },
-                )
+                // Each artist of a song made by several -- "ODESZA, Theodore Shapiro" -- has their own page to go to.
+                val artists = track.artists.filter { it.name.isNotBlank() }.distinctBy { it.name }.take(4)
+                if (artists.size > 1) {
+                    artists.forEach { artist ->
+                        DropdownMenuItem(
+                            text = { Text("Go to ${artist.name}", maxLines = 1) },
+                            leadingIcon = { Icon(Glyph.ACCOUNT_CIRCLE.image, null) },
+                            onClick = { state.openArtist(artist, track); open = false },
+                        )
+                    }
+                } else {
+                    DropdownMenuItem(
+                        text = { Text("Go to ${artists.firstOrNull()?.name ?: track.artistLine}", maxLines = 1) },
+                        leadingIcon = { Icon(Glyph.ACCOUNT_CIRCLE.image, null) },
+                        onClick = { state.openArtistOf(track); open = false },
+                    )
+                }
             }
             if (likes.supports(track)) {
                 val liked = likes.isLiked(track)

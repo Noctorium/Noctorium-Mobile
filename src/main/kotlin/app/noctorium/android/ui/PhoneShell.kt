@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -213,6 +214,24 @@ fun NoctoriumPhone(state: AppState) {
      */
     var nowPlayingOpen by remember { mutableStateOf(ui.destination == Destination.NOW_PLAYING) }
     var signingInTo by remember { mutableStateOf<ProviderType?>(null) }
+
+    /*
+     * An artist opened from Now playing -- their name under the song -- is a page in the library, under the sheet: the
+     * sheet steps aside for it, and comes back once the artist is closed, as Back from anywhere goes back to where it was.
+     */
+    var artistOverNowPlaying by remember { mutableStateOf(false) }
+    LaunchedEffect(library.openArtist?.name, library.openArtist?.provider) {
+        if (library.openArtist != null && nowPlayingOpen) {
+            artistOverNowPlaying = true
+            nowPlayingOpen = false
+        }
+    }
+    LaunchedEffect(library.openPlaylist == null) {
+        if (library.openPlaylist == null && artistOverNowPlaying) {
+            artistOverNowPlaying = false
+            nowPlayingOpen = true
+        }
+    }
 
     /*
      * Back means "up one level", in the order things were opened.

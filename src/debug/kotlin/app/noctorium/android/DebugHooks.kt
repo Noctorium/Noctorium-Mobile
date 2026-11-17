@@ -93,6 +93,19 @@ class DebugHooks : BroadcastReceiver() {
                     boostMeasuring = main.launch { measureBoost(application, file, levels, volume, seconds) }
                 }
             }
+            // An artist's page, as pressing their name under a song opens it: --es provider YOUTUBE_MUSIC --es name
+            // "Daft Punk", and --es song <the song's address> for the SoundCloud profile it is under.
+            OPEN_ARTIST -> {
+                val provider = intent.getStringExtra("provider")?.let { name -> app.noctorium.domain.ProviderType.entries.firstOrNull { it.name == name } }
+                val name = intent.getStringExtra("name")?.trim()?.takeIf(String::isNotEmpty)
+                if (provider == null || name == null) {
+                    Log.w(TAG, "OPEN_ARTIST needs --es provider and --es name")
+                } else {
+                    val artist = app.noctorium.domain.Artist("${provider.name}:$name", name, provider)
+                    val song = intent.getStringExtra("song")?.let { url -> app.noctorium.domain.Track(provider, url, name, listOf(artist), sourceUrl = url) }
+                    main.launch { application.state.openArtist(artist, song) }
+                }
+            }
             else -> Log.w(TAG, "Unknown: ${intent.action}")
         }
     }
@@ -232,6 +245,7 @@ class DebugHooks : BroadcastReceiver() {
         private const val CONNECT_ADD = "app.noctorium.debug.CONNECT_ADD"
         private const val CONNECT_PROBE = "app.noctorium.debug.CONNECT_PROBE"
         private const val BOOST_MEASURE = "app.noctorium.debug.BOOST_MEASURE"
+        private const val OPEN_ARTIST = "app.noctorium.debug.OPEN_ARTIST"
 
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
