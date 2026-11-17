@@ -411,6 +411,7 @@ internal fun SingAlongNowPlaying(screen: NowPlaying) {
                     fontSize = 13.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.opensArtistOf(screen.track, screen.state),
                 )
             }
         }
@@ -492,6 +493,7 @@ private fun BigType(screen: NowPlaying, modifier: Modifier) {
                 fontWeight = FontWeight.Medium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.opensArtistOf(screen.track, screen.state),
             )
         }
     }

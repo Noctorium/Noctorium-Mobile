@@ -566,7 +566,10 @@ private fun pageCards(
         "tidal" to { TidalCard(settings, state) },
         "tidal-app" to { TidalAppCard(settings, state) },
     )
-    SettingsPage.SEARCH -> listOf("hybrid" to { HybridSearchCard(settings, state) })
+    SettingsPage.SEARCH -> listOf(
+        "hybrid" to { HybridSearchCard(settings, state) },
+        "links-in-search" to { LinksInSearchCard(settings, state) },
+    )
     SettingsPage.PHONE -> listOf(
         "keep-playing" to { KeepPlayingCard() },
         "keep-alive" to { KeepAliveCard(settings, state) },
@@ -1255,6 +1258,27 @@ internal fun HybridSearchCard(settings: app.noctorium.settings.SettingsState, st
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 4.dp),
         )
+    }
+}
+
+/** Whether a music link pasted into Search plays at once, with no need for the Link page. Off until switched on. */
+@Composable
+internal fun LinksInSearchCard(settings: app.noctorium.settings.SettingsState, state: AppState) {
+    SettingsCardShell(anchor = SettingIds.LINKS_IN_SEARCH) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                CardHeading(Glyph.SEARCH.image, "Play links pasted into Search")
+                Text(
+                    "A YouTube, YouTube Music, SoundCloud, Spotify or other music link pasted into the search box plays at " +
+                        "once, with no need for the Link page. Off: a link is searched for like anything else.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            SkinnedSwitch(settings.preferences.playLinksFromSearch, state::setPlayLinksFromSearch)
+        }
     }
 }
 

@@ -47,18 +47,24 @@ import app.noctorium.radio.RadioCountry
  */
 
 /** The glyph each kind is drawn with: a note for songs, a set for stations. */
-internal fun SearchKind.glyph(): Glyph = if (this == SearchKind.RADIO) Glyph.RADIO else Glyph.MUSIC_NOTE
+internal fun SearchKind.glyph(): Glyph = when (this) {
+    SearchKind.RADIO -> Glyph.RADIO
+    SearchKind.ARTISTS -> Glyph.ACCOUNT_CIRCLE
+    SearchKind.MUSIC -> Glyph.MUSIC_NOTE
+}
 
 /** What each kind of search finds, under its name in the menu. */
 internal fun SearchKind.about(): String = when (this) {
     SearchKind.MUSIC -> "Songs, artists and albums from your services"
     SearchKind.RADIO -> "Live stations from every country"
+    SearchKind.ARTISTS -> "Artists, each opening their page on their service"
 }
 
 /** What the search box asks for, for each kind. */
 internal fun SearchKind.placeholder(): String = when (this) {
     SearchKind.MUSIC -> "Songs, albums and artists"
     SearchKind.RADIO -> "Stations, cities or genres"
+    SearchKind.ARTISTS -> "An artist's name"
 }
 
 /**

@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
+import app.noctorium.domain.isArtistPage
 import app.noctorium.domain.HomeSection
 import app.noctorium.domain.pageUrl
 import app.noctorium.domain.pluralTracks
@@ -570,7 +571,7 @@ internal fun SearchScreen(state: AppState) {
                 if (releases.isNotEmpty()) {
                     item(key = "search:releases") {
                         PlaylistCarousel(
-                            "Albums and artists",
+                            if (releases.all { it.isArtistPage() }) "Artists" else "Albums and artists",
                             servicesNamed(releases.map { it.provider }),
                             releases,
                             state,
@@ -985,6 +986,14 @@ internal fun TrackMenuButton(
                 leadingIcon = { Icon(Glyph.QUEUE_MUSIC.image, null) },
                 onClick = { state.addToQueue(track); open = false },
             )
+            // The artist's page on the service the song came from: YouTube Music's artist, the SoundCloud profile.
+            if (opensArtist(track)) {
+                DropdownMenuItem(
+                    text = { Text("Go to ${track.artists.firstOrNull()?.name ?: track.artistLine}", maxLines = 1) },
+                    leadingIcon = { Icon(Glyph.ACCOUNT_CIRCLE.image, null) },
+                    onClick = { state.openArtistOf(track); open = false },
+                )
+            }
             if (likes.supports(track)) {
                 val liked = likes.isLiked(track)
                 DropdownMenuItem(

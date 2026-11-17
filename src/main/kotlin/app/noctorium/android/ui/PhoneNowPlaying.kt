@@ -477,6 +477,7 @@ internal fun TrackHeading(screen: NowPlaying, title: Boolean = true, centred: Bo
                 fontSize = 14.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.opensArtistOf(track, screen.state),
             )
         }
         if (screen.onSpotify) OnSpotifyLine(spotifyDeviceName(screen.settings.spotify), Modifier.padding(top = 4.dp))

@@ -173,6 +173,7 @@ internal object SettingIds {
     const val TIDAL_SIGN_IN = "tidal-sign-in"
     const val TIDAL_APP = "tidal-app"
     const val HYBRID_SEARCH = "hybrid-search"
+    const val LINKS_IN_SEARCH = "links-in-search"
     const val KEEP_PLAYING = "keep-playing"
     const val KEEP_ALIVE = "keep-alive"
     const val KEEP_SCREEN_ON = "keep-screen-on"
@@ -651,6 +652,12 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "The services the Hybrid chip on Search asks at once.",
         listOf("search all services", "which services", "search sources", "all services"),
         stores = listOf("hybridSearch"),
+    ),
+    PhoneSetting(
+        SettingIds.LINKS_IN_SEARCH, "Play links pasted into Search", SettingsPage.SEARCH, "links-in-search",
+        "A music link pasted into the search box plays at once, with no need for the Link page.",
+        listOf("paste link", "link in search", "play link", "url", "links page"),
+        stores = listOf("playLinksFromSearch"),
     ),
     // This phone
     PhoneSetting(

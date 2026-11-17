@@ -5,6 +5,7 @@ import app.noctorium.net.retryingTransientFailures
 import app.noctorium.playback.AddressVerdict
 import app.noctorium.playback.AudioAddressCache
 import app.noctorium.playback.checkAudioAddress
+import app.noctorium.playback.soundCloudRefusal
 import app.noctorium.domain.Album
 import app.noctorium.domain.Artist
 import app.noctorium.domain.Playlist
@@ -348,9 +349,12 @@ class NewPipeBackend(
             artworkUrl = runCatching { extractor.thumbnails.lastOrNull()?.url }.getOrNull(),
         )
         val stream = chooseAudioStream(attempt("read the streams of $sourceUrl") { extractor.audioStreams }, smallest = small)
-            ?: throw BackendException(
-                "No audio stream came back for this track. It may be unavailable in your region.",
-            )
+            ?: throw if (providerOf(sourceUrl) == ProviderType.SOUNDCLOUD) {
+                // SoundCloud lists only locked streams for a DRM track, and none of them is one the player can read.
+                BackendException("SoundCloud locks this track, so it only plays in SoundCloud's own app.", unavailableHere = true)
+            } else {
+                BackendException("No audio stream came back for this track. It may be unavailable in your region.")
+            }
         stream.content
     }
 
@@ -479,7 +483,31 @@ class NewPipeBackend(
         // The reason, not the address. What reaches the player bar has room for a few words, and leading
         // with the URL spent all of them before saying anything: a Go+ track reported itself as
         // "Could not resolve https://soundcloud.com/nir…", which names neither the problem nor the fix.
-        throw BackendException(explain(error), error)
+        val refusal = soundCloudRefusalOf(error, what)
+        throw BackendException(refusal ?: explain(error), error, unavailableHere = refusal != null)
+    }
+
+    /**
+     * Why SoundCloud itself will not play a track here, when that is what [error] was: locked tracks come back as
+     * "Could not get any stream" and removed ones as a client id that could not be read, which say nothing to a
+     * listener. Marked as the service's refusal, so the same song can be played from YouTube Music instead.
+     */
+    private fun soundCloudRefusalOf(error: Throwable, what: String): String? {
+        if ("soundcloud.com" !in what) return null
+        return when (error) {
+            is org.schabi.newpipe.extractor.exceptions.SoundCloudGoPlusContentException ->
+                "This is a SoundCloud Go+ track, so only subscribers can hear it on SoundCloud."
+            is org.schabi.newpipe.extractor.exceptions.GeographicRestrictionException ->
+                "SoundCloud does not offer this track in your country."
+            is org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException ->
+                "This track is no longer on SoundCloud."
+            is org.schabi.newpipe.extractor.exceptions.ExtractionException -> when {
+                error.message.orEmpty().contains("any stream", ignoreCase = true) ->
+                    "SoundCloud locks this track, so it only plays in SoundCloud's own app."
+                else -> soundCloudRefusal(error.message.orEmpty())
+            }
+            else -> null
+        }
     }
 
     /**
