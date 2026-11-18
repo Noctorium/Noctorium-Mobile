@@ -356,6 +356,24 @@ internal fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
             )
         }
 
+        SettingAnchor(SettingIds.HOME_LAYOUT) {
+            ChoiceRow("Home layout") {
+                app.noctorium.settings.HomeLayout.entries.forEach { layout ->
+                    SkinnedFilterChip(
+                        selected = preferences.homeLayout == layout,
+                        onClick = { state.setHomeLayout(layout) },
+                        label = { Text(layout.displayName, fontSize = 11.sp) },
+                    )
+                }
+            }
+            Text(
+                preferences.homeLayout.description + " More layouts are on their way.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
+
         SettingAnchor(SettingIds.CARD_SIZE) {
             ChoiceRow("Card size") {
                 CardSize.entries.forEach { size ->

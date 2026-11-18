@@ -351,7 +351,7 @@ class NewPipeBackend(
         val stream = chooseAudioStream(attempt("read the streams of $sourceUrl") { extractor.audioStreams }, smallest = small)
             ?: throw if (providerOf(sourceUrl) == ProviderType.SOUNDCLOUD) {
                 // SoundCloud lists only locked streams for a DRM track, and none of them is one the player can read.
-                BackendException("SoundCloud locks this track, so it only plays in SoundCloud's own app.", unavailableHere = true)
+                BackendException("SoundCloud would not hand over this track's audio: it may be locked to SoundCloud's own app.", unavailableHere = true)
             } else {
                 BackendException("No audio stream came back for this track. It may be unavailable in your region.")
             }
@@ -503,7 +503,7 @@ class NewPipeBackend(
                 "This track is no longer on SoundCloud."
             is org.schabi.newpipe.extractor.exceptions.ExtractionException -> when {
                 error.message.orEmpty().contains("any stream", ignoreCase = true) ->
-                    "SoundCloud locks this track, so it only plays in SoundCloud's own app."
+                    "SoundCloud would not hand over this track's audio: it may be locked to SoundCloud's own app."
                 else -> soundCloudRefusal(error.message.orEmpty())
             }
             else -> null

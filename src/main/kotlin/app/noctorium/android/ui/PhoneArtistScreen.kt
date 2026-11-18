@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
@@ -49,14 +50,27 @@ import coil.compose.AsyncImage
 @Composable
 internal fun ArtistScreen(playlist: Playlist, artist: ArtistDetails, loading: Boolean, error: String?, state: AppState) {
     val playback by state.playback.collectAsState()
+    val settings by state.settings.collectAsState()
     ScreenScaffold {
         Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(state::closePlaylist) { Icon(Glyph.ARROW_BACK.image, "Back") }
         }
         LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
+            // Always an item, so a banner arriving later grows at the top rather than above where the list is held.
+            item(key = "artist:banner") {
+                artist.banner?.let { banner ->
+                    AsyncImage(
+                        banner,
+                        null,
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(150.dp).clip(RoundedCornerShape(18.dp)),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
             item(key = "artist:head") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    ArtistPicture(artist.picture, playlist.tracks, Modifier.size(150.dp))
+                    ArtistPicture(artist.picture ?: artist.banner, playlist.tracks, Modifier.size(if (artist.banner != null) 112.dp else 150.dp))
                     Spacer(Modifier.height(14.dp))
                     Text("ARTIST", color = MaterialTheme.colorScheme.primary, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Text(
@@ -71,7 +85,7 @@ internal fun ArtistScreen(playlist: Playlist, artist: ArtistDetails, loading: Bo
                         listOfNotNull(
                             "On ${artist.provider.displayName}",
                             playlist.tracks.size.takeIf { it > 0 && !loading }?.let { if (it == 1) "1 song" else "$it songs" },
-                            artist.followers?.let { "${followers(it)} followers" },
+                            artist.followersLine,
                         ).joinToString("  ·  "),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
@@ -104,7 +118,25 @@ internal fun ArtistScreen(playlist: Playlist, artist: ArtistDetails, loading: Bo
                         }
                     }
                     Spacer(Modifier.height(18.dp))
-                    Text("Songs", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
+                }
+            }
+            // Their most played first, then their albums and playlists row by row, then the rest of their songs.
+            val popular = if (loading) 0 else artist.popular.coerceAtMost(playlist.tracks.size)
+            if (popular > 0) {
+                item(key = "artist:popular") { ArtistHeading("Popular") }
+                itemsIndexed(playlist.tracks.take(popular), key = { _, track -> "popular:" + track.queueKey }) { index, track ->
+                    NumberedTrack(index, track, playlist, state, playback.track?.queueKey == track.queueKey)
+                }
+            }
+            artist.sections.forEach { section ->
+                item(key = "artist:section:" + section.id) {
+                    PlaylistCarousel(section.title, null, section.playlists, state, settings.preferences)
+                }
+            }
+            val rest = playlist.tracks.drop(popular)
+            if (popular == 0 || rest.isNotEmpty()) item(key = "artist:songs") {
+                Box(Modifier.padding(top = if (popular > 0 || artist.sections.isNotEmpty()) 16.dp else 0.dp)) {
+                    ArtistHeading(if (popular > 0) "More songs" else "Songs")
                 }
             }
             when {
@@ -119,23 +151,32 @@ internal fun ArtistScreen(playlist: Playlist, artist: ArtistDetails, loading: Bo
                 playlist.tracks.isEmpty() -> item(key = "artist:empty") {
                     EmptyNote("Nothing to play", "${artist.provider.displayName} has no songs by ${artist.name} to play.")
                 }
-                else -> itemsIndexed(playlist.tracks, key = { _, track -> track.queueKey }) { index, track ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "${index + 1}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.End,
-                            modifier = Modifier.width(30.dp),
-                        )
-                        Box(Modifier.weight(1f)) {
-                            TrackRow(track, state, isCurrent = playback.track?.queueKey == track.queueKey) {
-                                state.playPlaylist(playlist.copy(tracks = playlist.tracks), track)
-                            }
-                        }
-                    }
+                else -> itemsIndexed(rest, key = { _, track -> track.queueKey }) { index, track ->
+                    NumberedTrack(index, track, playlist, state, playback.track?.queueKey == track.queueKey)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ArtistHeading(title: String) {
+    Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp))
+}
+
+/** A song on an artist's page, with its place in the list before it; tapped, their page plays from it. */
+@Composable
+private fun NumberedTrack(index: Int, track: Track, playlist: Playlist, state: AppState, current: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "${index + 1}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(30.dp),
+        )
+        Box(Modifier.weight(1f)) {
+            TrackRow(track, state, isCurrent = current) { state.playPlaylist(playlist, track) }
         }
     }
 }

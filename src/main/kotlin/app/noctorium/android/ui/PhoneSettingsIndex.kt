@@ -114,6 +114,7 @@ internal object SettingIds {
     const val TEXT_SIZE = "text-size"
     const val TYPEFACE = "typeface"
     const val CARD_SIZE = "card-size"
+    const val HOME_LAYOUT = "home-layout"
     const val SERVICE_BADGES = "service-badges"
     const val OPENS_ON = "opens-on"
     const val ANIMATIONS = "animations"
@@ -268,6 +269,12 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         "The letters everything is set in.",
         listOf("font", "serif", "monospace", "typography", "lettering"),
         stores = listOf("font"),
+    ),
+    PhoneSetting(
+        SettingIds.HOME_LAYOUT, "Home layout", SettingsPage.TEXT_AND_LAYOUT, "text",
+        "How Home is laid out: Classic, with more layouts to come.",
+        listOf("home style", "home design", "layouts", "home page look"),
+        stores = listOf("homeLayout"),
     ),
     PhoneSetting(
         SettingIds.CARD_SIZE, "Card size", SettingsPage.TEXT_AND_LAYOUT, "text",

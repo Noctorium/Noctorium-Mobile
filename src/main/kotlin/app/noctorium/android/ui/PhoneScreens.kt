@@ -42,6 +42,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import app.noctorium.core.AppState
 import app.noctorium.core.Destination
 import app.noctorium.domain.isArtistPage
+import app.noctorium.domain.isLikedCollection
 import app.noctorium.domain.HomeSection
 import app.noctorium.domain.pageUrl
 import app.noctorium.domain.pluralTracks
@@ -161,7 +167,23 @@ internal fun HomeScreen(state: AppState) {
             }
         }
 
-        LazyColumn(contentPadding = chromePadding(24.dp)) {
+        // Pulled down at the top, Home shows a search bar above its rows -- the phone's Ctrl+F.
+        val homeList = androidx.compose.foundation.lazy.rememberLazyListState()
+        var searching by remember { mutableStateOf(false) }
+        val pull = rememberPullToSearch(homeList) { searching = true }
+        // No stretch at the top: Android's takes a pull past the top for itself, leaving none for the bar.
+        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.LocalOverscrollConfiguration provides null) {
+        LazyColumn(Modifier.nestedScroll(pull), state = homeList, contentPadding = chromePadding(24.dp)) {
+            item(key = "home:search") {
+                androidx.compose.animation.AnimatedVisibility(
+                    searching,
+                    enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+                ) {
+                    HomeSearchBar(state) { searching = false }
+                }
+            }
             item {
                 // Scrolls sideways rather than squeezing: with a fourth service the last chip was crushed
                 // into a tall empty pill on a narrow phone.
@@ -241,6 +263,7 @@ internal fun HomeScreen(state: AppState) {
                     )
                 }
             }
+        }
         }
     }
 }
@@ -417,7 +440,7 @@ private fun playlistServices(state: AppState): List<ProviderType> {
  * It is drawn round and says "Artist", so it is not mistaken for one record of theirs.
  */
 @Composable
-private fun PlaylistCarousel(
+internal fun PlaylistCarousel(
     title: String,
     subtitle: String?,
     playlists: List<Playlist>,
@@ -474,6 +497,176 @@ private fun PlaylistCarousel(
         }
     }
 }
+
+/**
+ * A service's liked songs as the library heads them: a wide card in the theme's colours, a heart, the collection's name
+ * as the service calls it -- Liked Music, Liked tracks, Liked Songs -- and whose it is.
+ */
+@Composable
+private fun LikedCard(playlist: Playlist, open: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 5.dp)
+            .height(84.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(scheme.primary.copy(alpha = .9f), scheme.tertiary.copy(alpha = .6f), scheme.primaryContainer)))
+            .clickable(onClick = open),
+    ) {
+        Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(scheme.onPrimary.copy(alpha = .18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Glyph.FAVORITE.image, null, Modifier.size(28.dp), tint = scheme.onPrimary)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(playlist.title, color = scheme.onPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    listOfNotNull(playlist.provider.displayName, playlist.trackCount?.let(::pluralTracks)).joinToString(" · "),
+                    color = scheme.onPrimary.copy(alpha = .85f),
+                    fontSize = 12.sp,
+                )
+            }
+            Icon(Glyph.PLAY_ARROW.image, null, Modifier.size(24.dp), tint = scheme.onPrimary.copy(alpha = .9f))
+        }
+    }
+}
+
+/**
+ * Home's pull: a drag down with Home already at its top, past [PULL_TO_SEARCH], calls [reveal]. Only a finger's own
+ * drag counts -- a fling that runs into the top is not a pull.
+ */
+@Composable
+internal fun rememberPullToSearch(list: androidx.compose.foundation.lazy.LazyListState, reveal: () -> Unit): NestedScrollConnection {
+    val threshold = with(androidx.compose.ui.platform.LocalDensity.current) { PULL_TO_SEARCH.toPx() }
+    val onReveal by androidx.compose.runtime.rememberUpdatedState(reveal)
+    return remember(list, threshold) {
+        object : NestedScrollConnection {
+            var pulled = 0f
+
+            // Whether the list has run into its top: scroll was left over going down. Android's stretch then takes
+            // every further pull itself, so from there the pull is counted before the list sees it.
+            var atTop = false
+
+            fun add(amount: Float) {
+                pulled += amount
+                if (pulled >= threshold) {
+                    pulled = 0f
+                    atTop = false
+                    onReveal()
+                }
+            }
+
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput) return Offset.Zero
+                if (available.y < 0f) pulled = 0f
+                else if (atTop && available.y > 0f) add(available.y)
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput) return Offset.Zero
+                // Scroll left over going down is a list already at its top. (Not canScrollBackward: the bar's own
+                // item is empty while hidden, and an empty first item is not counted as the first one seen.)
+                if (consumed.y != 0f) atTop = false
+                if (available.y > 0f && !atTop) {
+                    atTop = true
+                    add(available.y)
+                }
+                return Offset.Zero
+            }
+
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                pulled = 0f
+                atTop = false
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+        }
+    }
+}
+
+/** How far Home is pulled down, at its top, to show its search bar. */
+private val PULL_TO_SEARCH = 64.dp
+
+/**
+ * The search bar a pull shows on Home: typing searches as the Search page does, the first songs (or stations,
+ * artists and playlists, by the kind chosen) are listed under it to play or open, and "All results" goes to Search.
+ */
+@Composable
+private fun HomeSearchBar(state: AppState, close: () -> Unit) {
+    val ui by state.ui.collectAsState()
+    val playback by state.playback.collectAsState()
+    var text by remember { mutableStateOf("") }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        OutlinedTextField(
+            text,
+            { typed ->
+                text = typed
+                state.search(typed)
+            },
+            placeholder = { Text(ui.searchKind.placeholder(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(ui.searchKind.glyph().image, null, Modifier.size(20.dp)) },
+            trailingIcon = {
+                IconButton({
+                    keyboard?.hide()
+                    close()
+                }) { Icon(Glyph.CLOSE.image, "Close search") }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
+                keyboard?.hide()
+                state.navigate(Destination.SEARCH)
+            }),
+            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+        )
+        val current = ui.searchQuery == text && text.isNotBlank()
+        if (current && ui.searchLoading && ui.searchResults.tracks.isEmpty() && ui.searchResults.playlists.isEmpty() && ui.radioStations.isEmpty()) {
+            androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
+        }
+        if (current) {
+            when (ui.searchKind) {
+                SearchKind.MUSIC -> ui.searchResults.tracks.take(HOME_SEARCH_RESULTS).forEach { track ->
+                    TrackRow(track, state, isCurrent = playback.track?.queueKey == track.queueKey) {
+                        keyboard?.hide()
+                        state.playFromSearch(track, ui.searchResults.tracks)
+                    }
+                }
+                SearchKind.RADIO -> ui.radioStations.take(HOME_SEARCH_RESULTS).forEach { station ->
+                    TrackRow(station, state, isCurrent = playback.track?.queueKey == station.queueKey) {
+                        keyboard?.hide()
+                        state.playStation(station)
+                    }
+                }
+                SearchKind.ARTISTS, SearchKind.PLAYLISTS -> ui.searchResults.playlists.distinctBy { it.playlistKey }.take(HOME_SEARCH_RESULTS).forEach { playlist ->
+                    PlaylistRow(
+                        title = playlist.title,
+                        detail = listOfNotNull(playlist.ownerName.takeIf { !playlist.isArtistPage() }, playlist.provider.displayName).joinToString(" · "),
+                        artworkUrl = playlist.artworkUrl,
+                    ) {
+                        keyboard?.hide()
+                        state.openPlaylist(playlist)
+                        state.navigate(Destination.LIBRARY)
+                    }
+                }
+            }
+            androidx.compose.material3.TextButton({
+                keyboard?.hide()
+                state.navigate(Destination.SEARCH)
+            }) { Text("All results") }
+        }
+    }
+}
+
+/** How many results the bar a pull shows lists before "All results". */
+private const val HOME_SEARCH_RESULTS = 5
 
 private fun HomeSection.matches(filter: ProviderFilter): Boolean = filter.matches(provider)
 
@@ -567,6 +760,19 @@ internal fun SearchScreen(state: AppState) {
                 // Why, when a service said: a search VK refused is not one where nothing matched.
                 ui.errorMessage ?: signInFirst ?: "Nothing matched \"${ui.searchQuery}\".",
             )
+            // A Playlists search: one row each, with whose it is and where from.
+            ui.searchKind == SearchKind.PLAYLISTS -> LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
+                items(releases.distinctBy { it.playlistKey }, key = { it.playlistKey }) { playlist ->
+                    PlaylistRow(
+                        title = playlist.title,
+                        detail = listOfNotNull(playlist.ownerName, playlist.provider.displayName, playlist.trackCount?.let(::pluralTracks)).joinToString(" · "),
+                        artworkUrl = playlist.artworkUrl,
+                    ) {
+                        state.openPlaylist(playlist)
+                        state.navigate(Destination.LIBRARY)
+                    }
+                }
+            }
             else -> LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
                 if (releases.isNotEmpty()) {
                     item(key = "search:releases") {
@@ -667,6 +873,10 @@ private fun LibraryList(
         }
 
         LazyColumn(Modifier.skinList(), contentPadding = chromePadding(24.dp)) {
+            // Each service's liked songs first, as wide cards of their own: what is opened most, found first.
+            library.playlists.filter { it.isLikedCollection() }.forEach { liked ->
+                item(key = "liked:" + liked.playlistKey) { LikedCard(liked) { state.openPlaylist(liked) } }
+            }
             if (downloads.entries.isNotEmpty() || downloads.active.isNotEmpty()) {
                 item { DownloadsCard(downloads, state) }
             }
@@ -726,7 +936,7 @@ private fun LibraryList(
                         }
                     }
                     item { SectionHeading("From your accounts") }
-                    items(library.playlists, key = { it.playlistKey }) { playlist ->
+                    items(library.playlists.filterNot { it.isLikedCollection() }, key = { it.playlistKey }) { playlist ->
                         PlaylistRow(
                             title = playlist.title,
                             // An album or an artist saved on Deezer, Tidal or Apple Music says so, among the playlists.
