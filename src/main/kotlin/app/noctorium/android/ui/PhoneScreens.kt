@@ -604,6 +604,15 @@ private fun HomeSearchBar(state: AppState, close: () -> Unit) {
     androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        // Where the bar searches and what it looks for, as two small menus: the services (Hybrid, YouTube Music,
+        // SoundCloud...) and Music, Radio, Artists or Playlists. Radio has its stations from everywhere, so no service.
+        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (ui.searchKind != SearchKind.RADIO) {
+                SearchModePill(ui.searchMode, state::setSearchMode)
+                Spacer(Modifier.width(8.dp))
+            }
+            SearchKindPill(ui.searchKind, state::setSearchKind)
+        }
         OutlinedTextField(
             text,
             { typed ->
@@ -661,6 +670,39 @@ private fun HomeSearchBar(state: AppState, close: () -> Unit) {
                 keyboard?.hide()
                 state.navigate(Destination.SEARCH)
             }) { Text("All results") }
+        }
+    }
+}
+
+/** Which services a search asks, as a small menu: Hybrid, YouTube Music, SoundCloud and the rest. */
+@Composable
+internal fun SearchModePill(mode: SearchMode, choose: (SearchMode) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val accent = MaterialTheme.colorScheme.primary
+    Box {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { open = true }
+                .padding(start = 4.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Glyph.SEARCH.image, null, Modifier.size(14.dp), tint = accent)
+            Spacer(Modifier.width(4.dp))
+            Text(mode.displayName, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = accent)
+            Icon(Glyph.EXPAND_MORE.image, "Which services", Modifier.size(16.dp), tint = accent)
+        }
+        DropdownMenu(open, { open = false }) {
+            SearchMode.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.displayName, fontWeight = if (option == mode) FontWeight.SemiBold else FontWeight.Normal) },
+                    onClick = {
+                        open = false
+                        choose(option)
+                    },
+                    trailingIcon = { if (option == mode) Icon(Glyph.CHECK.image, null, tint = accent) },
+                )
+            }
         }
     }
 }

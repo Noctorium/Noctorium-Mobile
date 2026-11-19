@@ -777,6 +777,7 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
  */
 internal val NOT_PHONE_SETTINGS: Map<String, String> = mapOf(
     "shadowPicture" to "A secret, kept out of search: only the code in Experimental shows it.",
+    "setupDone" to "Not a setting: whether the first-time setup has been finished or skipped, which it sets itself.",
     "playerBarStyle" to "The desktop's player bar; the phone's is phone.playerBarStyle.",
     "hoverControls" to "Controls that appear under a pointer: a phone has no pointer.",
     "backgroundDepth" to "The desktop window's background.",

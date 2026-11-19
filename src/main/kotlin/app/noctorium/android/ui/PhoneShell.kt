@@ -215,6 +215,16 @@ fun NoctoriumPhone(state: AppState) {
     var nowPlayingOpen by remember { mutableStateOf(ui.destination == Destination.NOW_PLAYING) }
     var signingInTo by remember { mutableStateOf<ProviderType?>(null) }
 
+    // A first start: the setup, in place of everything else, until it is finished or skipped. Signing in from it
+    // finishes it and opens that service's sign-in here, as Settings would.
+    if (!settings.preferences.setupDone) {
+        PhoneFirstTimeSetup(state) { service ->
+            state.finishSetup()
+            signingInTo = service
+        }
+        return
+    }
+
     /*
      * An artist opened from Now playing -- their name under the song -- is a page in the library, under the sheet: the
      * sheet steps aside for it, and comes back once the artist is closed, as Back from anywhere goes back to where it was.
