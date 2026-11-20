@@ -632,7 +632,7 @@ private fun HomeSearchBar(state: AppState, close: () -> Unit) {
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                 keyboard?.hide()
-                state.navigate(Destination.SEARCH)
+                if (state.openSearchLink(text)) close() else state.navigate(Destination.SEARCH)
             }),
             modifier = Modifier.fillMaxWidth().focusRequester(focus),
         )
@@ -751,6 +751,9 @@ internal fun SearchScreen(state: AppState) {
                 if (ui.searchLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             },
             singleLine = true,
+            // Search on the keyboard: a link in the box plays, as the Link page would.
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { state.openSearchLink(ui.searchQuery) }),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         )
         Spacer(Modifier.height(8.dp))
