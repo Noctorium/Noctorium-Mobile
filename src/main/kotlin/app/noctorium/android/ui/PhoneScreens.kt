@@ -800,6 +800,11 @@ internal fun SearchScreen(state: AppState) {
                 "Find something",
                 signInFirst ?: "Most services answer a search without an account, so this works straight away.",
             )
+            // A link is played, not searched for: say so rather than "Nothing found" under the song it started.
+            results.isEmpty() && releases.isEmpty() && !ui.searchLoading && app.noctorium.domain.hasMusicLink(ui.searchQuery) -> EmptyNote(
+                "A music link",
+                ui.errorMessage ?: "Press Search on the keyboard to play it, if it is not playing already.",
+            )
             results.isEmpty() && releases.isEmpty() && !ui.searchLoading -> EmptyNote(
                 "Nothing found",
                 // Why, when a service said: a search VK refused is not one where nothing matched.
