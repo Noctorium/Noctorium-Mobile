@@ -694,7 +694,7 @@ private fun NoctoriumAccountCard(state: AppState) {
             Spacer(Modifier.height(8.dp))
             SkinnedOutlinedButton(state::signOutOfNoctorium) { Text("Sign out") }
         } else {
-            NoctoriumAccountForm(state, busy = account.busy)
+            NoctoriumAccountForm(state, account)
         }
         account.message?.let {
             Spacer(Modifier.height(8.dp))
@@ -743,7 +743,8 @@ internal fun CardHeading(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 }
 
 @Composable
-private fun NoctoriumAccountForm(state: AppState, busy: Boolean) {
+private fun NoctoriumAccountForm(state: AppState, account: app.noctorium.core.NoctoriumAccountState) {
+    val busy = account.busy
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -779,6 +780,21 @@ private fun NoctoriumAccountForm(state: AppState, busy: Boolean) {
             { state.signUpToNoctorium(email, password, email.substringBefore('@')) },
             enabled = !busy && email.isNotBlank() && password.isNotBlank(),
         ) { Text("Create account") }
+    }
+    Spacer(Modifier.height(12.dp))
+    val waiting = account.deviceSignIn
+    if (waiting == null) {
+        SkinnedOutlinedButton(state::startDeviceSignIn, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            Text("Sign in with Discord, Telegram or GitHub")
+        }
+    } else {
+        Text("Allow this device in the browser. Check it shows this code:", fontSize = 12.sp)
+        Text(waiting.code, fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+        Text("Waiting for you to allow it… or open ${waiting.url.substringBefore('?')} on another device and type the code.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.TextButton(state::openDeviceSignInPage) { Text("Open in browser") }
+            androidx.compose.material3.TextButton(state::cancelDeviceSignIn) { Text("Cancel") }
+        }
     }
 }
 
