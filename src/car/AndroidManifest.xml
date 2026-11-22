@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Noctorium for cars with Google built in (Android Automotive): installed on the car itself, whose own screen shows
+  Noctorium's menu through the same playback service Android Auto uses on a phone. Signing in is MainActivity's, while
+  parked.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.automotive" android:required="true" />
+    <!-- A car's screen is fixed: these must not be required, or the car will not take the app. -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+    <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+
+    <application>
+        <!-- What tells Android Automotive that Noctorium is a media app: the same description Android Auto reads. -->
+        <meta-data
+            android:name="com.android.automotive"
+            android:resource="@xml/automotive_app_desc" />
+    </application>
+</manifest>

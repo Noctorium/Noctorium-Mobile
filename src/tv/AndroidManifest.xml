@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Noctorium for TV: the TV's screens as what the home screen opens, and a TV required. Android Auto's entry, which the
+  shared playback service brings along, is taken out: a TV is never a car.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="true"
+        tools:replace="android:required" />
+
+    <application>
+        <!--
+          What Android TV's home screen opens: the TV's screens (Noctorium-Android-TV) over the same app. The banner is
+          the TV home screen's card for Noctorium. Signing in and settings are MainActivity's, which the TV's Settings opens.
+        -->
+        <activity
+            android:name=".TvActivity"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:banner="@drawable/tv_banner"
+            android:icon="@mipmap/ic_launcher"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            tools:node="remove" />
+    </application>
+</manifest>

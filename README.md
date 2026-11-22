@@ -38,8 +38,8 @@ The one APK is Noctorium for the phone, for Android Auto and for Android TV:
 JDK 21 and an Android SDK, named in `local.properties` (`sdk.dir=...`) or by `ANDROID_HOME`.
 
 ```bash
-./gradlew assembleDebug        # build/outputs/apk/debug/
-./gradlew installDebug         # onto a connected phone
+./gradlew assemblePhoneDebug   # build/outputs/apk/phone/debug/ (also assembleTvDebug, assembleCarDebug)
+./gradlew installPhoneDebug    # onto a connected phone (installTvDebug onto a TV)
 ```
 
 A debug build is signed with the debug key. It installs beside nothing and updates nothing: an APK signed
@@ -51,13 +51,13 @@ The screens can be drawn on the JVM and saved as PNGs, by Robolectric with Andro
 Roborazzi, in the app's real theme and from made-up music, so nothing goes over the network:
 
 ```bash
-./gradlew testDebugUnitTest -Pscreenshots --tests "app.noctorium.android.screenshots.*"
-./gradlew testDebugUnitTest -Pscreenshots -PscreenshotDir=/some/folder --tests "app.noctorium.android.screenshots.*"
+./gradlew testPhoneDebugUnitTest -Pscreenshots --tests "app.noctorium.android.screenshots.*"
+./gradlew testPhoneDebugUnitTest -Pscreenshots -PscreenshotDir=/some/folder --tests "app.noctorium.android.screenshots.*"
 ```
 
 They land in `build/outputs/screenshots` unless `-PscreenshotDir` says otherwise. They are opt-in: the first
 run downloads Android itself for Robolectric, and without `-Pscreenshots` neither the tests in
-`src/screenshots/` nor their libraries are part of the build, so `testDebugUnitTest` stays quick.
+`src/screenshots/` nor their libraries are part of the build, so `testPhoneDebugUnitTest` stays quick.
 
 `UnchangedScreenshots` draws every player bar, seek bar and layout there was before the Toolbar, the Slider
 and the Playlist layout, in a dark theme, a light one and the three Windows skins: drawn before a change and

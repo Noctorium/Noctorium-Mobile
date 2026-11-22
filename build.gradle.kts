@@ -58,7 +58,7 @@ val latestReleaseTag: String? = runCatching {
  * run takes a minute: the ordinary unit tests stay as quick as they were and need none of it. Without the
  * property the screenshot sources, their libraries and Robolectric's settings are not even seen.
  *
- *     ./gradlew testDebugUnitTest -Pscreenshots --tests "app.noctorium.android.screenshots.*"
+ *     ./gradlew testPhoneDebugUnitTest -Pscreenshots --tests "app.noctorium.android.screenshots.*"
  *
  * The PNGs land in build/outputs/screenshots, or wherever -PscreenshotDir=<folder> says.
  */
@@ -125,6 +125,19 @@ android {
             ((parts.getOrNull(1) ?: 0) * 100) +
             (parts.getOrNull(2) ?: 0)
         versionName = appVersion
+    }
+
+    /*
+     * Three APKs from one app: the phone (with Android Auto, which always runs from the phone), the TV, and the car --
+     * Android Automotive, a car with Google built in. One application id and one key for all three, so a device can
+     * move from one build to another as an update and keep everything; see AndroidUpdateInstaller for how a device
+     * that has the wrong one is moved to its own.
+     */
+    flavorDimensions += "device"
+    productFlavors {
+        create("phone") { dimension = "device" }
+        create("tv") { dimension = "device" }
+        create("car") { dimension = "device" }
     }
 
     buildTypes {
@@ -195,8 +208,8 @@ dependencies {
     implementation(project(":core"))
     // Android Auto: the menu the car shows, over this app's session. See Noctorium-Android-Auto.
     implementation(project(":auto"))
-    // Android TV: the screens a television opens, over this app's state. See Noctorium-Android-TV.
-    implementation(project(":tv"))
+    // Android TV: the screens a television opens, over this app's state, in the TV build only. See Noctorium-Android-TV.
+    "tvImplementation"(project(":tv"))
 
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")

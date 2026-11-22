@@ -2,6 +2,7 @@ package app.noctorium.android
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.content.FileProvider
 import app.noctorium.update.UpdateChannel
@@ -23,7 +24,26 @@ import java.nio.file.Path
  */
 class AndroidUpdateInstaller(private val context: Context) : UpdateInstaller {
 
-    override val channel: UpdateChannel = UpdateChannel.ANDROID_APK
+    /**
+     * The build this device should run, from what the device is, not from which build this is: a TV that updated
+     * itself from 0.37 or older -- when one APK was the phone, the car and the TV -- got the phone's build, and this is
+     * what brings it its own.
+     */
+    private val deviceBuild: String = context.packageManager.let { pm ->
+        when {
+            pm.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE) -> "car"
+            pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK) -> "tv"
+            else -> "phone"
+        }
+    }
+
+    override val channel: UpdateChannel = when (deviceBuild) {
+        "car" -> UpdateChannel.ANDROID_CAR_APK
+        "tv" -> UpdateChannel.ANDROID_TV_APK
+        else -> UpdateChannel.ANDROID_APK
+    }
+
+    override val wrongBuild: Boolean = BuildConfig.FLAVOR != deviceBuild
 
     override val currentVersion: Version? = Version.parse(BuildConfig.VERSION_NAME)
 

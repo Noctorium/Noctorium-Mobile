@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Noctorium for phones, with Android Auto. It also keeps a card on a TV's home screen, opening the phone's screens with
+  the remote: a TV that updated itself from 0.37 or older, when one APK was everything, lands on this build, and
+  must still be able to open Noctorium, whose updater then moves it to Noctorium for TV.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <application>
+        <activity
+            android:name=".MainActivity"
+            android:banner="@drawable/tv_banner">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

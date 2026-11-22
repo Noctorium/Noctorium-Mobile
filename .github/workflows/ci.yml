@@ -40,12 +40,12 @@ jobs:
       # The Android SDK is already on this runner and AGP finds it through ANDROID_HOME.
       # The app's own tests, and Android Auto's and Android TV's (the auto/ and tv/ submodules), with the core's.
       - name: Test the core, the app, the car and the TV, and build the debug APK
-        run: ./gradlew :core:test testDebugUnitTest assembleDebug --stacktrace
+        run: ./gradlew :core:test testPhoneDebugUnitTest assemblePhoneDebug assembleTvDebug assembleCarDebug --stacktrace
 
       - name: Keep the debug APK from this commit
         uses: actions/upload-artifact@v4
         with:
           name: noctorium-debug-apk
-          path: build/outputs/apk/debug/*.apk
+          path: build/outputs/apk/*/debug/*.apk
           if-no-files-found: error
           retention-days: 14

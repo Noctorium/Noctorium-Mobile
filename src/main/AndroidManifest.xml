@@ -90,26 +90,6 @@
         </activity>
 
         <!--
-          What Android TV's home screen opens: the TV's screens (Noctorium-Android-TV) over the same app. Listed only on a
-          TV, by its own category; a phone's launcher lists MainActivity as before. The banner is the TV home screen's
-          card for Noctorium.
-        -->
-        <activity
-            android:name=".TvActivity"
-            android:exported="true"
-            android:label="${appLabel}"
-            android:banner="@drawable/tv_banner"
-            android:icon="@mipmap/ic_launcher"
-            android:launchMode="singleTask"
-            android:screenOrientation="landscape"
-            android:configChanges="keyboard|keyboardHidden|navigation">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!--
           Lets the share sheet read a file Noctorium saved, and nothing else — see file_paths.xml. Exported
           false with per-URI grants is the shape that keeps the cookie jars beside it unreachable.
         -->

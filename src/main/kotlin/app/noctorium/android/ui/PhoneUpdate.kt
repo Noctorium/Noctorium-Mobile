@@ -42,6 +42,9 @@ internal fun UpdateCard(settings: SettingsState, state: AppState) {
         CardHeading(Glyph.SYSTEM_UPDATE_ALT.image, "Updates")
         Text(
             when {
+                // The same version offered again: this is another device's build, and this brings the device's own.
+                available != null && available.version.toString() == updates.currentVersion ->
+                    "${available.file?.name ?: "Another build"} is the Noctorium made for this device. Installing it keeps everything you have."
                 available != null -> "Noctorium ${available.version} is out. You have ${updates.currentVersion}."
                 updates.currentVersion.isBlank() -> "This build does not say which version it is."
                 else -> "You have ${updates.currentVersion}, which is the newest."
