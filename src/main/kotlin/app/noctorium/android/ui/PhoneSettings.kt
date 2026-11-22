@@ -785,7 +785,7 @@ private fun NoctoriumAccountForm(state: AppState, account: app.noctorium.core.No
     val waiting = account.deviceSignIn
     if (waiting == null) {
         SkinnedOutlinedButton(state::startDeviceSignIn, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-            Text("Sign in with Discord, Telegram or GitHub")
+            Text("Sign in with Discord or Telegram")
         }
     } else {
         Text("Allow this device in the browser. Check it shows this code:", fontSize = 12.sp)
