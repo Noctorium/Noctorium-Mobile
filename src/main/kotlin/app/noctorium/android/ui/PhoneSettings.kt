@@ -693,6 +693,8 @@ private fun NoctoriumAccountCard(state: AppState) {
             )
             Spacer(Modifier.height(8.dp))
             SkinnedOutlinedButton(state::signOutOfNoctorium) { Text("Sign out") }
+        } else if (account.verification != null) {
+            NoctoriumVerification(state, account.verification!!, account.busy)
         } else {
             NoctoriumAccountForm(state, account)
         }
@@ -739,6 +741,67 @@ internal fun CardHeading(icon: androidx.compose.ui.graphics.vector.ImageVector, 
         Icon(icon, null, Modifier.size(20.dp), tint = tint ?: MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(9.dp))
         Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+    }
+}
+
+/**
+ * Two-step verification, after the password: a code from the authenticator app, one the login bot sends on Telegram,
+ * or a backup code. With both ways on, either one this time; in strict mode, both.
+ */
+@Composable
+private fun NoctoriumVerification(state: AppState, asked: app.noctorium.account.VerificationChallenge, busy: Boolean) {
+    var chosen by remember(asked.ticket) { mutableStateOf(asked.methods.first()) }
+    var backup by remember(asked.ticket) { mutableStateOf(false) }
+    val codes = remember(asked.ticket) { androidx.compose.runtime.mutableStateMapOf<String, String>() }
+    val wanted = when {
+        backup -> listOf("backup")
+        asked.strict -> asked.stillNeeded
+        else -> listOf(chosen)
+    }
+
+    Text(
+        if (asked.strict) "Strict mode is on: this sign-in needs both codes." else "Two-step verification: enter a code to finish signing in.",
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontSize = 12.sp,
+    )
+    Spacer(Modifier.height(10.dp))
+    if (!asked.strict && asked.methods.size > 1 && !backup) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            asked.methods.forEach { way ->
+                val label = if (way == "totp") "Authenticator" else "Telegram"
+                if (chosen == way) SkinnedButton({ chosen = way }) { Text(label) } else SkinnedOutlinedButton({ chosen = way }) { Text(label) }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+    wanted.forEach { way ->
+        OutlinedTextField(
+            codes[way].orEmpty(),
+            { codes[way] = it },
+            label = { Text(when (way) { "totp" -> "Code from your authenticator app"; "telegram" -> "Code Telegram sent you"; else -> "Backup code" }) },
+            singleLine = true,
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = if (way == "backup") androidx.compose.ui.text.input.KeyboardType.Ascii else androidx.compose.ui.text.input.KeyboardType.Number,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (way == "telegram") {
+            androidx.compose.material3.TextButton(state::sendNoctoriumTelegramCode) { Text("Send me a code on Telegram") }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SkinnedButton(
+            {
+                state.verifyNoctorium(totp = codes["totp"], telegram = codes["telegram"], backup = codes["backup"])
+                codes.clear()
+            },
+            enabled = !busy && wanted.all { !codes[it].isNullOrBlank() },
+        ) { Text("Continue") }
+        SkinnedOutlinedButton(state::cancelNoctoriumVerification) { Text("Cancel") }
+    }
+    androidx.compose.material3.TextButton({ backup = !backup; codes.clear() }) {
+        Text(if (backup) "Use my app or Telegram" else "Use a backup code")
     }
 }
 
