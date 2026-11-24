@@ -308,7 +308,7 @@ internal fun TabsCard(settings: SettingsState, state: AppState) {
     SettingsCardShell {
         CardHeading(Glyph.TAB.image, "Tabs along the bottom")
         Text(
-            "Home, Queue and Settings always stay.",
+            "Home always stays, and so does Settings unless its button is on Home.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 11.sp,
             modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),

@@ -291,6 +291,7 @@ fun NoctoriumPhone(state: AppState) {
                     }
                     Destination.QUEUE -> QueueScreen(state)
                     Destination.CONNECT -> ConnectScreen(state)
+                    Destination.ACCOUNT -> AccountScreen(state)
                     // Now playing is a sheet here rather than a destination, so anything that asks for it lands on
                     // Home with the sheet open instead of on an empty screen.
                     Destination.HOME, Destination.NOW_PLAYING -> HomeScreen(state)
@@ -370,7 +371,7 @@ fun NoctoriumPhone(state: AppState) {
                                 // A hidden tab is only off the bar. Its page is still drawn when something leads
                                 // there -- a shared link opening Link, a playlist on Home opening Library -- and
                                 // simply has no tab lit while it is showing.
-                                visibleTabs(settings.preferences.phone.hiddenDestinations),
+                                visibleTabs(settings.preferences.phone.hiddenDestinations, settings.preferences.settingsButton == app.noctorium.settings.SettingsButton.HOME),
                                 state::navigate,
                             )
                         } else {
@@ -380,7 +381,7 @@ fun NoctoriumPhone(state: AppState) {
                                 state,
                                 ui.destination,
                                 settings.preferences.phone.navigationLabels,
-                                visibleTabs(settings.preferences.phone.hiddenDestinations),
+                                visibleTabs(settings.preferences.phone.hiddenDestinations, settings.preferences.settingsButton == app.noctorium.settings.SettingsButton.HOME),
                                 clock = settings.preferences.taskbarClock && (
                                     playback.track == null || barAtTop ||
                                         settings.preferences.phone.playerBarStyle != PhonePlayerBarStyle.TASKBAR
@@ -528,7 +529,7 @@ private fun BoxScope.GlassChrome(
             GlassNavigation(
                 destination,
                 settings.preferences.phone.navigationLabels,
-                visibleTabs(settings.preferences.phone.hiddenDestinations),
+                visibleTabs(settings.preferences.phone.hiddenDestinations, settings.preferences.settingsButton == app.noctorium.settings.SettingsButton.HOME),
                 state::navigate,
             )
         }
@@ -557,6 +558,7 @@ private fun Destination.tabIcon(): Glyph = when (this) {
     Destination.QUEUE -> Glyph.QUEUE_MUSIC
     Destination.CONNECT -> Glyph.DEVICES
     Destination.SETTINGS -> Glyph.SETTINGS
+    Destination.ACCOUNT -> Glyph.ACCOUNT_CIRCLE
 }
 
 /**

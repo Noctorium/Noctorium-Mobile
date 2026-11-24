@@ -134,6 +134,7 @@ internal object SettingIds {
     const val ICON_SET = "icon-set"
     const val SERVICE_BADGE_STYLE = "service-badge-style"
     const val TABS = "tabs"
+    const val SETTINGS_BUTTON = "settings-button"
     const val TAB_LABELS = "tab-labels"
     const val SWIPE_BAR = "swipe-bar"
     const val DOUBLE_TAP = "double-tap"
@@ -289,6 +290,12 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         stores = listOf("badgePolicy"),
     ),
     PhoneSetting(
+        SettingIds.SETTINGS_BUTTON, "Settings button", SettingsPage.TEXT_AND_LAYOUT, "text",
+        "On Home beside your picture, or as a tab along the bottom.",
+        listOf("settings gear", "gear", "settings tab", "cog", "settings placement"),
+        stores = listOf("settingsButton"),
+    ),
+    PhoneSetting(
         SettingIds.OPENS_ON, "Opens on", SettingsPage.TEXT_AND_LAYOUT, "text",
         "Which screen Noctorium starts on.",
         listOf("start page", "start screen", "launch screen", "first screen", "default tab"),
@@ -395,8 +402,8 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
     ),
     PhoneSetting(
         SettingIds.TABS, "Tabs along the bottom", SettingsPage.TABS, "tabs",
-        "Which of Search, Link, Library and Downloads have a tab.",
-        listOf("navigation bar", "bottom bar", "hide tabs", "search tab", "library tab", "downloads tab", "link tab"),
+        "Which of Search, Link, Library, Downloads, Queue and Connect have a tab.",
+        listOf("navigation bar", "bottom bar", "hide tabs", "search tab", "library tab", "downloads tab", "link tab", "queue tab", "hide queue"),
         stores = listOf("phone.hiddenDestinations"),
     ),
     PhoneSetting(

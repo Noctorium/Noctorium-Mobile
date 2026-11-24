@@ -81,8 +81,7 @@ internal val PHONE_TAB_ORDER: List<Destination> = listOf(
  * The tabs a listener may take off the bar.
  *
  * Not Home, which is where back leads from everywhere. Not Settings, which is the only way to put a tab
- * back. And not Queue, which on a phone is the only way to the queue: there is no queue button on the
- * player here, so hiding the tab would leave the queue with no door at all. Connect can go: somebody with
+ * back. Queue can go: the queue button on Now playing still opens it. Connect can go: somebody with
  * one device has no use for it, and the devices button and the player bar's strip still lead there.
  */
 internal val HIDEABLE_TABS: List<Destination> = listOf(
@@ -90,6 +89,7 @@ internal val HIDEABLE_TABS: List<Destination> = listOf(
     Destination.LINK,
     Destination.LIBRARY,
     Destination.DOWNLOADS,
+    Destination.QUEUE,
     Destination.CONNECT,
 )
 
@@ -100,8 +100,11 @@ internal val HIDEABLE_TABS: List<Destination> = listOf(
  * names Home or Settings cannot leave the bar with no way home or no way back to this choice. Home, Queue
  * and Settings always remain, which is never fewer than the two a bar needs to be a bar.
  */
-internal fun visibleTabs(hidden: Set<Destination>): List<Destination> =
-    PHONE_TAB_ORDER.filter { it !in HIDEABLE_TABS || it !in hidden }
+internal fun visibleTabs(hidden: Set<Destination>, settingsOnHome: Boolean = false): List<Destination> {
+    val tabs = PHONE_TAB_ORDER.filter { it !in HIDEABLE_TABS || it !in hidden }
+    // Settings leaves the bar when its button is on Home, unless that would leave Home alone there.
+    return if (settingsOnHome && tabs.size > 2) tabs - Destination.SETTINGS else tabs
+}
 
 /** What a tab is called under its icon, and beside its switch in Settings. */
 internal fun tabName(destination: Destination): String = when (destination) {
@@ -113,6 +116,7 @@ internal fun tabName(destination: Destination): String = when (destination) {
     Destination.QUEUE -> "Queue"
     Destination.CONNECT -> "Connect"
     Destination.SETTINGS -> "Settings"
+    Destination.ACCOUNT -> "Account"
 }
 
 /** Somewhere a hidden tab is still reached from, said in Settings beside the switch that hides it. */
@@ -121,6 +125,7 @@ internal fun Destination.stillReachedBy(): String = when (this) {
     Destination.LINK -> "A link shared to Noctorium from another app still opens it."
     Destination.LIBRARY -> "A playlist opened from Home still opens there."
     Destination.DOWNLOADS -> "Downloaded tracks still play with no connection wherever they turn up; this tab is the list of them."
+    Destination.QUEUE -> "The queue button on Now playing still opens it."
     Destination.CONNECT ->
         "The devices button on Now playing still leads to it, and so does the player bar while the music is on another device."
     else -> ""

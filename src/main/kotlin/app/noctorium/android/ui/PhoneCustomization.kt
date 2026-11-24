@@ -65,6 +65,7 @@ import app.noctorium.settings.ScrobbleConnectionStatus
 import app.noctorium.settings.ScrobbleServiceState
 import app.noctorium.settings.SettingsState
 import app.noctorium.settings.StartPage
+import app.noctorium.settings.SettingsButton
 import app.noctorium.settings.TimeDisplay
 
 /*
@@ -405,6 +406,18 @@ internal fun TextAndLayoutCard(settings: SettingsState, state: AppState) {
                         selected = preferences.startPage == page,
                         onClick = { state.setStartPage(page) },
                         label = { Text(page.displayName, fontSize = 11.sp) },
+                    )
+                }
+            }
+        }
+
+        SettingAnchor(SettingIds.SETTINGS_BUTTON) {
+            ChoiceRow("Settings button") {
+                SettingsButton.entries.forEach { placement ->
+                    SkinnedFilterChip(
+                        selected = preferences.settingsButton == placement,
+                        onClick = { state.setSettingsButton(placement) },
+                        label = { Text(placement.displayName, fontSize = 11.sp) },
                     )
                 }
             }

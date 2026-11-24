@@ -99,8 +99,11 @@ internal fun ScreenTitle(
     action: @Composable (() -> Unit)? = null,
     /** Something small beside the title itself, as the search's Music / Radio switch is. */
     beside: @Composable (() -> Unit)? = null,
+    /** Something before the title, as Home's profile picture is. */
+    leading: @Composable (() -> Unit)? = null,
 ) {
     if (LocalSkin.current != ThemeSkin.STANDARD) {
+        leading?.let { Box(Modifier.padding(start = 16.dp, top = 8.dp)) { it() } }
         SkinScreenTitle(title, subtitle, close, action)
         beside?.let { Box(Modifier.padding(start = 16.dp)) { it() } }
         return
@@ -109,6 +112,10 @@ internal fun ScreenTitle(
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        leading?.let {
+            it()
+            Spacer(Modifier.width(12.dp))
+        }
         Column(Modifier.weight(1f)) {
             if (beside == null) {
                 Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -157,14 +164,18 @@ internal fun HomeScreen(state: AppState) {
     ScreenScaffold {
         // Without the greeting the page is still a page and still needs its reload, so it keeps a plain
         // title rather than losing the row.
+        // The profile picture top-left, opening the account; the Settings button top-right when it lives on Home.
+        val actions: @Composable () -> Unit = {
+            IconButton({ state.refreshHome() }) { Icon(Glyph.REFRESH.image, "Reload") }
+            if (preferences.settingsButton == app.noctorium.settings.SettingsButton.HOME) {
+                IconButton({ state.navigate(Destination.SETTINGS) }) { Icon(Glyph.SETTINGS.image, "Settings") }
+            }
+        }
+        val picture: @Composable () -> Unit = { AccountPicture(state, 36.dp) { state.navigate(Destination.ACCOUNT) } }
         if (HomePart.GREETING in hidden) {
-            ScreenTitle("Home") {
-                IconButton({ state.refreshHome() }) { Icon(Glyph.REFRESH.image, "Reload") }
-            }
+            ScreenTitle("Home", action = actions, leading = picture)
         } else {
-            ScreenTitle(greeting(), "What is on, and what you were listening to") {
-                IconButton({ state.refreshHome() }) { Icon(Glyph.REFRESH.image, "Reload") }
-            }
+            ScreenTitle(greeting(), "What is on, and what you were listening to", action = actions, leading = picture)
         }
 
         // Pulled down at the top, Home shows a search bar above its rows -- the phone's Ctrl+F.

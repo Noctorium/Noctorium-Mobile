@@ -180,9 +180,18 @@ class PhoneLayoutChoicesTest {
     }
 
     @Test
-    fun `Home, Queue and Settings stay even when a settings file names them`() {
+    fun `Home and Settings stay even when a settings file names them`() {
         val tabs = visibleTabs(Destination.entries.toSet())
-        assertEquals(listOf(Destination.HOME, Destination.QUEUE, Destination.SETTINGS), tabs)
+        assertEquals(listOf(Destination.HOME, Destination.SETTINGS), tabs)
+    }
+
+    @Test
+    fun `with the Settings button on Home, Settings leaves the bar unless Home would be alone`() {
+        assertEquals(
+            listOf(Destination.HOME, Destination.QUEUE),
+            visibleTabs(HIDEABLE_TABS.toSet() - Destination.QUEUE, settingsOnHome = true),
+        )
+        assertEquals(listOf(Destination.HOME, Destination.SETTINGS), visibleTabs(Destination.entries.toSet(), settingsOnHome = true))
     }
 
     /** Every combination there is, so no file can leave a bar of one tab or none. */
@@ -198,9 +207,9 @@ class PhoneLayoutChoicesTest {
     }
 
     @Test
-    fun `only Search, Link, Library, Downloads and Connect can be hidden`() {
+    fun `only Search, Link, Library, Downloads, Queue and Connect can be hidden`() {
         assertEquals(
-            setOf(Destination.SEARCH, Destination.LINK, Destination.LIBRARY, Destination.DOWNLOADS, Destination.CONNECT),
+            setOf(Destination.SEARCH, Destination.LINK, Destination.LIBRARY, Destination.DOWNLOADS, Destination.QUEUE, Destination.CONNECT),
             HIDEABLE_TABS.toSet(),
         )
         HIDEABLE_TABS.forEach { assertTrue(it.stillReachedBy().isNotBlank(), "$it should say where it is still reached from") }

@@ -232,7 +232,7 @@ private fun SettingsHome(
             }
         }
         item {
-            val tabs = visibleTabs(preferences.phone.hiddenDestinations).size
+            val tabs = visibleTabs(preferences.phone.hiddenDestinations, preferences.settingsButton == app.noctorium.settings.SettingsButton.HOME).size
             SettingsTile(
                 SettingsPage.TABS.glyph.image,
                 "Tabs",
@@ -679,7 +679,7 @@ private fun serviceSummary(
 }
 
 @Composable
-private fun NoctoriumAccountCard(state: AppState) {
+internal fun NoctoriumAccountCard(state: AppState) {
     val account by state.account.collectAsState()
     SettingsCardShell(anchor = SettingIds.ACCOUNT) {
         CardHeading(Glyph.INSIGHTS.image, "Noctorium account")
