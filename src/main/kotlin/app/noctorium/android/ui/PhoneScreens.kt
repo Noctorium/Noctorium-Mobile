@@ -108,10 +108,8 @@ internal fun ScreenTitle(
         beside?.let { Box(Modifier.padding(start = 16.dp)) { it() } }
         return
     }
-    // Beside a picture and buttons the subtitle would wrap into a chunky block, so it goes under the whole row.
-    val subtitleBelow = leading != null
     Row(
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = if (subtitleBelow && subtitle != null) 0.dp else 8.dp),
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.let {
@@ -128,19 +126,11 @@ internal fun ScreenTitle(
                     beside()
                 }
             }
-            if (!subtitleBelow) subtitle?.let {
+            subtitle?.let {
                 Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
         }
         action?.invoke()
-    }
-    if (subtitleBelow) subtitle?.let {
-        Text(
-            it,
-            Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp, bottom = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-        )
     }
 }
 
@@ -185,7 +175,8 @@ internal fun HomeScreen(state: AppState) {
         if (HomePart.GREETING in hidden) {
             ScreenTitle("Home", action = actions, leading = picture)
         } else {
-            ScreenTitle(greeting(), "What is on, and what you were listening to", action = actions, leading = picture)
+            // The subtitle is not in the bar: beside the picture and buttons it wrapped into a chunky block.
+            ScreenTitle(greeting(), action = actions, leading = picture)
         }
 
         // Pulled down at the top, Home shows a search bar above its rows -- the phone's Ctrl+F.
@@ -203,6 +194,16 @@ internal fun HomeScreen(state: AppState) {
                     exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
                 ) {
                     HomeSearchBar(state) { searching = false }
+                }
+            }
+            if (HomePart.GREETING !in hidden) {
+                item(key = "home:subtitle") {
+                    Text(
+                        "What is on, and what you were listening to",
+                        Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                    )
                 }
             }
             item {
