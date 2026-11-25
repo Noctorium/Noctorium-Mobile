@@ -394,13 +394,12 @@ private fun ClassicNowPlaying(screen: NowPlaying, old: Boolean) {
 }
 
 /**
- * The foot of the screen: a handle and what is up next, which a swipe up -- or a tap -- opens into the queue.
+ * The foot of the screen: a handle, which a swipe up -- or a tap -- opens into the queue.
  * Not there when the queue button is put away in the player's buttons, which is the listener saying no queue here.
  */
 @Composable
 private fun UpNextHandle(screen: NowPlaying) {
     if (!showsPlayerButton(screen.hidden, PlayerButton.QUEUE) || LocalInSkinWindow.current) return
-    val next = screen.queue.upNext.firstOrNull()
     var dragged by remember { mutableStateOf(0f) }
     val open = rememberUpdatedState(screen.openQueue)
     Column(
@@ -421,7 +420,8 @@ private fun UpNextHandle(screen: NowPlaying) {
                     },
                 )
             }
-            .padding(top = 4.dp, bottom = 10.dp),
+            // Room round the bar for a thumb, now the bar is all there is.
+            .padding(top = 12.dp, bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
@@ -429,17 +429,6 @@ private fun UpNextHandle(screen: NowPlaying) {
                 .size(width = 36.dp, height = 4.dp)
                 .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f), RoundedCornerShape(2.dp)),
         )
-        Spacer(Modifier.height(8.dp))
-        Text("Up next", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        if (next != null) {
-            Text(
-                next.title,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
     }
 }
 
@@ -657,16 +646,24 @@ internal fun ToolsRow(screen: NowPlaying, speed: Boolean = true, spread: Boolean
             }
         }
         if (spread) {
-            // With the speed gone up top: the like takes its edge, the menu the middle, the volume the other edge.
-            like(Modifier.align(Alignment.CenterStart))
-            Box(Modifier.align(Alignment.Center)) { TrackMenuButton(track, state) }
+            // With the speed gone up top: the menu and the queue take one edge, the like and the volume the other.
+            Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically) {
+                TrackMenuButton(track, state)
+                if (showsPlayerButton(hidden, PlayerButton.QUEUE)) {
+                    IconButton(screen.openQueue) { Icon(Glyph.QUEUE_MUSIC.image, "Queue", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+            }
+            Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+                like(Modifier)
+                if (showsPlayerButton(hidden, PlayerButton.VOLUME)) VolumeButton(screen.playback, state)
+            }
         } else {
             Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
                 like(Modifier)
                 TrackMenuButton(track, state)
             }
         }
-        if (showsPlayerButton(hidden, PlayerButton.VOLUME)) {
+        if (!spread && showsPlayerButton(hidden, PlayerButton.VOLUME)) {
             VolumeButton(screen.playback, state, Modifier.align(Alignment.CenterEnd))
         }
     }
