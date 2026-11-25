@@ -5,6 +5,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import app.noctorium.android.ui.NoctoriumPhone
@@ -60,6 +63,24 @@ class NewPlayerScreenshots {
         compose.shootPhone(screenshotFolder, "old-player", laid(PhoneNowPlayingLayout.OLD_CLASSIC), playing = Still.nowPlaying) { _, state ->
             NowPlayingScreen(state) {}
         }
+    }
+
+    /** A swipe up on the cover, nowhere near the handle, opens the queue. */
+    @Test
+    fun swipeUpForQueue() {
+        Covers.install(ApplicationProvider.getApplicationContext())
+        compose.shootPhone(
+            screenshotFolder,
+            "new-player-swipe-up",
+            laid(PhoneNowPlayingLayout.CLASSIC),
+            playing = Still.nowPlaying,
+            then = {
+                compose.onRoot().performTouchInput { swipeUp(startY = centerY, endY = centerY - 400f) }
+                compose.waitForIdle()
+                compose.mainClock.advanceTimeBy(1_000)
+                compose.onNodeWithContentDescription("Back to the song").assertExists()
+            },
+        ) { _, state -> NowPlayingScreen(state) {} }
     }
 
     @Test

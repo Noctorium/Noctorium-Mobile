@@ -358,7 +358,7 @@ internal class NowPlaying(
  */
 @Composable
 private fun ClassicNowPlaying(screen: NowPlaying, old: Boolean) {
-    NowPlayingColumn {
+    NowPlayingColumn(if (old) Modifier else Modifier.swipeUpForQueue(screen)) {
         NowPlayingTopBar(screen, speedOnTop = !old, queueButton = old)
 
         /*
@@ -400,26 +400,11 @@ private fun ClassicNowPlaying(screen: NowPlaying, old: Boolean) {
 @Composable
 private fun UpNextHandle(screen: NowPlaying) {
     if (!showsPlayerButton(screen.hidden, PlayerButton.QUEUE) || LocalInSkinWindow.current) return
-    var dragged by remember { mutableStateOf(0f) }
     val open = rememberUpdatedState(screen.openQueue)
     Column(
         Modifier
             .fillMaxWidth()
             .clickable(onClickLabel = "Open the queue") { open.value() }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragStart = { dragged = 0f },
-                    onVerticalDrag = { change, amount ->
-                        dragged += amount
-                        // A short flick up is enough: the handle is small and the thumb is already moving.
-                        if (dragged < -24.dp.toPx()) {
-                            change.consume()
-                            dragged = 0f
-                            open.value()
-                        }
-                    },
-                )
-            }
             // Room round the bar for a thumb, now the bar is all there is.
             .padding(top = 12.dp, bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -432,16 +417,40 @@ private fun UpNextHandle(screen: NowPlaying) {
     }
 }
 
+/**
+ * A swipe up anywhere on the player opens the queue. What scrolls or drags itself -- the lyrics, the seek bar --
+ * takes its own swipes first, so this only gets the ones nothing under the finger wanted.
+ */
+@Composable
+private fun Modifier.swipeUpForQueue(screen: NowPlaying): Modifier {
+    if (!showsPlayerButton(screen.hidden, PlayerButton.QUEUE) || LocalInSkinWindow.current) return this
+    var dragged by remember { mutableStateOf(0f) }
+    val open = rememberUpdatedState(screen.openQueue)
+    return pointerInput(Unit) {
+        detectVerticalDragGestures(
+            onDragStart = { dragged = 0f },
+            onVerticalDrag = { change, amount ->
+                dragged += amount
+                if (dragged < -48.dp.toPx()) {
+                    change.consume()
+                    dragged = Float.POSITIVE_INFINITY // once per swipe
+                    open.value()
+                }
+            },
+        )
+    }
+}
+
 /** The column every layout but the full cover is laid out in: clear of the system bars, with a margin each side. */
 @Composable
-internal fun NowPlayingColumn(content: @Composable ColumnScope.() -> Unit) {
+internal fun NowPlayingColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     // In a skin's window the window has taken the system bars already, and its frame is the margin.
     if (LocalInSkinWindow.current) {
-        Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 8.dp), content = content)
+        Column(modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 8.dp), content = content)
         return
     }
     Column(
-        Modifier
+        modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.navigationBars))
             .padding(horizontal = 24.dp),
