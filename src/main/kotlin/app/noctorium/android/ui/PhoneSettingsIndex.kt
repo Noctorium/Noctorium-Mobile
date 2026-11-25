@@ -110,6 +110,7 @@ internal object SettingIds {
     const val THEME = "theme"
     const val ACCENT = "accent"
     const val SURFACES = "surfaces"
+    const val TRACK_MENU = "track-menu"
     const val CORNERS = "corners"
     const val TEXT_SIZE = "text-size"
     const val TYPEFACE = "typeface"
@@ -249,9 +250,9 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
     ),
     PhoneSetting(
         SettingIds.SURFACES, "Surfaces", SettingsPage.THEME, "colour",
-        "Solid panels, or liquid glass that bends what scrolls beneath it.",
-        listOf("glass", "liquid glass", "blur", "translucent", "transparency"),
-        stores = listOf("surfaceStyle"),
+        "Solid or liquid glass, for the buttons and for the page behind them apart.",
+        listOf("glass", "liquid glass", "blur", "translucent", "transparency", "button surfaces", "background surfaces", "wash"),
+        stores = listOf("surfaceStyle", "backgroundSurface"),
     ),
     PhoneSetting(
         SettingIds.CORNERS, "Corners", SettingsPage.THEME, "colour",
@@ -351,9 +352,15 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
     ),
     PhoneSetting(
         SettingIds.NOW_PLAYING_LAYOUT, "Now playing layout", SettingsPage.NOW_PLAYING, "now-playing",
-        "Classic, Full cover, Record, Cover flow, Sing along, Big type or Playlist.",
-        listOf("full screen player", "cover flow", "record", "vinyl", "big type", "sing along", "playlist", "table"),
+        "Noctorium, Old default, Full cover, Record, Cover flow, Sing along, Big type or Playlist.",
+        listOf("full screen player", "classic", "old default", "cover flow", "record", "vinyl", "big type", "sing along", "playlist", "table"),
         stores = listOf("phone.nowPlayingLayout"),
+    ),
+    PhoneSetting(
+        SettingIds.TRACK_MENU, "Song menu", SettingsPage.NOW_PLAYING, "now-playing",
+        "A song's menu as a sheet up from the bottom, or the old drop-down.",
+        listOf("track menu", "three dots", "more options", "context menu", "bottom sheet", "old menu"),
+        stores = listOf("phone.trackMenuStyle"),
     ),
     PhoneSetting(
         SettingIds.COVER_SHAPE, "Cover shape", SettingsPage.NOW_PLAYING, "now-playing",

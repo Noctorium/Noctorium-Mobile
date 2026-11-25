@@ -270,6 +270,26 @@ private fun DrawScope.drawGlassFace(radius: Float, tint: Color) {
     )
 }
 
+/** Whether the buttons are glass, for the controls inside the page that dress to match: the search boxes. */
+val LocalGlassButtons = compositionLocalOf { false }
+
+/**
+ * A search box's glass, when the buttons are glass: the pane's tint, sheen and rim, and its shadow.
+ *
+ * Without the lens. The box is inside the content the panes record, and a pane in there drawing that recording would
+ * be drawing itself; the face alone still reads as the same glass as the bars floating over it.
+ */
+@Composable
+fun Modifier.glassField(radius: Dp): Modifier {
+    if (!LocalGlassButtons.current) return this
+    val tint = MaterialTheme.colorScheme.surfaceContainer
+    val shape = RoundedCornerShape(radius)
+    return this
+        .shadow(10.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = .30f), spotColor = Color.Black.copy(alpha = .40f))
+        .clip(shape)
+        .drawBehind { drawGlassFace(radius.toPx(), tint) }
+}
+
 /**
  * The page behind the content under glass: the cover that is playing, blurred and pulled most of the way
  * back toward the theme's own background.

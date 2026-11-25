@@ -272,7 +272,8 @@ internal fun ColourCard(settings: SettingsState, state: AppState) {
         }
 
         SettingAnchor(SettingIds.SURFACES) {
-            ChoiceRow("Surfaces") {
+            // The buttons and the page apart, so glass buttons can float over a solid page or solid ones over the wash.
+            ChoiceRow("Button surfaces") {
                 SurfaceStyle.entries.forEach { style ->
                     SkinnedFilterChip(
                         selected = preferences.surfaceStyle == style,
@@ -282,7 +283,25 @@ internal fun ColourCard(settings: SettingsState, state: AppState) {
                 }
             }
             Text(
-                preferences.surfaceStyle.description,
+                if (preferences.surfaceStyle.isGlass) "The player, the tabs and the search box float as glass, bending what scrolls beneath them."
+                else "The player, the tabs and the search box in the theme's own colours.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+            val background = preferences.backgroundSurface ?: preferences.surfaceStyle
+            ChoiceRow("Background surfaces") {
+                SurfaceStyle.entries.forEach { style ->
+                    SkinnedFilterChip(
+                        selected = background == style,
+                        onClick = { state.setBackgroundSurface(style) },
+                        label = { Text(style.displayName, fontSize = 11.sp) },
+                    )
+                }
+            }
+            Text(
+                if (background.isGlass) "The page takes the colour of the cover playing, blurred, for the glass to bend."
+                else "The page in the theme's own colour.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(bottom = 10.dp),
@@ -533,6 +552,24 @@ internal fun NowPlayingLookCard(settings: SettingsState, state: AppState) {
             NowPlayingPicker(preferences.phone.nowPlayingLayout) { layout -> state.updatePhone { copy(nowPlayingLayout = layout) } }
             Text(
                 preferences.phone.nowPlayingLayout.description,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
+
+        SettingAnchor(SettingIds.TRACK_MENU) {
+            ChoiceRow("Song menu") {
+                app.noctorium.settings.TrackMenuStyle.entries.forEach { style ->
+                    SkinnedFilterChip(
+                        selected = preferences.phone.trackMenuStyle == style,
+                        onClick = { state.updatePhone { copy(trackMenuStyle = style) } },
+                        label = { Text(style.displayName, fontSize = 11.sp) },
+                    )
+                }
+            }
+            Text(
+                preferences.phone.trackMenuStyle.description,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 modifier = Modifier.padding(bottom = 10.dp),

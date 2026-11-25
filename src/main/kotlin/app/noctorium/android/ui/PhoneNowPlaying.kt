@@ -17,6 +17,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -156,7 +158,8 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
     )
     val laidOut: @Composable () -> Unit = {
         when (layout) {
-            PhoneNowPlayingLayout.CLASSIC -> ClassicNowPlaying(screen)
+            PhoneNowPlayingLayout.CLASSIC -> ClassicNowPlaying(screen, old = false)
+            PhoneNowPlayingLayout.OLD_CLASSIC -> ClassicNowPlaying(screen, old = true)
             PhoneNowPlayingLayout.FULL_COVER -> FullCoverNowPlaying(screen)
             PhoneNowPlayingLayout.RECORD -> RecordNowPlaying(screen)
             PhoneNowPlayingLayout.COVER_FLOW -> CoverFlowNowPlaying(screen)
@@ -346,11 +349,17 @@ internal class NowPlaying(
     }
 }
 
-/** The screen as it has always been: the cover, then the track, the seek bar and the controls. */
+/**
+ * The cover, then the track, the seek bar and the controls.
+ *
+ * The default has the speed beside the sleep timer and the lyrics along the top, the like, the menu and the volume
+ * spread under the controls, and no queue button: the queue is a swipe up from the foot. The [old] default, kept for
+ * anyone who wants it, has the speed under the controls and the queue as a button along the top.
+ */
 @Composable
-private fun ClassicNowPlaying(screen: NowPlaying) {
+private fun ClassicNowPlaying(screen: NowPlaying, old: Boolean) {
     NowPlayingColumn {
-        NowPlayingTopBar(screen)
+        NowPlayingTopBar(screen, speedOnTop = !old, queueButton = old)
 
         /*
          * fillMaxWidth is what makes the centring mean anything.
@@ -379,7 +388,58 @@ private fun ClassicNowPlaying(screen: NowPlaying) {
         Spacer(Modifier.height(14.dp))
         NowPlayingSeekbar(screen)
         TransportRow(screen)
-        ToolsRow(screen)
+        ToolsRow(screen, speed = old, spread = !old)
+        if (!old) UpNextHandle(screen)
+    }
+}
+
+/**
+ * The foot of the screen: a handle and what is up next, which a swipe up -- or a tap -- opens into the queue.
+ * Not there when the queue button is put away in the player's buttons, which is the listener saying no queue here.
+ */
+@Composable
+private fun UpNextHandle(screen: NowPlaying) {
+    if (!showsPlayerButton(screen.hidden, PlayerButton.QUEUE) || LocalInSkinWindow.current) return
+    val next = screen.queue.upNext.firstOrNull()
+    var dragged by remember { mutableStateOf(0f) }
+    val open = rememberUpdatedState(screen.openQueue)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = "Open the queue") { open.value() }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragStart = { dragged = 0f },
+                    onVerticalDrag = { change, amount ->
+                        dragged += amount
+                        // A short flick up is enough: the handle is small and the thumb is already moving.
+                        if (dragged < -24.dp.toPx()) {
+                            change.consume()
+                            dragged = 0f
+                            open.value()
+                        }
+                    },
+                )
+            }
+            .padding(top = 4.dp, bottom = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .size(width = 36.dp, height = 4.dp)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f), RoundedCornerShape(2.dp)),
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Up next", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        if (next != null) {
+            Text(
+                next.title,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -402,7 +462,7 @@ internal fun NowPlayingColumn(content: @Composable ColumnScope.() -> Unit) {
 
 /** The way down, what the screen is showing, and the buttons about the listening rather than the song. */
 @Composable
-internal fun NowPlayingTopBar(screen: NowPlaying) {
+internal fun NowPlayingTopBar(screen: NowPlaying, speedOnTop: Boolean = false, queueButton: Boolean = true) {
     // A skin's window has these on its title bar and its toolbar instead.
     if (LocalInSkinWindow.current) return
     val connect = screen.connect
@@ -420,6 +480,7 @@ internal fun NowPlayingTopBar(screen: NowPlaying) {
         if (showsPlayerButton(hidden, PlayerButton.DEVICES, inUse = connect.target != null)) {
             DevicesButton(screen.state, screen.haptics, screen.openConnect)
         }
+        if (speedOnTop) SpeedButtonFor(screen)
         if (showsPlayerButton(hidden, PlayerButton.SLEEP_TIMER, inUse = sleepTimer != null)) {
             SleepTimerButton(screen.state, screen.haptics)
         }
@@ -428,9 +489,22 @@ internal fun NowPlayingTopBar(screen: NowPlaying) {
                 Text(if (screen.showLyrics) "♪" else "Aa", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
-        if (showsPlayerButton(hidden, PlayerButton.QUEUE)) {
+        if (queueButton && showsPlayerButton(hidden, PlayerButton.QUEUE)) {
             IconButton(screen.openQueue) { Icon(Glyph.QUEUE_MUSIC.image, "Queue") }
         }
+    }
+}
+
+/**
+ * The speed button, where it belongs: not for a song Spotify is playing, which plays at Spotify's own speed whatever
+ * is set here, and put away only while the speed is normal, so a song is never quietly playing fast with no button to
+ * say so. Nor for another device's song: the speed is this phone's, and goes with the music nowhere.
+ */
+@Composable
+private fun SpeedButtonFor(screen: NowPlaying, modifier: Modifier = Modifier) {
+    val speed = screen.settings.preferences.playbackSpeed
+    if (!screen.onSpotify && !screen.remote && showsPlayerButton(screen.hidden, PlayerButton.SPEED, inUse = speed != 1f)) {
+        SpeedButton(speed, screen.state, modifier)
     }
 }
 
@@ -558,7 +632,7 @@ internal fun TransportRow(screen: NowPlaying) {
 
 /** The speed, the like and the song's menu, and the volume. */
 @Composable
-internal fun ToolsRow(screen: NowPlaying) {
+internal fun ToolsRow(screen: NowPlaying, speed: Boolean = true, spread: Boolean = false) {
     val likes by screen.state.likes.collectAsState()
     val state = screen.state
     val track = screen.track
@@ -568,21 +642,12 @@ internal fun ToolsRow(screen: NowPlaying) {
     // kind; out at the edge, under the end of the seek bar, it is plainly its own. The speed is not
     // about the track either, and takes the other edge.
     Box(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-        // Not for a song Spotify is playing, which plays at Spotify's own speed whatever is set here; and put away
-        // only while the speed is normal, so a song is never quietly playing fast with no button to say so.
-        // Nor for another device's song: the speed is this phone's, and goes with the music nowhere.
-        val speed = screen.settings.preferences.playbackSpeed
-        if (!screen.onSpotify && !screen.remote && showsPlayerButton(hidden, PlayerButton.SPEED, inUse = speed != 1f)) {
-            SpeedButton(screen.settings.preferences.playbackSpeed, state, Modifier.align(Alignment.CenterStart))
-        }
-        Row(
-            Modifier.align(Alignment.Center),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        if (speed) SpeedButtonFor(screen, Modifier.align(Alignment.CenterStart))
+        val like: @Composable (Modifier) -> Unit = { modifier ->
             if (likes.supports(track) && showsPlayerButton(hidden, PlayerButton.LIKE)) {
                 val liked = likes.isLiked(track)
                 // The heart pops as it fills, so a like is seen to land and not only to change colour.
-                IconButton({ state.toggleLike(track) }, Modifier.popOn(liked, pop = liked), enabled = !likes.isBusy(track)) {
+                IconButton({ state.toggleLike(track) }, modifier.popOn(liked, pop = liked), enabled = !likes.isBusy(track)) {
                     Icon(
                         if (liked) Glyph.FAVORITE.image else Glyph.FAVORITE_BORDER.image,
                         if (liked) "Remove from likes" else "Like",
@@ -590,7 +655,16 @@ internal fun ToolsRow(screen: NowPlaying) {
                     )
                 }
             }
-            TrackMenuButton(track, state)
+        }
+        if (spread) {
+            // With the speed gone up top: the like takes its edge, the menu the middle, the volume the other edge.
+            like(Modifier.align(Alignment.CenterStart))
+            Box(Modifier.align(Alignment.Center)) { TrackMenuButton(track, state) }
+        } else {
+            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                like(Modifier)
+                TrackMenuButton(track, state)
+            }
         }
         if (showsPlayerButton(hidden, PlayerButton.VOLUME)) {
             VolumeButton(screen.playback, state, Modifier.align(Alignment.CenterEnd))

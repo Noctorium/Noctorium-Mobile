@@ -42,6 +42,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -99,6 +100,7 @@ internal fun ScreenTitle(
     action: @Composable (() -> Unit)? = null,
     /** Something small beside the title itself, as the search's Music / Radio switch is. */
     beside: @Composable (() -> Unit)? = null,
+    titleSize: androidx.compose.ui.unit.TextUnit = 26.sp,
     /** Something before the title, as Home's profile picture is. */
     leading: @Composable (() -> Unit)? = null,
 ) {
@@ -118,7 +120,7 @@ internal fun ScreenTitle(
         }
         Column(Modifier.weight(1f)) {
             if (beside == null) {
-                Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text(title, fontSize = titleSize, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
@@ -127,7 +129,7 @@ internal fun ScreenTitle(
                 }
             }
             subtitle?.let {
-                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         action?.invoke()
@@ -161,6 +163,13 @@ internal fun HomeScreen(state: AppState) {
     val servicesHidden = serviceRowsAllHidden(hidden)
     val everythingHidden = servicesHidden && HomePart.PINNED in hidden && HomePart.RECENT in hidden
 
+    // Stats, from the picture's menu, in Home's place until back or its own arrow.
+    var statsOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    if (statsOpen) {
+        StatsScreen(state) { statsOpen = false }
+        return
+    }
+
     ScreenScaffold {
         // Without the greeting the page is still a page and still needs its reload, so it keeps a plain
         // title rather than losing the row.
@@ -171,12 +180,38 @@ internal fun HomeScreen(state: AppState) {
                 IconButton({ state.navigate(Destination.SETTINGS) }) { Icon(Glyph.SETTINGS.image, "Settings") }
             }
         }
-        val picture: @Composable () -> Unit = { AccountPicture(state, 36.dp) { state.navigate(Destination.ACCOUNT) } }
+        // The picture opens a small menu: the account, or the stats.
+        val picture: @Composable () -> Unit = {
+            var menu by remember { mutableStateOf(false) }
+            Box {
+                AccountPicture(state, 36.dp) { menu = true }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Account") },
+                        leadingIcon = { Icon(Glyph.ACCOUNT_CIRCLE.image, null) },
+                        onClick = { menu = false; state.navigate(Destination.ACCOUNT) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Stats") },
+                        leadingIcon = { Icon(Glyph.INSIGHTS.image, null) },
+                        onClick = { menu = false; statsOpen = true },
+                    )
+                }
+            }
+        }
         if (HomePart.GREETING in hidden) {
             ScreenTitle("Home", action = actions, leading = picture)
         } else {
-            // The subtitle is not in the bar: beside the picture and buttons it wrapped into a chunky block.
-            ScreenTitle(greeting(), action = actions, leading = picture)
+            // Your name, small enough that the subtitle fits under it without the bar turning chunky; signed
+            // out, the greeting stands in for it.
+            val user = state.account.collectAsState().value.user
+            ScreenTitle(
+                user?.displayName ?: greeting(),
+                subtitle = "What is on, and what you were listening to",
+                action = actions,
+                leading = picture,
+                titleSize = 20.sp,
+            )
         }
 
         // Pulled down at the top, Home shows a search bar above its rows -- the phone's Ctrl+F.
@@ -194,16 +229,6 @@ internal fun HomeScreen(state: AppState) {
                     exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
                 ) {
                     HomeSearchBar(state) { searching = false }
-                }
-            }
-            if (HomePart.GREETING !in hidden) {
-                item(key = "home:subtitle") {
-                    Text(
-                        "What is on, and what you were listening to",
-                        Modifier.padding(start = 20.dp, end = 20.dp, bottom = 6.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                    )
                 }
             }
             item {
@@ -651,12 +676,13 @@ private fun HomeSearchBar(state: AppState, close: () -> Unit) {
             },
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
+            colors = searchFieldColours(),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                 keyboard?.hide()
                 if (state.openSearchLink(text)) close() else state.navigate(Destination.SEARCH)
             }),
-            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            modifier = Modifier.fillMaxWidth().glassField(16.dp).focusRequester(focus),
         )
         val current = ui.searchQuery == text && text.isNotBlank()
         if (current && ui.searchLoading && ui.searchResults.tracks.isEmpty() && ui.searchResults.playlists.isEmpty() && ui.radioStations.isEmpty()) {
@@ -773,10 +799,12 @@ internal fun SearchScreen(state: AppState) {
                 if (ui.searchLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
             },
             singleLine = true,
+            shape = if (LocalGlassButtons.current) RoundedCornerShape(16.dp) else OutlinedTextFieldDefaults.shape,
+            colors = searchFieldColours(),
             // Search on the keyboard: a link in the box plays, as the Link page would.
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { state.openSearchLink(ui.searchQuery) }),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassField(16.dp),
         )
         Spacer(Modifier.height(8.dp))
 
@@ -1219,6 +1247,19 @@ private fun DownloadsCard(downloads: app.noctorium.downloads.DownloadsState, sta
     }
 }
 
+/** A search box's colours: its own outline, or under glass only a faint one while typing, the glass being the box. */
+@Composable
+private fun searchFieldColours() = if (LocalGlassButtons.current) {
+    OutlinedTextFieldDefaults.colors(
+        unfocusedBorderColor = Color.Transparent,
+        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = .55f),
+        unfocusedContainerColor = Color.Transparent,
+        focusedContainerColor = Color.Transparent,
+    )
+} else {
+    OutlinedTextFieldDefaults.colors()
+}
+
 // --- The menu every track row carries ---
 
 /**
@@ -1255,13 +1296,17 @@ internal fun TrackMenuButton(
         AddToPlaylistDialog(track, state) { addOpen = false }
     }
 
-    Box {
-        IconButton({ open = true }) {
-            Icon(Glyph.MORE_VERT.image, "Track actions", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+    // The sheet is the default; the old drop-down for anyone who asked for it back, and under the Windows themes,
+    // whose menus were drop-downs.
+    val settings by state.settings.collectAsState()
+    val sheet = settings.preferences.phone.trackMenuStyle == app.noctorium.settings.TrackMenuStyle.SHEET &&
+        LocalSkin.current == ThemeSkin.STANDARD
+    val canAddToPlaylist = playlistAccountFor(track) != null
+
+    // Every action but the sheet's three big buttons, which the sheet has as buttons rather than lines.
+    val items: @Composable () -> Unit = {
             first { open = false }
-            DropdownMenuItem(
+            if (!sheet) DropdownMenuItem(
                 text = { Text("Play next") },
                 leadingIcon = { Icon(Glyph.PLAYLIST_PLAY.image, null) },
                 onClick = { state.playNext(track); open = false },
@@ -1291,7 +1336,8 @@ internal fun TrackMenuButton(
                     )
                 }
             }
-            if (likes.supports(track)) {
+            // The sheet has the like at its head.
+            if (likes.supports(track) && !sheet) {
                 val liked = likes.isLiked(track)
                 DropdownMenuItem(
                     text = { Text(if (liked) "Remove from likes" else "Like on ${track.provider.displayName}") },
@@ -1343,7 +1389,7 @@ internal fun TrackMenuButton(
             // the dialog could add a SoundCloud track to a SoundCloud playlist perfectly well and no menu
             // ever opened it. Which is worth remembering -- changing what a screen can do and not the one
             // line that decides whether anybody reaches it leaves no trace at all.
-            if (playlistAccountFor(track) != null) {
+            if (canAddToPlaylist && !sheet) {
                 DropdownMenuItem(
                     text = { Text("Add to playlist…") },
                     leadingIcon = { Icon(Glyph.PLAYLIST_ADD.image, null) },
@@ -1361,13 +1407,101 @@ internal fun TrackMenuButton(
                 leadingIcon = { Icon(Glyph.EDIT.image, null) },
                 onClick = { open = false; editOpen = true },
             )
-            DropdownMenuItem(
+            if (!sheet) DropdownMenuItem(
                 text = { Text("Copy link") },
                 leadingIcon = { Icon(Glyph.LINK.image, null) },
                 onClick = { state.copyTrackLink(track); open = false },
             )
             last { open = false }
+    }
+
+    Box {
+        IconButton({ open = true }) {
+            Icon(Glyph.MORE_VERT.image, "Track actions", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (!sheet) {
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) { items() }
+        } else if (open) {
+            TrackMenuSheet(
+                track,
+                state,
+                close = { open = false },
+                addToPlaylist = if (canAddToPlaylist) ({ open = false; addOpen = true }) else null,
+                items = items,
+            )
+        }
+    }
+}
+
+/**
+ * A song's menu as a sheet up from the bottom: the song at the top with its like and a close, its three commonest
+ * actions as big buttons, and the rest as lines beneath them.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun TrackMenuSheet(
+    track: Track,
+    state: AppState,
+    close: () -> Unit,
+    addToPlaylist: (() -> Unit)?,
+    items: @Composable () -> Unit,
+) {
+    val likes by state.likes.collectAsState()
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = close,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
+            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Artwork(track.artworkUrl, 44.dp, corner = 6.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(track.title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        listOfNotNull(track.artistLine.ifBlank { null }, track.durationMs?.let(::formatDuration)).joinToString(" • "),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (likes.supports(track)) {
+                    val liked = likes.isLiked(track)
+                    IconButton({ state.toggleLike(track) }, enabled = !likes.isBusy(track)) {
+                        Icon(
+                            if (liked) Glyph.FAVORITE.image else Glyph.FAVORITE_BORDER.image,
+                            if (liked) "Remove from likes" else "Like",
+                            tint = if (liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+                IconButton(close) { Icon(Glyph.CLOSE.image, "Close") }
+            }
+            HorizontalDivider(Modifier.padding(top = 12.dp))
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                SheetTile(Glyph.PLAYLIST_PLAY, "Play next", Modifier.weight(1f)) { state.playNext(track); close() }
+                if (addToPlaylist != null) SheetTile(Glyph.PLAYLIST_ADD, "Save to playlist", Modifier.weight(1f), addToPlaylist)
+                SheetTile(Glyph.LINK, "Copy link", Modifier.weight(1f)) { state.copyTrackLink(track); close() }
+            }
+            items()
+        }
+    }
+}
+
+/** One of the sheet's big buttons: a rounded tile with the icon, and its name under it. */
+@Composable
+private fun SheetTile(glyph: Glyph, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.fillMaxWidth().height(64.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center,
+        ) { Icon(glyph.image, null) }
+        Spacer(Modifier.height(8.dp))
+        Text(label, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
     }
 }
 

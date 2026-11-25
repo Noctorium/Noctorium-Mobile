@@ -269,6 +269,9 @@ fun NoctoriumPhone(state: AppState) {
 
     // The Windows themes draw their own taskbar and bars, and glass is not a thing any of them had.
     val glass = settings.preferences.surfaceStyle.isGlass && LocalSkin.current == ThemeSkin.STANDARD
+    // The page behind, chosen apart from the buttons: the cover's wash, or the theme's own colour.
+    val wash = (settings.preferences.backgroundSurface ?: settings.preferences.surfaceStyle).isGlass &&
+        LocalSkin.current == ThemeSkin.STANDARD
     /*
      * The screens, movable: they sit in one place under glass and in another without it, and a change of
      * surface -- or of theme, now the Windows ones draw no glass -- carries them from one to the other keeping
@@ -302,7 +305,7 @@ fun NoctoriumPhone(state: AppState) {
     val screens: @Composable () -> Unit = { movableScreens(ui.destination, !overlaid && !nowPlayingOpen) }
     // A setting on a tab that the settings search led to: see TabSettingRequest.
     val tabSetting = remember { TabSettingRequest() }
-    CompositionLocalProvider(LocalTabSetting provides tabSetting) {
+    CompositionLocalProvider(LocalTabSetting provides tabSetting, LocalGlassButtons provides glass) {
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             // The page's light, on a Glow theme, under the screens and the bars alike: see PageGlow.
             Box(Modifier.fillMaxSize().pageGlow()) {
@@ -320,11 +323,14 @@ fun NoctoriumPhone(state: AppState) {
                     nowPlayingOpen = false
                     state.navigate(Destination.CONNECT)
                 }
+                // Solid buttons over the wash: the wash is the page, and the bars stand on it as they always do.
+                if (wash && !glass) GlassWash(playback.track?.artworkUrl)
                 if (glass) {
                     GlassChrome(
                         state = state,
                         playback = playback,
                         settings = settings,
+                        wash = wash,
                         destination = ui.destination,
                         barAtTop = barAtTop,
                         openNowPlaying = { nowPlayingOpen = true },
@@ -447,6 +453,8 @@ private fun BoxScope.GlassChrome(
     state: AppState,
     playback: PlaybackState,
     settings: app.noctorium.settings.SettingsState,
+    /** The cover's wash behind the content, or the theme's plain page for the glass to bend. */
+    wash: Boolean,
     destination: Destination,
     barAtTop: Boolean,
     openNowPlaying: () -> Unit,
@@ -465,7 +473,7 @@ private fun BoxScope.GlassChrome(
     // The panes ride on the keyboard, so what they cover then is measured with it.
     val typing = WindowInsets.ime.getBottom(density) > 0
     Box(Modifier.fillMaxSize().glassSource(backdrop)) {
-        GlassWash(playback.track?.artworkUrl)
+        GlassWash(if (wash) playback.track?.artworkUrl else null)
         Box(Modifier.fillMaxSize().padding(bottom = if (typing) with(density) { bottomCover.toDp() } else 0.dp)) {
             CompositionLocalProvider(
                 LocalChromeInsets provides with(density) {

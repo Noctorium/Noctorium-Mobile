@@ -320,7 +320,7 @@ private fun DrawScope.drawNowPlayingPlan(layout: PhoneNowPlayingLayout, c: PlanC
 
     var titleLines = true
     when (layout) {
-        PhoneNowPlayingLayout.CLASSIC -> planCover(c, 19 * u, 26 * u, 62 * u, corner = 4 * u)
+        PhoneNowPlayingLayout.CLASSIC, PhoneNowPlayingLayout.OLD_CLASSIC -> planCover(c, 19 * u, 26 * u, 62 * u, corner = 4 * u)
         PhoneNowPlayingLayout.FULL_COVER -> Unit
         PhoneNowPlayingLayout.RECORD -> planRecord(c, Offset(50 * u, 57 * u), 33 * u)
         PhoneNowPlayingLayout.COVER_FLOW -> planCoverFlow(c, u)
