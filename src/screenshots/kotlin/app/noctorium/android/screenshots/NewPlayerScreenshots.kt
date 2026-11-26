@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -78,7 +79,27 @@ class NewPlayerScreenshots {
                 compose.onRoot().performTouchInput { swipeUp(startY = centerY, endY = centerY - 400f) }
                 compose.waitForIdle()
                 compose.mainClock.advanceTimeBy(1_000)
-                compose.onNodeWithContentDescription("Back to the song").assertExists()
+                compose.onNodeWithText("Queue").assertExists()
+            },
+        ) { _, state -> NowPlayingScreen(state) {} }
+    }
+
+    /** At the first song, a pull down on the sheet's list puts it away again. */
+    @Test
+    fun pullDownClosesQueueSheet() {
+        Covers.install(ApplicationProvider.getApplicationContext())
+        compose.shootPhone(
+            screenshotFolder,
+            "new-player-pull-down",
+            laid(PhoneNowPlayingLayout.CLASSIC),
+            playing = Still.nowPlaying,
+            then = {
+                compose.onRoot().performTouchInput { swipeUp(startY = centerY, endY = centerY - 400f) }
+                compose.mainClock.advanceTimeBy(1_000)
+                compose.onNodeWithText("Queue").assertExists()
+                compose.onRoot().performTouchInput { swipeDown(startY = height * .45f, endY = height * .85f) }
+                compose.mainClock.advanceTimeBy(1_000)
+                compose.onNodeWithText("Queue").assertDoesNotExist()
             },
         ) { _, state -> NowPlayingScreen(state) {} }
     }

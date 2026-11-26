@@ -63,6 +63,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -130,6 +131,7 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
     // The queue, opened over the song from its button and closed again by back or its own close, so a look
     // at what is next never costs the screen it was looked at from.
     var queueOpen by remember { mutableStateOf(false) }
+    var queueSheetOpen by remember { mutableStateOf(false) }
 
     // Lyrics are fetched only when asked for. Eight providers get queried, and doing that for a track
     // nobody is reading along to is somebody's data spent on nothing.
@@ -153,6 +155,7 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
         toggleLyrics = { lyricsAsked = !lyricsAsked },
         openQueue = { queueOpen = true },
         close = close,
+        openQueueSheet = { queueSheetOpen = true },
         connect = connect,
         openConnect = openConnect,
     )
@@ -217,6 +220,7 @@ internal fun NowPlayingScreen(state: AppState, openConnect: () -> Unit = {}, clo
             }
         }
         QueueOverNowPlaying(queueOpen, state) { queueOpen = false }
+        QueueSheetOverNowPlaying(queueSheetOpen, playback, state) { queueSheetOpen = false }
       }
     }
 }
@@ -263,6 +267,117 @@ private fun QueueOverNowPlaying(open: Boolean, state: AppState, close: () -> Uni
             CompositionLocalProvider(LocalChromeInsets provides ChromeInsets()) {
                 Box(Modifier.fillMaxSize().pageGlow().windowInsetsPadding(WindowInsets.navigationBars)) {
                     QueueScreen(state, overNowPlaying = true, close = close)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The queue from a swipe up: the song shrinks to a small player along the top, and the queue comes up under it as a
+ * sheet. A swipe down on the small player or the sheet's handle, or on the list once it is at its first song, puts it
+ * away again, and so does back.
+ */
+@Composable
+private fun QueueSheetOverNowPlaying(open: Boolean, playback: PlaybackState, state: AppState, close: () -> Unit) {
+    BackHandler(enabled = open, onBack = close)
+    val moving = LocalMotion.current
+    AnimatedVisibility(
+        visible = open,
+        enter = if (moving) slideInVertically(tween(MotionTiming.STANDARD, easing = FastOutSlowInEasing)) { it } else EnterTransition.None,
+        exit = if (moving) slideOutVertically(tween(MotionTiming.STANDARD, easing = FastOutSlowInEasing)) { it } else ExitTransition.None,
+    ) {
+        val shut = rememberUpdatedState(close)
+        val pullToClose = with(androidx.compose.ui.platform.LocalDensity.current) { 96.dp.toPx() }
+        // What the list could not scroll, pulling down at its top, closes the sheet once it adds up.
+        val pull = remember {
+            object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                var pulled = 0f
+                override fun onPostScroll(
+                    consumed: androidx.compose.ui.geometry.Offset,
+                    available: androidx.compose.ui.geometry.Offset,
+                    source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+                ): androidx.compose.ui.geometry.Offset {
+                    if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.UserInput) return androidx.compose.ui.geometry.Offset.Zero
+                    if (available.y <= 0f) { pulled = 0f; return androidx.compose.ui.geometry.Offset.Zero }
+                    pulled += available.y
+                    if (pulled > pullToClose) {
+                        pulled = Float.NEGATIVE_INFINITY // once per pull
+                        shut.value()
+                    }
+                    return available
+                }
+
+                override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                    pulled = 0f
+                    return androidx.compose.ui.unit.Velocity.Zero
+                }
+            }
+        }
+        val swipeDownCloses = Modifier.pointerInput(Unit) {
+            var dragged = 0f
+            detectVerticalDragGestures(onDragStart = { dragged = 0f }) { change, amount ->
+                dragged += amount
+                if (dragged > 48.dp.toPx()) {
+                    change.consume()
+                    dragged = Float.NEGATIVE_INFINITY
+                    shut.value()
+                }
+            }
+        }
+        val track = playback.track
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars)) {
+                if (track != null) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(onClickLabel = "Back to the song") { shut.value() }
+                            .then(swipeDownCloses)
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Artwork(track.artworkUrl, 52.dp, corner = 6.dp)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(track.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                track.artistLine,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        PlayPauseButton(playback, state, size = 32.dp)
+                    }
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                ) {
+                    Column(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(onClickLabel = "Back to the song") { shut.value() }
+                                .then(swipeDownCloses)
+                                .padding(top = 12.dp, bottom = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(width = 36.dp, height = 4.dp)
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .5f), RoundedCornerShape(2.dp)),
+                            )
+                        }
+                        CompositionLocalProvider(LocalChromeInsets provides ChromeInsets()) {
+                            Box(Modifier.fillMaxSize().nestedScroll(pull)) {
+                                QueueScreen(state, overNowPlaying = true, sheet = true, close = close)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -328,6 +443,8 @@ internal class NowPlaying(
     /** Opens the queue over the song. */
     val openQueue: () -> Unit,
     val close: () -> Unit,
+    /** Opens the queue as a sheet under a small player, as a swipe up does. */
+    val openQueueSheet: () -> Unit = openQueue,
     /** The opt-in buttons asked for, such as Stop: see [PlayerButton.optIn]. */
     val shown: Set<PlayerButton> = emptySet(),
     /** The devices, and which this phone is driving or is driven by: see [ConnectLine]. */
@@ -400,7 +517,7 @@ private fun ClassicNowPlaying(screen: NowPlaying, old: Boolean) {
 @Composable
 private fun UpNextHandle(screen: NowPlaying) {
     if (!showsPlayerButton(screen.hidden, PlayerButton.QUEUE) || LocalInSkinWindow.current) return
-    val open = rememberUpdatedState(screen.openQueue)
+    val open = rememberUpdatedState(screen.openQueueSheet)
     Column(
         Modifier
             .fillMaxWidth()
@@ -425,7 +542,7 @@ private fun UpNextHandle(screen: NowPlaying) {
 private fun Modifier.swipeUpForQueue(screen: NowPlaying): Modifier {
     if (!showsPlayerButton(screen.hidden, PlayerButton.QUEUE) || LocalInSkinWindow.current) return this
     var dragged by remember { mutableStateOf(0f) }
-    val open = rememberUpdatedState(screen.openQueue)
+    val open = rememberUpdatedState(screen.openQueueSheet)
     return pointerInput(Unit) {
         detectVerticalDragGestures(
             onDragStart = { dragged = 0f },

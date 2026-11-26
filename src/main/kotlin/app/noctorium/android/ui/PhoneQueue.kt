@@ -64,6 +64,8 @@ import app.noctorium.settings.ThemeSkin
 internal fun QueueScreen(
     state: AppState,
     overNowPlaying: Boolean = false,
+    /** In the swipe-up sheet, which has its own way down: the handle, and a pull down at the first song. */
+    sheet: Boolean = false,
     close: () -> Unit = { state.navigate(Destination.HOME) },
 ) {
     val queue = state.playerQueue()
@@ -87,7 +89,7 @@ internal fun QueueScreen(
         ScreenTitle("Queue", remote?.let { "What is playing on ${it.name}, and what follows" } ?: "What is playing, and what follows", close = close) {
             if (queue.tracks.isNotEmpty() && remote == null) QueueMenu(queue, state) { naming = true }
             // The Windows skins put the close on the title bar; the others need it here.
-            if (overNowPlaying && LocalSkin.current == ThemeSkin.STANDARD) {
+            if (overNowPlaying && !sheet && LocalSkin.current == ThemeSkin.STANDARD) {
                 IconButton(close) { Icon(Glyph.EXPAND_MORE.image, "Back to the song") }
             }
         }
