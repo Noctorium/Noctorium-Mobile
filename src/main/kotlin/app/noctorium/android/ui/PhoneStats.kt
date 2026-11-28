@@ -34,17 +34,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.Color
+import app.noctorium.account.AccountStats
+import app.noctorium.account.StatsRange
 import app.noctorium.core.AppState
 import app.noctorium.domain.ProviderType
 import app.noctorium.domain.Track
 import app.noctorium.history.HistoryEntry
 
 /** The spans the stats count over, as the Stats app's chips have them. */
-internal enum class StatsSpan(val label: String, val days: Int?) {
-    WEEK("7 days", 7),
-    MONTH("30 days", 30),
-    YEAR("Year", 365),
-    ALL("All time", null),
+internal enum class StatsSpan(val label: String, val days: Int?, val range: StatsRange) {
+    WEEK("7 days", 7, StatsRange.WEEK),
+    MONTH("30 days", 30, StatsRange.MONTH),
+    YEAR("Year", 365, StatsRange.YEAR),
+    ALL("All time", null, StatsRange.ALL),
 }
 
 /** What the history adds up to over one span. */
@@ -86,18 +91,34 @@ internal fun listenedTime(ms: Long): String {
 }
 
 /**
- * Noctorium Stats inside Noctorium: what this phone's history adds up to, over a week, a month, a year or all of it.
+ * Noctorium Stats inside Noctorium, over a week, a month, a year or all of it.
  *
- * From the history kept on this phone, so it needs no account and sends nothing anywhere; it counts what was played
- * here, and nothing played elsewhere.
+ * Signed in to a Noctorium account, the account's own statistics: every device's listens, with the streaks and the
+ * charts Noctorium Stats has. Signed out, or with the service out of reach, what this phone's history adds up to,
+ * which needs no account and sends nothing anywhere.
  */
 @Composable
-internal fun StatsScreen(state: AppState, close: () -> Unit) {
+internal fun StatsScreen(
+    state: AppState,
+    /** Where the account's statistics come from; the account itself unless a screenshot hands them in. */
+    load: (suspend (StatsRange) -> AccountStats?)? = null,
+    close: () -> Unit,
+) {
     BackHandler(onBack = close)
     val history by state.history.collectAsState()
     val settings by state.settings.collectAsState()
     var span by rememberSaveable { mutableStateOf(StatsSpan.MONTH) }
     val stats = remember(history, span) { listeningStats(history, span) }
+    val signedIn = load != null || state.account.collectAsState().value.user != null
+    // The account's figures for the span, once they come; null while they load and when there are none to have.
+    var remote by remember { mutableStateOf<AccountStats?>(null) }
+    var asked by remember { mutableStateOf(false) }
+    LaunchedEffect(signedIn, span) {
+        remote = null
+        asked = false
+        if (signedIn) remote = (load ?: state::accountStats)(span.range)
+        asked = true
+    }
 
     ScreenScaffold {
         Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -114,6 +135,20 @@ internal fun StatsScreen(state: AppState, close: () -> Unit) {
                         SkinnedFilterChip(selected = span == option, onClick = { span = option }, label = { Text(option.label) })
                     }
                 }
+            }
+            remote?.let { full ->
+                accountItems(full)
+                return@LazyColumn
+            }
+            if (signedIn && !asked) {
+                item { StatsNote("Loading your stats…") }
+                return@LazyColumn
+            }
+            item {
+                StatsNote(
+                    if (signedIn) "Your account's stats could not be reached, so this is what was played on this phone."
+                    else "This is what was played on this phone. Sign in to your Noctorium account for your streaks, the day-by-day chart and every device's listens.",
+                )
             }
             if (!settings.preferences.keepHistory) {
                 item { StatsNote("The history is switched off, so nothing new is being counted. It is in Settings, under History.") }
@@ -163,6 +198,123 @@ internal fun StatsScreen(state: AppState, close: () -> Unit) {
 }
 
 private fun plays(count: Int) = if (count == 1) "1 play" else "$count plays"
+
+private fun days(count: Int) = if (count == 1) "1 day" else "$count days"
+
+private val WEEKDAYS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+private val PLAYED_AT = java.time.format.DateTimeFormatter.ofPattern("d MMM, HH:mm")
+
+/** The colour a service is drawn in, from the code the account records it by. */
+@Composable
+private fun serviceColour(code: String): Color =
+    runCatching { ProviderType.valueOf(code) }.getOrNull()?.badgeColour() ?: MaterialTheme.colorScheme.primary
+
+/** The account's statistics: the figures, the streaks, the charts, the tops, the split by service and the latest. */
+private fun LazyListScope.accountItems(full: AccountStats) {
+    item {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Listens", full.streams.toString(), Modifier.weight(1f))
+            StatTile("Listened", listenedTime(full.msPlayed), Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Songs", full.uniqueTracks.toString(), Modifier.weight(1f))
+            StatTile("Artists", full.artists.toString(), Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Current streak", days(full.streak.current), Modifier.weight(1f))
+            StatTile("Longest streak", days(full.streak.longest), Modifier.weight(1f))
+        }
+    }
+    if (full.streams == 0) {
+        item { StatsNote("Nothing played in this span yet. Play something on any device signed in to your account and it adds up here.") }
+        return
+    }
+    item {
+        StatsHeading(if (full.timeline.bucket == "month") "Month by month" else "Day by day")
+        StatBars(full.timeline.points.map { it.minutes }, full.timeline.points.map { "" }, height = 110.dp)
+    }
+    item {
+        StatsHeading("Hour of the day")
+        StatBars(full.hourly.map { it.minutes }, full.hourly.map { if (it.hour % 6 == 0) "${it.hour}" else "" })
+    }
+    item {
+        StatsHeading("Day of the week")
+        StatBars(full.weekdays.map { it.minutes }, full.weekdays.map { WEEKDAYS.getOrElse(it.day - 1) { "" } })
+    }
+    item { StatsHeading("Top songs") }
+    full.topTracks.forEachIndexed { i, song ->
+        item(key = "account-song:$i") {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${i + 1}", Modifier.width(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Column(Modifier.weight(1f)) {
+                    Text(song.title, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(song.artist, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text(plays(song.streams), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+        }
+    }
+    item { StatsHeading("Top artists") }
+    val most = full.topArtists.firstOrNull()?.streams ?: 1
+    full.topArtists.forEachIndexed { i, artist ->
+        item(key = "account-artist:$i") { StatBar("${i + 1}. ${artist.artist}", plays(artist.streams), artist.streams.toFloat() / most) }
+    }
+    item { StatsHeading("By service") }
+    full.byProvider.groupBy { AccountStats.providerName(it.provider) }.entries
+        .map { (name, shares) -> Triple(name, shares.first().provider, shares.sumOf { it.streams }) }
+        .sortedByDescending { it.third }
+        .forEach { (name, code, count) ->
+            item(key = "account-service:$name") {
+                StatBar(name, "${count * 100 / full.streams}%", count.toFloat() / full.streams, serviceColour(code))
+            }
+        }
+    if (full.recent.isNotEmpty()) item { StatsHeading("Recently played") }
+    full.recent.forEachIndexed { i, play ->
+        item(key = "account-recent:$i") {
+            val at = runCatching { java.time.Instant.parse(play.playedAt).atZone(java.time.ZoneId.systemDefault()).format(PLAYED_AT) }.getOrDefault("")
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(play.title, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        "${play.artist} · ${AccountStats.providerName(play.provider)}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(at, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+/** Bars as tall as their share of the tallest, side by side, with a label under each. */
+@Composable
+private fun StatBars(values: List<Int>, labels: List<String>, height: androidx.compose.ui.unit.Dp = 80.dp) {
+    val most = (values.maxOrNull() ?: 0).coerceAtLeast(1)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+        Row(Modifier.fillMaxWidth().height(height), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+            values.forEach { value ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight((value.toFloat() / most).coerceIn(0.02f, 1f))
+                        .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                        .background(MaterialTheme.colorScheme.primary),
+                )
+            }
+        }
+        if (labels.any(String::isNotEmpty)) {
+            Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                labels.forEach { label ->
+                    Text(label, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 1, softWrap = false)
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun StatsNote(text: String) {

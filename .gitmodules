@@ -8,3 +8,6 @@
 [submodule "tv"]
 	path = tv
 	url = https://github.com/Noctorium/Noctorium-Android-TV.git
+[submodule "launcher"]
+	path = launcher
+	url = https://github.com/Noctorium/Noctorium-Mp3-Like-Player-Android-Launcher-.git

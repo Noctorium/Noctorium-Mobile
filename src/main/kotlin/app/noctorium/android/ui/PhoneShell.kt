@@ -213,6 +213,8 @@ fun NoctoriumPhone(state: AppState) {
      * only moment a start page means anything.
      */
     var nowPlayingOpen by remember { mutableStateOf(ui.destination == Destination.NOW_PLAYING) }
+    // Asked for from outside these screens -- Player mode's cover -- as well as from them.
+    LaunchedEffect(ui.destination) { if (ui.destination == Destination.NOW_PLAYING) nowPlayingOpen = true }
     var signingInTo by remember { mutableStateOf<ProviderType?>(null) }
 
     // A first start: the setup, in place of everything else, until it is finished or skipped. Signing in from it

@@ -10,6 +10,27 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application>
+        <!--
+          Player mode: Noctorium as the phone's home screen (Noctorium-Mp3-Like-Player-Android-Launcher-). Switched off
+          here, so no phone is asked to choose Noctorium as its home screen; Settings › On this phone › Player mode
+          switches it on, after warning that it is for a spare phone.
+        -->
+        <activity
+            android:name=".LauncherActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:label="Noctorium Player"
+            android:launchMode="singleTask"
+            android:stateNotNeeded="true"
+            android:excludeFromRecents="true"
+            android:clearTaskOnLaunch="true"
+            android:theme="@style/Theme.Noctorium">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".MainActivity"
             android:banner="@drawable/tv_banner">

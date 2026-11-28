@@ -82,3 +82,16 @@ val tvCheckout: File = listOfNotNull(
 
 include(":tv")
 project(":tv").projectDir = File(tvCheckout, "tv")
+
+val launcherCheckout: File = listOfNotNull(
+    System.getenv("NOCTORIUM_LAUNCHER")?.takeIf { it.isNotBlank() }?.let(::file),
+    file("../Noctorium-Mp3-Like-Player-Android-Launcher-"),
+    file("launcher"),
+).firstOrNull { File(it, "launcher/build.gradle.kts").isFile }
+    ?: error(
+        "Noctorium-Mp3-Like-Player-Android-Launcher- was not found. Either check it out beside this repository, " +
+            "run `git submodule update --init` to fetch the launcher/ submodule, or set NOCTORIUM_LAUNCHER to a checkout.",
+    )
+
+include(":launcher")
+project(":launcher").projectDir = File(launcherCheckout, "launcher")

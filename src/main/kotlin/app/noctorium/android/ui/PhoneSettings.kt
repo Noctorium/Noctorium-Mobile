@@ -574,6 +574,7 @@ private fun pageCards(
         "keep-playing" to { KeepPlayingCard() },
         "keep-alive" to { KeepAliveCard(settings, state) },
         "phone" to { PhoneOptionsCard(settings, state) },
+        "player-mode" to { PlayerModeCard() },
     )
     SettingsPage.CONNECT -> listOf("connect" to { ConnectCard(settings, state) })
     SettingsPage.SAVING -> listOf("saving" to { SavingCard(settings, state) })

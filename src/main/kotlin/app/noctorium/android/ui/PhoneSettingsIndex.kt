@@ -178,6 +178,7 @@ internal object SettingIds {
     const val HYBRID_SEARCH = "hybrid-search"
     const val LINKS_IN_SEARCH = "links-in-search"
     const val KEEP_PLAYING = "keep-playing"
+    const val PLAYER_MODE = "player-mode"
     const val KEEP_ALIVE = "keep-alive"
     const val KEEP_SCREEN_ON = "keep-screen-on"
     const val WIFI_ONLY = "wifi-only"
@@ -681,6 +682,11 @@ internal val PHONE_SETTINGS: List<PhoneSetting> = listOf(
         stores = listOf("playLinksFromSearch"),
     ),
     // This phone
+    PhoneSetting(
+        SettingIds.PLAYER_MODE, "Player mode", SettingsPage.PHONE, "player-mode",
+        "Noctorium as this phone's home screen, turning a spare phone into a music player.",
+        listOf("launcher", "home screen", "mp3 player", "music player", "dedicated", "kiosk", "spare phone", "ipod"),
+    ),
     PhoneSetting(
         SettingIds.KEEP_PLAYING, "Keep playing when the phone locks", SettingsPage.PHONE, "keep-playing",
         "Letting Noctorium run in the background, so the music carries on with the screen off.",

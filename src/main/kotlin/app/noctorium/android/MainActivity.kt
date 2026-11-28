@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
         val state = (application as NoctoriumApplication).state
         // Only on a real start: a rotation recreates the activity with the same intent, and replaying the
         // link would start the song again from the top.
-        if (savedInstanceState == null) openShared(intent)
+        if (savedInstanceState == null) { openShared(intent); openFromPlayerMode(intent) }
         setContent {
             // Read live, so changing the accent or the background in Settings repaints at once rather
             // than at the next launch.
@@ -153,6 +153,28 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         openShared(intent)
+        openFromPlayerMode(intent)
+    }
+
+    /** A big button on Player mode's home screen: Noctorium opened at the place it names. */
+    private fun openFromPlayerMode(intent: Intent?) {
+        val section = intent?.getStringExtra(OPEN_FROM_PLAYER_MODE) ?: return
+        intent.removeExtra(OPEN_FROM_PLAYER_MODE)
+        val state = (application as NoctoriumApplication).state
+        state.navigate(
+            when (section) {
+                "SEARCH" -> Destination.SEARCH
+                "LIBRARY" -> Destination.LIBRARY
+                "QUEUE" -> Destination.QUEUE
+                "NOW_PLAYING" -> Destination.NOW_PLAYING
+                else -> Destination.HOME
+            },
+        )
+    }
+
+    companion object {
+        /** The extra Player mode's buttons name a place in, as a [app.noctorium.launcher.PlayerSection]'s name. */
+        const val OPEN_FROM_PLAYER_MODE = "app.noctorium.android.OPEN_FROM_PLAYER_MODE"
     }
 
     /**

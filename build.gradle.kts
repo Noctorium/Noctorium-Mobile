@@ -210,6 +210,8 @@ dependencies {
     implementation(project(":auto"))
     // Android TV: the screens a television opens, over this app's state, in the TV build only. See Noctorium-Android-TV.
     "tvImplementation"(project(":tv"))
+    // Player mode: the phone as a music player, with Noctorium as its home screen. See Noctorium-Mp3-Like-Player-Android-Launcher-.
+    "phoneImplementation"(project(":launcher"))
 
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")
